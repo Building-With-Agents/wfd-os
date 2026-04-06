@@ -1,0 +1,11 @@
+@import "tailwindcss/theme";
+@import "tailwindcss/utilities";
+
+/* Minimal reset (no Tailwind preflight — it breaks Recharts SVG) */
+*, *::before, *::after { box-sizing: border-box; margin: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; -webkit-font-smoothing: antialiased; line-height: 1.5; }
+img, svg { display: inline; }
+button, input { font: inherit; }
+
+
+
