@@ -49,5 +49,11 @@ media/
 Thumbs.db
 desktop.ini
 
+# Large data files
+*.bacpac
+*.BCP
+*.bcp
+recovered-code/bacpac/
+
 # Claude plans (local only)
 .claude/
