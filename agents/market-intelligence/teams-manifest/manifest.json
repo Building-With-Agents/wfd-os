@@ -1,0 +1,50 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "068d383c-673e-49f9-9784-6496074d4194",
+  "developer": {
+    "name": "Computing For All",
+    "websiteUrl": "https://thewaifinder.com",
+    "privacyUrl": "https://thewaifinder.com/privacy",
+    "termsOfUseUrl": "https://thewaifinder.com/terms"
+  },
+  "name": {
+    "short": "Waifinder",
+    "full": "Waifinder Market Intelligence Agent"
+  },
+  "description": {
+    "short": "Labor market intelligence powered by Lightcast data",
+    "full": "Waifinder answers real labor market questions using Lightcast job posting data. Ask about in-demand skills, hiring companies, wage trends, and how student skills match employer needs."
+  },
+  "icons": {
+    "outline": "outline.png",
+    "color": "color.png"
+  },
+  "accentColor": "#2E4057",
+  "bots": [
+    {
+      "botId": "068d383c-673e-49f9-9784-6496074d4194",
+      "scopes": ["personal", "team", "groupChat"],
+      "commandLists": [
+        {
+          "scopes": ["personal", "team", "groupChat"],
+          "commands": [
+            {
+              "title": "summary",
+              "description": "Full labor market snapshot"
+            },
+            {
+              "title": "help",
+              "description": "Show example questions"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": [
+    "acroteral-multiaxial-yadiel.ngrok-free.dev"
+  ]
+}

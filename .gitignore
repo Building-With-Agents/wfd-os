@@ -1,0 +1,53 @@
+# Secrets
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Node
+node_modules/
+.next/
+.turbo/
+
+# Output / temp
+output/
+/tmp/
+*.log
+nohup.out
+
+# Slide deck checker renders
+_check/
+slides/
+
+# Media extracted by pandoc
+media/
+
+# PDFs
+*.pdf
+
+# ngrok
+.pyngrok/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Claude plans (local only)
+.claude/
