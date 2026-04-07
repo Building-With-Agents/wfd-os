@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 
-const API_BASE = "http://localhost:8004/api"
+const API_BASE = "/api"
 
 function MetricCard({ label, value, subtitle, icon: Icon, color }: {
   label: string; value: string | number; subtitle?: string;

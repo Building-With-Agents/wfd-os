@@ -59,7 +59,7 @@ function DashboardContent() {
         setShowcase(showcaseData)
       } catch (err: any) {
         setError(
-          `Failed to load dashboard: ${err.message}. Is the API running on localhost:8001?`
+          `Failed to load dashboard: ${err.message}. API connection error. Please try again.`
         )
       } finally {
         setLoading(false)

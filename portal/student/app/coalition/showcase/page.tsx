@@ -45,7 +45,7 @@ interface FilterOption {
   count: number
 }
 
-const API_BASE = "http://localhost:8002/api"
+const API_BASE = "/api"
 
 const TRACK_LABELS: Record<string, string> = {
   ojt: "OJT Track",

@@ -14,7 +14,7 @@ import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 
-const API_BASE = "http://localhost:8003/api"
+const API_BASE = "/api"
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   scoping: { label: "Scoping", color: "text-slate-600", bg: "bg-slate-100" },
