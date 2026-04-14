@@ -133,6 +133,18 @@ All three portals modernized from existing React app discovered
 in WFD OS data. Connected to PostgreSQL via new API layer.
 Tokenized link authentication replaces any existing login system.
 
+Azure OpenAI as Default LLM Provider:
+All WFD OS agents (Market Intelligence, Profile, Matching, Career
+Services, College Pipeline, Orchestrator) route LLM calls through
+the provider-agnostic adapter. Do not hardcode Anthropic model IDs
+(`claude-haiku-4-5`, `claude-sonnet-4-6`, etc.) in agent code,
+`.cursor/rules/*.mdc` contracts, runbooks, or docs. Deployment map:
+Haiku-class → `chat-gpt41mini` via `LLM_DEFAULT`; Sonnet-class →
+`chat-gpt41` via `LLM_SYNTHESIS`; embeddings →
+`embeddings-te3small` via `AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME`.
+See `.cursor/rules/llm-provider.mdc` (repo-wide, `alwaysApply: true`)
+for the full rule.
+
 ## The Two Student Tracks
 
 Track 1 — OJT Track:
