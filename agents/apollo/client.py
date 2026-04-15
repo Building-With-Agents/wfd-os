@@ -15,11 +15,13 @@ from typing import Optional
 
 import requests
 
+from wfdos_common.config import settings
+
 APOLLO_BASE = "https://api.apollo.io/v1"
 
 
 def _api_key() -> str:
-    return os.getenv("APOLLO_API_KEY", "")
+    return settings.apollo.api_key
 
 
 def _headers() -> dict:

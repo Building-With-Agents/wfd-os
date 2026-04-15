@@ -31,6 +31,23 @@ if _dotenv_path:
     load_dotenv(_dotenv_path, override=False)
 
 
+def _find_repo_root() -> Path:
+    """Walk up from this file looking for a `.git` directory. Used by
+    path-based defaults (resume storage, .env) so the module stays
+    portable — returns the right directory whether this file lives at
+    packages/wfdos-common/... or is pip-installed into site-packages.
+
+    Falls back to three-levels-up from this file if .git isn't found.
+    """
+    cur = Path(__file__).resolve().parent
+    for _ in range(6):
+        if (cur / ".git").exists() or (cur / "pyproject.toml").exists() and (cur / "agents").exists():
+            return cur
+        cur = cur.parent
+    # Fallback — last-resort default. Assumes pre-migration layout.
+    return Path(__file__).resolve().parents[4]
+
+
 class PgSettings(BaseSettings):
     """PostgreSQL connection parameters.
 
@@ -190,11 +207,11 @@ class ProfileSettings(BaseSettings):
     """
 
     resume_storage_path: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[3] / "scripts",
+        default_factory=lambda: _find_repo_root() / "scripts",
         alias="PROFILE_RESUME_STORAGE_PATH",
     )
     env_path: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parents[3] / ".env",
+        default_factory=lambda: _find_repo_root() / ".env",
         alias="PROFILE_ENV_PATH",
     )
 
@@ -209,6 +226,33 @@ class TenancySettings(BaseSettings):
     """
 
     default_tenant_id: str = Field(default="waifinder-flagship", alias="WFDOS_DEFAULT_TENANT_ID")
+
+    model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
+
+
+class PlatformSettings(BaseSettings):
+    """Platform-facing URLs consumed by services (magic-link templates, email
+    CTAs, OAuth redirects, etc.)."""
+
+    portal_base_url: str = Field(
+        default="http://localhost:3000",
+        alias="CLIENT_PORTAL_BASE_URL",
+    )
+
+    model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
+
+
+class BotFrameworkSettings(BaseSettings):
+    """Microsoft Bot Framework auth (grant bot, market-intelligence bot).
+
+    MICROSOFT_APP_* is the Bot Framework convention used by BotFrameworkAdapter;
+    services that need it read these fields rather than the WAIFINDER_APP_*
+    aliases (which are the same credentials in a different naming scheme).
+    """
+
+    app_id: str = Field(default="", alias="MICROSOFT_APP_ID")
+    app_password: str = Field(default="", alias="MICROSOFT_APP_PASSWORD")
+    app_tenant_id: str = Field(default="", alias="MICROSOFT_APP_TENANT_ID")
 
     model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
 
@@ -236,11 +280,13 @@ class Settings(BaseSettings):
     sharepoint: SharePointSettings = Field(default_factory=SharePointSettings)
     teams: TeamsSettings = Field(default_factory=TeamsSettings)
     bot: BotSettings = Field(default_factory=BotSettings)
+    bot_framework: BotFrameworkSettings = Field(default_factory=BotFrameworkSettings)
     llm: LlmSettings = Field(default_factory=LlmSettings)
     email: EmailSettings = Field(default_factory=EmailSettings)
     apollo: ApolloSettings = Field(default_factory=ApolloSettings)
     profile: ProfileSettings = Field(default_factory=ProfileSettings)
     tenancy: TenancySettings = Field(default_factory=TenancySettings)
+    platform: PlatformSettings = Field(default_factory=PlatformSettings)
 
     model_config = SettingsConfigDict(extra="ignore")
 

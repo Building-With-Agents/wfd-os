@@ -40,16 +40,17 @@ _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 
-from dotenv import load_dotenv
-load_dotenv(os.path.join(_REPO_ROOT, ".env"), override=False)
+# wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv.
+# Importing settings here ensures env is loaded before we reach for Gemini creds.
+from wfdos_common.config import settings  # noqa: E402
 
 sys.path.insert(0, os.path.join(_REPO_ROOT, "scripts"))
 from pgconfig import PG_CONFIG  # noqa: E402
 
-# Configure Gemini once at module level
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# Configure Gemini once at module level (replaced by wfdos_common.llm in #20).
+genai.configure(api_key=settings.llm.gemini_api_key)
 
-DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+DEFAULT_MODEL = settings.llm.gemini_model
 MAX_TOOL_ROUNDS = 5  # safety limit on consecutive tool calls
 
 

@@ -7,14 +7,15 @@ original_record_id (Dataverse contactid).
 """
 import os, psycopg2
 from azure.storage.blob import BlobServiceClient
-from dotenv import load_dotenv
 import sys
-sys.path.insert(0, "C:/Users/ritub/projects/wfd-os/scripts")
-from pgconfig import PG_CONFIG
 
-load_dotenv("C:/Users/ritub/projects/wfd-os/.env")
+from wfdos_common.config import settings
 
-BLOB_CONN_STR = os.getenv("BLOB_CONNECTION_STRING")
+# wfdos_common.config auto-loads .env via find_dotenv (no hardcoded path).
+sys.path.insert(0, str(settings.profile.resume_storage_path))
+from pgconfig import PG_CONFIG  # noqa: E402
+
+BLOB_CONN_STR = settings.blob.connection_string
 CONTAINER = "resume-storage"
 
 
