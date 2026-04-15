@@ -2,28 +2,42 @@
 Semantic skill search — find related skills using vector embeddings.
 Uses the 5,061 skills with 1536-dim embeddings in the local wfd_os database.
 """
-import os
 import json
 import math
 import psycopg2
 from functools import lru_cache
-from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "../../../.env"), override=True)
+from wfdos_common.config import ConfigurationError, settings
 
 _conn = None
 
 
 def _get_conn():
+    """Open (or reuse) a connection to the local semantic-search PG instance.
+
+    This function historically hardcoded credentials and a database name in
+    source; both now flow through wfdos_common.config (#18) with a safer
+    default that fails loudly when PG_PASSWORD is missing rather than
+    using the compromised literal.
+
+    TODO(#22): replaced by wfdos_common.db.engine.get_engine() once the
+    shared engine factory lands; the per-service connection globals go away.
+    """
     global _conn
     if _conn and not _conn.closed:
         return _conn
+    if not settings.pg.password:
+        raise ConfigurationError(
+            "PG_PASSWORD is required for semantic_skills._get_conn(). "
+            "Set it in your .env / environment. The previous hardcoded default "
+            "was rotated and removed as part of #19."
+        )
     _conn = psycopg2.connect(
-        host="localhost",
-        user="postgres",
-        password="SuperShivani1",
-        port=5432,
-        dbname="wfd_os",
+        host=settings.pg.host,
+        user=settings.pg.user,
+        password=settings.pg.password,
+        port=settings.pg.port,
+        dbname=settings.pg.database,
     )
     return _conn
 

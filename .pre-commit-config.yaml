@@ -1,0 +1,28 @@
+# Pre-commit hooks for wfd-os. Install with:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Runs on every commit. The detect-secrets baseline (.secrets.baseline) tracks
+# known non-secret flags — new flags fail the commit until either fixed or
+# explicitly baselined.
+
+repos:
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+        exclude: |
+          (?x)^(
+            archive/.*|
+            recovered-code/.*|
+            portal/student/node_modules/.*|
+            portal/student/\.next/.*|
+            \.secrets\.baseline
+          )$
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.7
+    hooks:
+      - id: ruff
+        args: ["--fix"]

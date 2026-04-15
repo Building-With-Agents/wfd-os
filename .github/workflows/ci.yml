@@ -46,5 +46,17 @@ jobs:
             echo "No tests yet — empty pass."
           fi
 
-  # detect-secrets step is wired in #19 once .secrets.baseline exists.
-  # Leaving a placeholder job off for now so we don't fail CI on unrelated PRs.
+  secrets:
+    name: Secret scan (detect-secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install detect-secrets==1.5.0
+      - name: Scan against baseline
+        # Fails if any NEW secret appears that is not already in .secrets.baseline.
+        # Update the baseline with: `detect-secrets scan > .secrets.baseline`
+        # and review + audit the diff before committing.
+        run: detect-secrets scan --baseline .secrets.baseline
