@@ -12,28 +12,37 @@
 #   # Or just specific services:
 #   honcho start portal consulting-api
 #
-# Notes:
-#   - Some services require external credentials (Graph API, BotFramework, Apollo, etc.).
-#     Services without valid creds will fail to start — that's expected; comment them out
-#     or run selectively.
-#   - Port mappings match existing uvicorn.run() / web.run_app() bindings in each service.
-#     Changing any of these requires updating portal/student/next.config.mjs in the same commit.
+# Invocation notes:
+# - FastAPI services use `uvicorn <module>:app` (module-path). Do NOT use
+#   `python agents/portal/*.py` — that prepends agents/portal to sys.path,
+#   which shadows Python's stdlib `email` package (agents/portal/email.py
+#   has the same name). Module-path invocation from repo root avoids this.
+# - aiohttp services (grant / market-intel / scoping bots) use `python -m ...`
+#   for the same reason.
+# - Services requiring external credentials (Graph API, BotFramework, Apollo)
+#   will fail to start without them — comment out the relevant lines or run
+#   selectively via `honcho start <name> <name>`.
 
 # Next.js portal (port 3000). Proxies /api/* to Python services below.
 portal: cd portal/student && npm run dev
 
-# FastAPI services (Python)
-reporting-api: python agents/reporting/api.py
-student-api: python agents/portal/student_api.py
-showcase-api: python agents/portal/showcase_api.py
-consulting-api: python agents/portal/consulting_api.py
-college-api: python agents/portal/college_api.py
-wji-api: python agents/portal/wji_api.py
-marketing-api: python agents/marketing/api.py
-assistant-api: python agents/assistant/api.py
-apollo-api: python agents/apollo/api.py
+# FastAPI services (Python — via uvicorn module path)
+reporting-api: uvicorn agents.reporting.api:app --host 0.0.0.0 --port 8000
+student-api: uvicorn agents.portal.student_api:app --host 0.0.0.0 --port 8001
+showcase-api: uvicorn agents.portal.showcase_api:app --host 0.0.0.0 --port 8002
+consulting-api: uvicorn agents.portal.consulting_api:app --host 0.0.0.0 --port 8003
+college-api: uvicorn agents.portal.college_api:app --host 0.0.0.0 --port 8004
+wji-api: uvicorn agents.portal.wji_api:app --host 0.0.0.0 --port 8007
+marketing-api: uvicorn agents.marketing.api:app --host 0.0.0.0 --port 8008
+assistant-api: uvicorn agents.assistant.api:app --host 0.0.0.0 --port 8009
+apollo-api: uvicorn agents.apollo.api:app --host 0.0.0.0 --port 8010
 
-# aiohttp services (Teams bots + webhook)
-grant-bot: python agents/grant/api.py
-market-bot: python agents/market-intelligence/app.py
-scoping-webhook: python agents/scoping/api.py
+# aiohttp services (Teams bots + scoping webhook).
+# These use `cd <dir> && python <file>.py` because their own imports
+# assume the service-local dir is sys.path[0] (`from bot.grant_bot ...`,
+# etc.). The `agents/market-intelligence/` directory has a hyphen so it
+# cannot be a Python module path. #27 will standardize this with proper
+# per-service packaging.
+grant-bot: cd agents/grant && python api.py
+market-bot: cd agents/market-intelligence && python app.py
+scoping-webhook: cd agents/scoping && python api.py
