@@ -1,7 +1,16 @@
 # Procfile for honcho-based local dev orchestration.
 #
-# Usage: `honcho start` brings up the whole stack. `honcho start student-api showcase-api`
-# runs only the named processes. See docs/dev-setup.md for details.
+# Usage:
+#   # One-time install of every dep needed to run the stack:
+#   python -m pip install -r requirements-dev.txt
+#   python -m pip install -e packages/wfdos-common
+#   cd portal/student && npm install && cd ../..
+#
+#   # Start the whole stack:
+#   honcho start
+#
+#   # Or just specific services:
+#   honcho start portal consulting-api
 #
 # Notes:
 #   - Some services require external credentials (Graph API, BotFramework, Apollo, etc.).
