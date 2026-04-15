@@ -12,12 +12,15 @@ license = { text = "Proprietary" }
 authors = [
     { name = "Computing for All" }
 ]
-# Runtime deps are minimal + cross-cutting. Per-module deps added as modules
-# graduate from stubs to implementations (see module-by-module status in README).
+# Runtime deps grow as modules graduate from stubs to implementations.
 dependencies = [
     "pydantic>=2.5",
     "pydantic-settings>=2.1",
     "python-dotenv>=1.0",
+    # wfdos_common.graph (#17) — Microsoft Graph client for SharePoint / Teams / mail
+    "azure-identity>=1.15",
+    "msgraph-sdk>=1.0",
+    "httpx>=0.27",
 ]
 
 [project.optional-dependencies]
