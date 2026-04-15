@@ -10,19 +10,19 @@ from agents.scoping.models import ScopingRequest, ScopingAnalysis
 from agents.scoping.research import research_prospect
 from agents.scoping.briefing import generate_briefing_doc
 from agents.scoping.proposal import generate_proposal_doc
-from agents.graph.sharepoint import (
+from wfdos_common.graph.sharepoint import (
     create_internal_client_site,
     create_client_portal_site,
     upload_document,
 )
-from agents.graph.teams import (
+from wfdos_common.graph.teams import (
     create_client_channel,
     post_welcome_message,
     post_scoping_initiated,
     post_scoping_complete,
     schedule_scoping_meeting,
 )
-from agents.graph.transcript import retrieve_transcript
+from wfdos_common.graph.transcript import retrieve_transcript
 
 
 async def run_precall_pipeline(req: ScopingRequest) -> None:
