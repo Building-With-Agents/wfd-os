@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff==0.5.7
+      - name: Run ruff
+        run: ruff check . --output-format=github
+        # Permissive during Phase 1 of the wfdos-common refactor.
+        # Tightened per-service as #27 lands proper packaging.
+        continue-on-error: true
+
+  test:
+    name: Pytest (wfdos-common)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install wfdos-common
+        run: |
+          if [ -f packages/wfdos-common/pyproject.toml ]; then
+            pip install -e packages/wfdos-common
+          fi
+          pip install pytest
+      - name: Run pytest
+        run: |
+          if [ -d packages/wfdos-common/tests ]; then
+            pytest packages/wfdos-common/tests
+          else
+            echo "No tests yet — empty pass."
+          fi
+
+  # detect-secrets step is wired in #19 once .secrets.baseline exists.
+  # Leaving a placeholder job off for now so we don't fail CI on unrelated PRs.
