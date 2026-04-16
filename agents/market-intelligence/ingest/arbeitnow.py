@@ -20,7 +20,7 @@ def _parse_date(val):
         from datetime import datetime
         try:
             return datetime.fromtimestamp(val).strftime("%Y-%m-%d")
-        except:
+        except Exception:
             return None
     if isinstance(val, str):
         return val[:10] if len(val) >= 10 else val

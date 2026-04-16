@@ -426,7 +426,7 @@ def get_candidate_detail(student_id: str):
     if isinstance(legacy, str):
         try:
             legacy = json.loads(legacy)
-        except:
+        except Exception:
             legacy = {}
 
     career_objective = legacy.get('career_objective')
@@ -434,7 +434,7 @@ def get_candidate_detail(student_id: str):
     if isinstance(certifications, str):
         try:
             certifications = json.loads(certifications)
-        except:
+        except Exception:
             certifications = []
 
     conn.close()
@@ -536,7 +536,7 @@ def _compute_duration(start: str, end: str, is_current: bool) -> str:
         if diff.months:
             parts.append(f"{diff.months} mo")
         return " ".join(parts) or "< 1 mo"
-    except:
+    except Exception:
         return "Duration available"
 
 
