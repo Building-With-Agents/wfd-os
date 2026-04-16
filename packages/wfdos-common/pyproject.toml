@@ -21,6 +21,9 @@ dependencies = [
     "azure-identity>=1.15",
     "msgraph-sdk>=1.0",
     "httpx>=0.27",
+    # wfdos_common.db (#22) — SQLAlchemy engine factory + tenant middleware
+    "SQLAlchemy>=2.0",
+    "psycopg2-binary>=2.9",
 ]
 
 [project.optional-dependencies]
