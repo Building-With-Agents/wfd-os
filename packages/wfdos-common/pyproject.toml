@@ -61,6 +61,12 @@ llm-gemini = ["google-generativeai>=0.8"]
 [project.urls]
 Repository = "https://github.com/Building-With-Agents/wfd-os"
 
+# Pytest plugin entry point (#28). Consumers that pip install wfdos-common
+# get the shared fixtures automatically; no need to add
+# `pytest_plugins = ["wfdos_common.testing"]` to conftest.py.
+[project.entry-points.pytest11]
+wfdos_common = "wfdos_common.testing.plugin"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["wfdos_common*"]
