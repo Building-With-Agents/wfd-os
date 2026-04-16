@@ -24,6 +24,12 @@ dependencies = [
     # wfdos_common.db (#22) — SQLAlchemy engine factory + tenant middleware
     "SQLAlchemy>=2.0",
     "psycopg2-binary>=2.9",
+    # wfdos_common.llm (#20) — LLM adapter.
+    # Azure OpenAI is the default provider per CLAUDE.md llm-provider.mdc,
+    # so the openai SDK is a required runtime dep. The anthropic + gemini
+    # fallback providers lazy-import their SDKs from requirements-dev.txt
+    # so services choosing a narrow install footprint can skip them.
+    "openai>=1.30",
 ]
 
 [project.optional-dependencies]
@@ -36,11 +42,16 @@ doppler = ["doppler-sdk>=1.0"]
 infisical = ["infisical-python>=2.0"]
 hashivault = ["hvac>=2.0"]
 
+# LLM fallback providers (#20). Install these only if you want the adapter
+# to fall through to Anthropic or Gemini when Azure OpenAI is unconfigured.
+llm-anthropic = ["anthropic>=0.31"]
+llm-gemini = ["google-generativeai>=0.8"]
+
 # Per-module deps that will be added as modules graduate from stubs:
 #   graph: msgraph-sdk, azure-identity, httpx  (populated in #17)
 #   email: (uses graph module)  (populated in #17)
 #   db: sqlalchemy>=2.0, psycopg2-binary  (#22)
-#   llm: openai, anthropic, google-generativeai  (#20)
+#   llm: openai  (#20, default provider; Anthropic/Gemini are opt-in extras)
 #   logging: structlog>=24  (#23)
 #   auth: itsdangerous, slowapi  (#24)
 #   testing: pytest>=8, pytest-asyncio  (#28)

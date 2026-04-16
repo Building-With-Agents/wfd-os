@@ -1,16 +1,38 @@
-"""wfdos_common.llm — provider-agnostic LLM adapter.
+"""wfdos_common.llm — provider-agnostic LLM adapter (#20).
 
-STATUS: STUB — implementation lands in Building-With-Agents/wfd-os#20.
+Public API:
 
-Target scope (from #20):
-- complete(messages, tier) -> str  — single entry point
-- Tier values: "default" (Haiku-class), "synthesis" (Sonnet-class)
-- Default provider: Azure OpenAI (chat-gpt41mini / chat-gpt41) per CLAUDE.md
-  llm-provider.mdc.
-- Fallback providers: Anthropic, Gemini (via LLM_PROVIDER env override).
-- Graceful-degradation: if configured provider creds fail, fall through to
-  next working provider and log a warning.
+    from wfdos_common.llm import complete
 
-Replaces direct SDK imports (google.generativeai, anthropic) in assistants,
-scoping, market-intelligence, and profile parsing.
+    text = complete(
+        messages=[{"role": "user", "content": "hello"}],
+        tier="default",             # or "synthesis"
+        system="You are helpful.",
+        max_tokens=1024,
+        temperature=0.7,
+    )
+
+Selects a provider via `settings.llm.provider` (default `"azure_openai"`
+per CLAUDE.md llm-provider.mdc). Gracefully degrades on missing or
+invalid credentials: the active provider is re-selected from the
+fallback chain if the configured primary can't be constructed.
+
+Fallback chain (first working wins):
+  configured provider → anthropic → gemini
+
+Tool-calling / agentic flows (e.g. market-intelligence/agent.py,
+assistant/base.py) stay on their direct SDK calls for now — they land
+in #26 when the Agent ABC gets wired to this adapter. #20's scope is
+the simple messages → text completion path used by scoping research,
+transcript analysis, grant-bot Q&A, and resume-parse extraction.
 """
+
+from wfdos_common.llm.adapter import ProviderError, complete, reset_provider
+from wfdos_common.llm.base import CompletionProvider
+
+__all__ = [
+    "complete",
+    "CompletionProvider",
+    "ProviderError",
+    "reset_provider",
+]
