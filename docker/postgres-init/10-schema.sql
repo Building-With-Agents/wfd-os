@@ -636,14 +636,21 @@ CREATE INDEX IF NOT EXISTS ix_apollo_events_created ON apollo_webhook_events(cre
 
 CREATE TABLE IF NOT EXISTS wji_upload_batches (
     -- Upload-job tracking (SharePoint file ingestion). Each uploaded
-    -- spreadsheet becomes a batch.
+    -- spreadsheet becomes a batch. Column set matches the SELECT + UPDATE
+    -- statements in agents/portal/wji_api.py exactly.
+    --
+    -- Regression fix from Phase 2 exit gate: success_count + error_count +
+    -- errors were missing; /api/wji/dashboard SELECTed them and crashed.
     id             BIGSERIAL PRIMARY KEY,
     upload_type    TEXT,              -- placements / payments
     filename       TEXT,
     uploaded_by    TEXT,
-    status         TEXT,              -- uploaded / parsing / parsed / error
+    status         TEXT,              -- processing / completed / error
     error_message  TEXT,
     row_count      INTEGER,
+    success_count  INTEGER,
+    error_count    INTEGER,
+    errors         JSONB,             -- per-row error list for the UI
     uploaded_at    TIMESTAMPTZ DEFAULT NOW(),
     processed_at   TIMESTAMPTZ
 );
