@@ -82,7 +82,7 @@ def main():
 
     print("\n[5] Instantiate a ScopingRequest model...")
     def _model():
-        from agents.scoping.models import ScopingRequest, Contact, Organization
+        from wfdos_common.models.scoping import ScopingRequest, Contact, Organization
         req = ScopingRequest(
             contact=Contact(first_name="Jane", last_name="Doe", email="jane@testcorp.com"),
             organization=Organization(name="Test Corp", industry="Data analytics"),

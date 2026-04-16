@@ -7,7 +7,7 @@ from docx import Document
 from docx.shared import Inches, Pt, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
-from agents.scoping.models import ScopingRequest, ResearchResult
+from wfdos_common.models.scoping import ScopingRequest, ResearchResult
 
 
 def generate_briefing_doc(req: ScopingRequest, research: ResearchResult) -> str:

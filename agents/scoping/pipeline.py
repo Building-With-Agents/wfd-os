@@ -6,7 +6,7 @@ Phase 2 (post-call): transcript → analysis → proposal doc → notify
 
 from datetime import date
 
-from agents.scoping.models import ScopingRequest, ScopingAnalysis
+from wfdos_common.models.scoping import ScopingRequest, ScopingAnalysis
 from agents.scoping.research import research_prospect
 from agents.scoping.briefing import generate_briefing_doc
 from agents.scoping.proposal import generate_proposal_doc

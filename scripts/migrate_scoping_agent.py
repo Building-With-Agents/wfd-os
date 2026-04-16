@@ -25,7 +25,7 @@ SCOPING_REWRITES = [
     (r"^from graph\.teams import", "from agents.graph.teams import"),
     (r"^from graph\.transcript import", "from agents.graph.transcript import"),
     # scoping package
-    (r"^from scoping\.models import", "from agents.scoping.models import"),
+    (r"^from scoping\.models import", "from wfdos_common.models.scoping import"),
     (r"^from scoping\.pipeline import", "from agents.scoping.pipeline import"),
     (r"^from scoping\.postcall import", "from agents.scoping.postcall import"),
     (r"^from scoping\.webhook import", "from agents.scoping.webhook import"),
