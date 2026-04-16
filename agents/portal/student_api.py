@@ -35,7 +35,18 @@ app.add_middleware(
 
 
 def get_conn():
-    return psycopg2.connect(**PG_CONFIG)
+    """Raw DBAPI connection from the wfdos_common.db engine pool.
+
+    Returns a psycopg2-compatible connection object so existing code
+    using `conn.cursor(...)`, `conn.commit()`, `conn.close()` keeps
+    working unchanged. Close() returns the connection to the pool
+    instead of actually closing it.
+
+    Migrated in #22c; previously `psycopg2.connect(**PG_CONFIG)` —
+    direct-connect every call with no pooling.
+    """
+    from wfdos_common.db import get_engine
+    return get_engine().raw_connection()
 
 
 def query(sql, params=None):
@@ -77,14 +88,15 @@ def get_profile(student_id: str):
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
 
-    # Get skill count
-    skills = query("""
-        SELECT DISTINCT sk.skill_name
-        FROM student_skills ss
-        JOIN skills sk ON sk.skill_id = ss.skill_id
-        WHERE ss.student_id = %s
-        ORDER BY sk.skill_name
-    """, (student_id,))
+    # Get skill count — shared query lives in wfdos_common.db.queries (#22c)
+    # so the identical lookup in showcase_api.py:322 can use the same impl.
+    from wfdos_common.db import get_student_skills
+    conn = get_conn()
+    try:
+        skill_names = get_student_skills(conn, student_id)
+    finally:
+        conn.close()
+    skills = [{"skill_name": name} for name in skill_names]
 
     # Convert missing arrays to lists
     for key in ['missing_required', 'missing_preferred']:

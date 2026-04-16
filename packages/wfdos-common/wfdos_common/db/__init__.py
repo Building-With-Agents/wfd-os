@@ -12,9 +12,13 @@ Public API:
 
   TenantResolver                             — Host-header / X-Tenant-Id middleware
 
-Implemented across PRs #22a (engine + session + middleware — this scope),
-#22b (canonical CREATE TABLE schema), #22c (migrate 5 portal services
-from raw psycopg2 to these primitives).
+  get_student_skills(session, student_id)    — shared query (#22c)
+  get_student_skill_count(session, student_id)
+  get_student_profile(session, student_id)
+
+Implemented across PRs #22a (engine + session + middleware),
+#22b (canonical CREATE TABLE schema), and #22c (portal-service migrations
+and shared-query layer).
 """
 
 from wfdos_common.db.engine import (
@@ -26,6 +30,11 @@ from wfdos_common.db.engine import (
     resolve_url,
 )
 from wfdos_common.db.middleware import TenantResolver
+from wfdos_common.db.queries import (
+    get_student_profile,
+    get_student_skill_count,
+    get_student_skills,
+)
 from wfdos_common.db.session import db_session, session_scope
 
 __all__ = [
@@ -41,4 +50,8 @@ __all__ = [
     "db_session",
     # middleware
     "TenantResolver",
+    # shared queries
+    "get_student_skills",
+    "get_student_skill_count",
+    "get_student_profile",
 ]

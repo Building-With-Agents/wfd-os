@@ -25,8 +25,14 @@ app.add_middleware(
 )
 
 
+def get_conn():
+    """Raw DBAPI connection from the wfdos_common.db engine pool (#22c)."""
+    from wfdos_common.db import get_engine
+    return get_engine().raw_connection()
+
+
 def query(sql, params=None):
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute(sql, params)
     rows = cur.fetchall()
