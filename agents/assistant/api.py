@@ -10,9 +10,6 @@ Run: uvicorn agents.assistant.api:app --port 8009
 """
 from __future__ import annotations
 
-import json
-import os
-import sys
 import uuid
 from typing import Optional
 
@@ -20,23 +17,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Repo root for imports
-_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-
-from dotenv import load_dotenv
-load_dotenv(os.path.join(_REPO_ROOT, ".env"), override=False)
-
-sys.path.insert(0, os.path.join(_REPO_ROOT, "scripts"))
-
-from agents.assistant.base import BaseAgent, _load_session  # noqa: E402
-from agents.assistant.consulting_agent import consulting_agent  # noqa: E402
-from agents.assistant.employer_agent import employer_agent  # noqa: E402
-from agents.assistant.student_agent import student_agent  # noqa: E402
-from agents.assistant.staff_agent import staff_agent  # noqa: E402
-from agents.assistant.college_agent import college_agent  # noqa: E402
-from agents.assistant.youth_agent import youth_agent  # noqa: E402
+# wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv.
+# Pre-#27 this file had sys.path.insert hacks; the monorepo root pyproject.toml
+# (#27) now exposes `agents.*` as a namespace package.
+from agents.assistant.base import BaseAgent, _load_session
+from agents.assistant.consulting_agent import consulting_agent
+from agents.assistant.employer_agent import employer_agent
+from agents.assistant.student_agent import student_agent
+from agents.assistant.staff_agent import staff_agent
+from agents.assistant.college_agent import college_agent
+from agents.assistant.youth_agent import youth_agent
 
 app = FastAPI(title="WFD OS Conversational Agent API", version="0.1.0")
 

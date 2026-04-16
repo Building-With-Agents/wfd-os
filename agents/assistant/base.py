@@ -24,28 +24,19 @@ Usage:
 from __future__ import annotations
 
 import json
-import os
-import sys
 import traceback
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 import google.generativeai as genai
 import psycopg2
 import psycopg2.extras
 
-# Repo root on sys.path so agents.* imports resolve
-_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-
 # wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv.
 # Importing settings here ensures env is loaded before we reach for Gemini creds.
-from wfdos_common.config import settings  # noqa: E402
-
-sys.path.insert(0, os.path.join(_REPO_ROOT, "scripts"))
-from pgconfig import PG_CONFIG  # noqa: E402
+# Pre-#27 this file had sys.path.insert hacks; the monorepo root pyproject.toml
+# (#27) now exposes `agents.*` as a namespace package.
+from wfdos_common.config import PG_CONFIG, settings
 
 # Configure Gemini once at module level (replaced by wfdos_common.llm in #20).
 genai.configure(api_key=settings.llm.gemini_api_key)

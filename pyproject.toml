@@ -1,10 +1,74 @@
-# Root-level tool config for the wfd-os monorepo.
+# wfd-os — monorepo root.
 #
-# This file does NOT describe the repo as a pip-installable package — per-service
-# packaging lands in issue #27. This file currently just centralizes tool config
-# (ruff, pytest) so every service inherits the same style.
+# This file serves two purposes:
+#   1. Declares the repo as a pip-installable package (`wfdos-monorepo`) so that
+#      `pip install -e .` at the repo root resolves every `agents.<svc>.*` import
+#      without any `sys.path.insert` hacks. This is what #27 delivers — pre-#27,
+#      every service had to `sys.path.insert(0, <repo_root>)` to import siblings.
+#   2. Centralizes tool config (ruff, pytest) so every service inherits the same
+#      style without duplicating `[tool.ruff]` in each per-service pyproject.toml.
 #
-# The installable package scaffolding lives under packages/wfdos-common/.
+# Per-service pyproject.toml files live under `agents/<svc>/pyproject.toml` and
+# declare each service's runtime deps for deployment isolation (e.g. building a
+# lean Docker image that only installs `wfdos-apollo` plus its deps). In dev,
+# the root install + `pip install -e packages/wfdos-common` is the one-shot
+# setup that matches what CI and `honcho start` use.
+#
+# The installable wfdos-common package lives under packages/wfdos-common/.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-monorepo"
+version = "0.0.1"
+description = "wfd-os monorepo dev install — exposes the `agents.*` namespace package."
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [
+    { name = "Computing for All" }
+]
+# Keep root deps minimal — per-service pyproject.toml files declare their own.
+# The root install just makes `agents.*` importable + pulls in wfdos-common.
+dependencies = [
+    "wfdos-common",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+# Dev/test convenience — `pip install -e .[dev]` pulls everything needed to
+# boot the whole stack locally. Mirrors the per-service deps aggregated.
+dev = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.5",
+    "psycopg2-binary>=2.9",
+    "numpy>=1.26",
+    "requests>=2.31",
+    "httpx>=0.27",
+    "aiohttp>=3.9",
+    "anthropic>=0.31",
+    "google-generativeai>=0.8",
+    "openai>=1.30",
+    "azure-storage-blob>=12.19",
+    "azure-identity>=1.15",
+    "msgraph-sdk>=1.0",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    "pdfplumber>=0.10",
+    "python-docx>=1.0",
+    "botbuilder-core>=4.15",
+    "SQLAlchemy>=2.0",
+    "pytest>=8",
+    "pytest-cov>=5",
+    "honcho>=1.1",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agents*"]
+exclude = ["agents.*.dashboard*", "agents.*.node_modules*"]
 
 [tool.ruff]
 line-length = 100
@@ -14,6 +78,8 @@ extend-exclude = [
     "recovered-code",
     "portal/student/node_modules",
     "portal/student/.next",
+    "agents/reporting/dashboard/node_modules",
+    "agents/reporting/dashboard/dist",
 ]
 
 [tool.ruff.lint]
@@ -21,7 +87,7 @@ select = ["E", "F", "W", "I"]
 # E501 handled by line-length above; other deliberate relaxations during migration:
 ignore = [
     "E501",  # line too long
-    "E402",  # module level import not at top of file (many services use sys.path.insert hacks today — #27 fixes)
+    "E402",  # module level import not at top of file (dash-named services keep a small sys.path shim — see agents/market-intelligence/)
 ]
 
 [tool.pytest.ini_options]

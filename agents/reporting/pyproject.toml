@@ -1,0 +1,27 @@
+# agents/reporting — reporting API + Vite dashboard SPA.
+#
+# Purpose: declare runtime deps for deployment isolation. Source imports
+# (`agents.reporting.*`) resolve via the monorepo install at `/pyproject.toml`.
+# Frontend lives at agents/reporting/dashboard/ and has its own package.json.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-reporting"
+version = "0.0.1"
+description = "Reporting API — placement + training + consulting analytics feeds."
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "wfdos-common",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "psycopg2-binary>=2.9",
+    "python-dotenv>=1.0",
+]
+
+[tool.setuptools]
+py-modules = []
+packages = []

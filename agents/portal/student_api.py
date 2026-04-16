@@ -12,8 +12,8 @@ Endpoints:
 
 Run: uvicorn student_api:app --reload --port 8001
 """
-import sys, os, json
-from datetime import datetime, timezone
+import json
+from datetime import datetime
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -21,8 +21,6 @@ import psycopg2
 import psycopg2.extras
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG
 
 from wfdos_common.logging import configure as configure_logging, get_logger
 

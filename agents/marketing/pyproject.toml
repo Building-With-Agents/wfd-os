@@ -1,0 +1,27 @@
+# agents/marketing — marketing content CMS + Apollo-backed outreach flows.
+#
+# Purpose: declare runtime deps for deployment isolation. Source imports
+# (`agents.marketing.*`) resolve via the monorepo install at `/pyproject.toml`.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-marketing"
+version = "0.0.1"
+description = "Marketing content CMS + outreach flows (feeds the Squarespace marketing CTAs)."
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "wfdos-common",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.5",
+    "psycopg2-binary>=2.9",
+    "python-dotenv>=1.0",
+]
+
+[tool.setuptools]
+py-modules = []
+packages = []
