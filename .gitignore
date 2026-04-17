@@ -57,3 +57,6 @@ recovered-code/bacpac/
 
 # Claude plans (local only)
 .claude/
+
+# Local finance cockpit fixtures (mock spreadsheet data, not for commit)
+agents/finance/design/fixtures/
