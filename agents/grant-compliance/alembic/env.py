@@ -35,20 +35,13 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+# CRITICAL: include_name filters autogenerate to grant_compliance schema only.
+# Without this, autogenerate sees wfd-os's public.* tables, finds they aren't
+# in our SQLAlchemy metadata, and generates DROP statements for all of them.
+# If applied, those DROPs would destroy wfd-os's production schema.
+# Never remove, relax, or bypass this filter. This is an enforced architectural
+# constraint, not a preference. See CLAUDE.md "Enforced constraints" section.
 def _include_name(name, type_, parent_names):
-    """Scope autogenerate to ONLY the grant_compliance schema.
-
-    Without this filter, include_schemas=True causes Alembic to diff against
-    every schema in the database — including `public`, which in wfd-os
-    contains the platform's other tables (students, company_scores,
-    prospect_companies, etc.). Autogenerate would then try to DROP those
-    tables because they're not in our Base.metadata. That's a disaster.
-
-    This callback tells Alembic: for `schema` objects, only consider
-    grant_compliance. Everything else (tables, indexes, etc.) is included
-    normally, but only within our schema because we've narrowed the schema
-    inspection.
-    """
     if type_ == "schema":
         return name == SCHEMA_NAME
     return True
