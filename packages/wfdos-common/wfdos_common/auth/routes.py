@@ -96,6 +96,7 @@ def build_auth_router(
             admin_csv=settings.auth.admin_allowlist,
             staff_csv=settings.auth.staff_allowlist,
             student_csv=settings.auth.student_allowlist,
+            workforce_development_csv=settings.auth.workforce_development_allowlist,
         )
         if role is None:
             log.warning("auth.login.not_allowlisted", email=email)
@@ -139,6 +140,7 @@ def build_auth_router(
             admin_csv=settings.auth.admin_allowlist,
             staff_csv=settings.auth.staff_allowlist,
             student_csv=settings.auth.student_allowlist,
+            workforce_development_csv=settings.auth.workforce_development_allowlist,
         )
         if role is None:
             # Allowlist changed between login + verify — treat as invalid.

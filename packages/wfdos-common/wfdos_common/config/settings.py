@@ -277,10 +277,20 @@ class AuthSettings(BaseSettings):
     staff_allowlist: str = Field(default="", alias="WFDOS_AUTH_STAFF_ALLOWLIST")
     student_allowlist: str = Field(default="", alias="WFDOS_AUTH_STUDENT_ALLOWLIST")
     admin_allowlist: str = Field(default="", alias="WFDOS_AUTH_ADMIN_ALLOWLIST")
+    # External customer users on a Waifinder deployment — e.g. Borderplex
+    # WFD directors using LaborPulse. Distinct from staff so audit logs +
+    # qa_feedback attribution stay separable (#59).
+    workforce_development_allowlist: str = Field(
+        default="", alias="WFDOS_AUTH_WORKFORCE_DEVELOPMENT_ALLOWLIST"
+    )
     # Rate limits (requests per hour per role).
     rate_limit_student_per_hour: int = Field(default=100, alias="WFDOS_AUTH_RATE_STUDENT")
     rate_limit_staff_per_hour: int = Field(default=500, alias="WFDOS_AUTH_RATE_STAFF")
     rate_limit_admin_per_hour: int = Field(default=2000, alias="WFDOS_AUTH_RATE_ADMIN")
+    # Directors burst-query during demos; same floor as staff (#59).
+    rate_limit_workforce_development_per_hour: int = Field(
+        default=500, alias="WFDOS_AUTH_RATE_WORKFORCE_DEVELOPMENT"
+    )
 
     model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
 
