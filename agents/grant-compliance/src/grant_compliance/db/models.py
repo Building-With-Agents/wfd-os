@@ -18,6 +18,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
+    MetaData,
     String,
     Text,
     JSON,
@@ -33,8 +34,19 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# All grant-compliance tables live in the `grant_compliance` Postgres schema,
+# kept separate from wfd-os's other schemas (public, etc.) so we can grant
+# row-level privileges on audit_log independently and hand an auditor
+# read-only access to this schema alone. Setting schema on the metadata
+# here propagates to every model below without needing per-table
+# __table_args__. See agents/grant-compliance/CLAUDE.md and Step 0 of the
+# QB ingestion migration plan.
+#
+# SQLite (used by some tests with in-memory DBs) ignores schema qualifiers
+# gracefully; Postgres respects them. Production and dev-against-Postgres
+# land all tables under `grant_compliance.*`.
 class Base(DeclarativeBase):
-    pass
+    metadata = MetaData(schema="grant_compliance")
 
 
 # ---------------------------------------------------------------------------

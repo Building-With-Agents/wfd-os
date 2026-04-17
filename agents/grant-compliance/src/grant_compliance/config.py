@@ -9,7 +9,18 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Load order (later files override earlier):
+    #   1. wfd-os repo root .env  (QB/Anthropic/MS Graph creds shared with other agents)
+    #   2. agents/grant-compliance/.env  (DATABASE_URL + scaffold-specific overrides)
+    # The scaffold's own .env wins for anything it sets; falls back to
+    # wfd-os root for creds that are shared across the platform.
+    # extra="ignore" → unrelated wfd-os env vars (GEMINI_API_KEY, PG_PASSWORD,
+    # QB_COMPANY_ID if present, etc.) don't error; they're just ignored.
+    model_config = SettingsConfigDict(
+        env_file=("../../.env", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     # Core
     app_env: Literal["development", "staging", "production"] = "development"
