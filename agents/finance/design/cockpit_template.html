@@ -664,6 +664,127 @@
     border-color: var(--brand);
     font-weight: 500;
   }
+
+  /* Polymorphic drill sections (Phase 1C) */
+  .drill-status-chip {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 2px;
+    margin-bottom: 16px;
+  }
+  .drill-status-chip.good { background: var(--good-soft); color: var(--good); }
+  .drill-status-chip.watch { background: var(--watch-soft); color: var(--watch); }
+  .drill-status-chip.critical { background: var(--critical-soft); color: var(--critical); }
+  .drill-status-chip.neutral { background: var(--surface-alt); color: var(--text-3); }
+
+  /* Table section */
+  .drill-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .drill-table th {
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    font-weight: 600;
+    padding: 6px 10px 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .drill-table th.right, .drill-table td.right { text-align: right; padding-right: 0; padding-left: 10px; }
+  .drill-table td {
+    padding: 8px 10px 8px 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .drill-table td.num { font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
+  .drill-table tr.total td {
+    font-weight: 600;
+    border-top: 1px solid var(--border-strong);
+    background: var(--surface-alt);
+  }
+  .drill-table tr:last-child td { border-bottom: none; }
+
+  /* Chart section — inline SVG */
+  .drill-chart { width: 100%; height: auto; font-family: 'Figtree', sans-serif; }
+  .drill-chart-axis { stroke: var(--border-strong); stroke-width: 1; }
+  .drill-chart-tick { font-size: 9px; font-family: 'DM Mono', monospace; fill: var(--text-3); }
+  .drill-chart-label { font-size: 10px; fill: var(--text-2); }
+  .drill-chart-value { font-size: 10px; font-family: 'DM Mono', monospace; font-weight: 600; }
+  .drill-chart-bar { }
+  .drill-chart-bar.good { fill: var(--good); }
+  .drill-chart-bar.watch { fill: var(--watch); }
+  .drill-chart-bar.critical { fill: var(--critical); }
+  .drill-chart-bar.neutral { fill: var(--brand); }
+  .drill-chart-refline { stroke-dasharray: 3 3; stroke-width: 1; }
+  .drill-chart-refline.good { stroke: var(--good); }
+  .drill-chart-refline.watch { stroke: var(--watch); }
+  .drill-chart-refline.critical { stroke: var(--critical); }
+
+  /* Prose section */
+  .drill-prose { font-size: 13px; line-height: 1.55; color: var(--text-1); }
+
+  /* Verdict section (drill variant — smaller headline than body .verdict) */
+  .drill-verdict {
+    padding: 14px 16px;
+    border-left: 3px solid var(--brand);
+    background: var(--surface-warm);
+  }
+  .drill-verdict.good { background: var(--good-soft); border-left-color: var(--good); }
+  .drill-verdict.watch { background: var(--watch-soft); border-left-color: var(--watch); }
+  .drill-verdict.critical { background: var(--critical-soft); border-left-color: var(--critical); }
+  .drill-verdict .headline {
+    font-family: 'Instrument Serif', serif;
+    font-size: 18px;
+    line-height: 1.25;
+    margin-bottom: 6px;
+  }
+  .drill-verdict .body { font-size: 13px; line-height: 1.55; color: var(--text-2); }
+
+  /* Timeline section */
+  .drill-timeline { display: flex; flex-direction: column; gap: 10px; }
+  .drill-timeline-event {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 12px;
+    align-items: baseline;
+    font-size: 13px;
+  }
+  .drill-timeline-date { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-3); }
+  .drill-timeline-title.good { color: var(--good); }
+  .drill-timeline-title.watch { color: var(--watch); }
+  .drill-timeline-title.critical { color: var(--critical); }
+  .drill-timeline-title.neutral { color: var(--text-1); }
+
+  /* Action items section */
+  .drill-action-items { display: flex; flex-direction: column; gap: 10px; }
+  .drill-action-item {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .drill-action-item:last-child { border-bottom: none; }
+  .drill-action-priority {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 2px;
+    align-self: start;
+    text-align: center;
+  }
+  .drill-action-priority.high { background: var(--critical-soft); color: var(--critical); }
+  .drill-action-priority.medium { background: var(--watch-soft); color: var(--watch); }
+  .drill-action-priority.low { background: var(--surface-alt); color: var(--text-3); }
+  .drill-action-owner { font-size: 11px; color: var(--text-3); letter-spacing: 0.04em; text-transform: uppercase; }
+  .drill-action-text { grid-column: 2; color: var(--text-1); line-height: 1.45; }
 </style>
 </head>
 <body>
@@ -1898,23 +2019,151 @@
   // category, decision, provider, audit — lives in this one dict.
   const drillRegistry = {{ drills | tojson }};
 
-  // Render drill content to HTML
+  // =====================================================================
+  // Drill section renderers — one per section.type. Dispatched from
+  // renderDrill() based on the "type" discriminator in each section dict.
+  // Adding a new section type = add a new render function + register it
+  // in SECTION_RENDERERS below.
+  // =====================================================================
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function renderRowsSection(s) {
+    const rows = (s.rows || []).map(r => `
+      <div class="drill-row">
+        <div class="name">${escapeHtml(r.label)}</div>
+        <div class="amt" style="${r.emphasize ? 'font-weight:700;color:var(--brand);' : ''}">${escapeHtml(r.value)}</div>
+      </div>`).join('');
+    const note = s.note ? `<div class="drill-callout">${escapeHtml(s.note)}</div>` : '';
+    return `<h3>${escapeHtml(s.title)}</h3>${rows}${note}`;
+  }
+
+  function renderTableSection(s) {
+    const thead = s.columns.map(c => {
+      const cls = c.align === 'right' ? ' class="right"' : '';
+      return `<th${cls}>${escapeHtml(c.label)}</th>`;
+    }).join('');
+    const tbody = (s.rows || []).map(r => {
+      const cells = s.columns.map(c => {
+        const val = r[c.key];
+        const classes = [];
+        if (c.align === 'right') classes.push('right');
+        if (c.numeric) classes.push('num');
+        const cls = classes.length ? ` class="${classes.join(' ')}"` : '';
+        return `<td${cls}>${escapeHtml(val)}</td>`;
+      }).join('');
+      return `<tr${r.total ? ' class="total"' : ''}>${cells}</tr>`;
+    }).join('');
+    const note = s.note ? `<div class="drill-callout">${escapeHtml(s.note)}</div>` : '';
+    return `<h3>${escapeHtml(s.title)}</h3>` +
+           `<table class="drill-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>` +
+           note;
+  }
+
+  function renderChartSection(s) {
+    // Small inline SVG bar chart. Line/area variants fall through to bar
+    // for now — can be expanded when a migration needs them.
+    const data = s.data || [];
+    const refLines = s.reference_lines || [];
+    const xKey = s.x_axis.key;
+    const yKey = s.y_axis.key;
+    const values = data.map(d => Number(d[yKey]) || 0);
+    const refVals = refLines.map(r => Number(r.value) || 0);
+    const maxY = Math.max(...values, ...refVals, 1);
+    const W = 480, H = 180, PL = 36, PR = 16, PT = 14, PB = 28;
+    const cW = W - PL - PR, cH = H - PT - PB;
+    const gap = 4;
+    const barW = data.length ? (cW - gap * (data.length - 1)) / data.length : 0;
+
+    const bars = data.map((d, i) => {
+      const v = Number(d[yKey]) || 0;
+      const h = (v / maxY) * cH;
+      const x = PL + i * (barW + gap);
+      const y = PT + cH - h;
+      const tone = d.tone && ['good','watch','critical','neutral'].includes(d.tone) ? d.tone : 'neutral';
+      return `<rect class="drill-chart-bar ${tone}" x="${x}" y="${y}" width="${barW}" height="${h}"/>` +
+             `<text class="drill-chart-value" x="${x + barW/2}" y="${y - 3}" text-anchor="middle">${v}</text>` +
+             `<text class="drill-chart-tick" x="${x + barW/2}" y="${PT + cH + 14}" text-anchor="middle">${escapeHtml(d[xKey])}</text>`;
+    }).join('');
+
+    const refs = refLines.map(r => {
+      const y = PT + cH - (Number(r.value) / maxY) * cH;
+      const tone = r.tone && ['good','watch','critical'].includes(r.tone) ? r.tone : 'watch';
+      return `<line class="drill-chart-refline ${tone}" x1="${PL}" y1="${y}" x2="${W - PR}" y2="${y}"/>` +
+             `<text class="drill-chart-tick" x="${W - PR}" y="${y - 4}" text-anchor="end" fill="var(--${tone})">${escapeHtml(r.label)}: ${r.value}</text>`;
+    }).join('');
+
+    const axisLabel = s.y_axis.label
+      ? `<text class="drill-chart-label" x="${PL}" y="${PT - 4}">${escapeHtml(s.y_axis.label)}</text>`
+      : '';
+    return `<h3>${escapeHtml(s.title)}</h3>` +
+           `<svg class="drill-chart" viewBox="0 0 ${W} ${H}">${axisLabel}<line class="drill-chart-axis" x1="${PL}" y1="${PT + cH}" x2="${W - PR}" y2="${PT + cH}"/>${bars}${refs}</svg>`;
+  }
+
+  function renderProseSection(s) {
+    const header = s.title ? `<h3>${escapeHtml(s.title)}</h3>` : '';
+    return `${header}<p class="drill-prose">${escapeHtml(s.body)}</p>`;
+  }
+
+  function renderVerdictSection(s) {
+    const tone = ['good','watch','critical','neutral'].includes(s.tone) ? s.tone : 'neutral';
+    return `<div class="drill-verdict ${tone}">` +
+           `<div class="headline">${escapeHtml(s.headline)}</div>` +
+           `<div class="body">${escapeHtml(s.body)}</div>` +
+           `</div>`;
+  }
+
+  function renderTimelineSection(s) {
+    const events = (s.events || []).map(e => {
+      const tone = ['good','watch','critical','neutral'].includes(e.tone) ? e.tone : 'neutral';
+      return `<div class="drill-timeline-event">` +
+             `<div class="drill-timeline-date">${escapeHtml(e.date)}</div>` +
+             `<div class="drill-timeline-title ${tone}">${escapeHtml(e.title)}</div>` +
+             `</div>`;
+    }).join('');
+    return `<h3>${escapeHtml(s.title)}</h3><div class="drill-timeline">${events}</div>`;
+  }
+
+  function renderActionItemsSection(s) {
+    const items = (s.items || []).map(it => {
+      const pri = (it.priority || 'LOW').toLowerCase();
+      const owner = it.owner ? `<div class="drill-action-owner">${escapeHtml(it.owner)}</div>` : `<div></div>`;
+      return `<div class="drill-action-item">` +
+             `<div class="drill-action-priority ${pri}">${escapeHtml(it.priority)}</div>` +
+             `${owner}` +
+             `<div class="drill-action-text">${escapeHtml(it.text)}</div>` +
+             `</div>`;
+    }).join('');
+    return `<h3>${escapeHtml(s.title)}</h3><div class="drill-action-items">${items}</div>`;
+  }
+
+  const SECTION_RENDERERS = {
+    rows: renderRowsSection,
+    table: renderTableSection,
+    chart: renderChartSection,
+    prose: renderProseSection,
+    verdict: renderVerdictSection,
+    timeline: renderTimelineSection,
+    action_items: renderActionItemsSection,
+  };
+
+  function renderSection(s) {
+    const render = SECTION_RENDERERS[s.type] || renderRowsSection;
+    return `<div class="drill-section">${render(s)}</div>`;
+  }
+
   function renderDrill(content) {
     if (!content) return '';
-    const sections = (content.sections || []).map(s => `
-      <div class="drill-section">
-        <h3>${s.title}</h3>
-        ${(s.rows || []).map(r => `
-          <div class="drill-row">
-            <div class="name">${r.label}</div>
-            <div class="amt" style="${r.emphasize ? 'font-weight:700;color:var(--brand);' : ''}">${r.value}</div>
-          </div>
-        `).join('')}
-        ${s.note ? `<div class="drill-callout">${s.note}</div>` : ''}
-      </div>
-    `).join('');
-    const footer = content.note ? `<div class="drill-callout">${content.note}</div>` : '';
-    return sections + footer;
+    const chip = content.status_chip
+      ? `<div class="drill-status-chip ${content.status_chip.tone}">${escapeHtml(content.status_chip.label)}</div>`
+      : '';
+    const sections = (content.sections || []).map(renderSection).join('');
+    const footer = content.note ? `<div class="drill-callout">${escapeHtml(content.note)}</div>` : '';
+    return chip + sections + footer;
   }
 
   // Drill open/close

@@ -13,6 +13,179 @@ from datetime import date
 from pathlib import Path
 
 
+# =============================================================================
+# Drill content schema — polymorphic section types
+# =============================================================================
+# Every entry in the drillRegistry conforms to this shape. Section types are
+# discriminated by the "type" field: `rows`, `table`, `chart`, `prose`,
+# `verdict`, `timeline`, `action_items`. Each type has its own renderer in
+# cockpit_template.html. Tone values map to CSS custom properties (--good,
+# --watch, --critical, --text-3 for neutral) so every color decision lives
+# in data, not in template hex ternaries.
+#
+# Validation runs at the end of build_drills() and fails loudly on any
+# nonconformant entry — catching schema drift at build time rather than
+# silently rendering a broken drill in the browser.
+
+TONE_VALUES = ("good", "watch", "critical", "neutral")
+SECTION_TYPES = (
+    "rows", "table", "chart", "prose",
+    "verdict", "timeline", "action_items",
+)
+
+
+def _require(cond: bool, ctx: str, msg: str) -> None:
+    if not cond:
+        raise ValueError(f"Drill schema violation at {ctx}: {msg}")
+
+
+def _validate_tone(tone, ctx: str) -> None:
+    _require(tone in TONE_VALUES, ctx,
+             f"tone must be one of {TONE_VALUES}, got {tone!r}")
+
+
+def _validate_rows(section: dict, ctx: str) -> None:
+    _require(isinstance(section.get("title"), str), ctx, "title required")
+    rows = section.get("rows", [])
+    _require(isinstance(rows, list), ctx, "rows must be a list")
+    for i, row in enumerate(rows):
+        rctx = f"{ctx}.rows[{i}]"
+        _require(isinstance(row, dict), rctx, "row must be a dict")
+        _require("label" in row and "value" in row, rctx,
+                 "row must have label + value")
+
+
+def _validate_table(section: dict, ctx: str) -> None:
+    _require(isinstance(section.get("title"), str), ctx, "title required")
+    cols = section.get("columns", [])
+    _require(isinstance(cols, list) and cols, ctx, "columns must be non-empty")
+    for i, c in enumerate(cols):
+        cctx = f"{ctx}.columns[{i}]"
+        _require(isinstance(c, dict), cctx, "column must be a dict")
+        _require("key" in c and "label" in c, cctx, "column needs key + label")
+    rows = section.get("rows", [])
+    _require(isinstance(rows, list), ctx, "rows must be a list")
+
+
+def _validate_chart(section: dict, ctx: str) -> None:
+    _require(isinstance(section.get("title"), str), ctx, "title required")
+    _require(section.get("chart_type") in ("bar", "line", "area"), ctx,
+             "chart_type must be one of bar|line|area")
+    for key in ("x_axis", "y_axis"):
+        ax = section.get(key, {})
+        _require(isinstance(ax, dict) and "key" in ax, f"{ctx}.{key}",
+                 "axis must be dict with at least a 'key' field")
+    _require(isinstance(section.get("data"), list), ctx,
+             "data must be a list")
+    for i, ref in enumerate(section.get("reference_lines") or []):
+        rctx = f"{ctx}.reference_lines[{i}]"
+        _require(isinstance(ref.get("value"), (int, float)), rctx,
+                 "reference line needs numeric value")
+        if "tone" in ref:
+            _validate_tone(ref["tone"], rctx)
+
+
+def _validate_prose(section: dict, ctx: str) -> None:
+    _require(isinstance(section.get("body"), str) and section["body"], ctx,
+             "prose.body must be a non-empty string")
+
+
+def _validate_verdict(section: dict, ctx: str) -> None:
+    _validate_tone(section.get("tone"), ctx)
+    _require(isinstance(section.get("headline"), str) and section["headline"],
+             ctx, "verdict.headline required")
+    _require(isinstance(section.get("body"), str) and section["body"],
+             ctx, "verdict.body required")
+
+
+def _validate_timeline(section: dict, ctx: str) -> None:
+    _require(isinstance(section.get("title"), str), ctx, "title required")
+    events = section.get("events", [])
+    _require(isinstance(events, list), ctx, "events must be a list")
+    for i, e in enumerate(events):
+        ectx = f"{ctx}.events[{i}]"
+        _require(isinstance(e, dict), ectx, "event must be a dict")
+        _require("date" in e and "title" in e, ectx,
+                 "event needs date + title")
+        if "tone" in e:
+            _validate_tone(e["tone"], ectx)
+
+
+def _validate_action_items(section: dict, ctx: str) -> None:
+    _require(isinstance(section.get("title"), str), ctx, "title required")
+    items = section.get("items", [])
+    _require(isinstance(items, list), ctx, "items must be a list")
+    for i, it in enumerate(items):
+        ictx = f"{ctx}.items[{i}]"
+        _require(isinstance(it, dict), ictx, "item must be a dict")
+        _require(it.get("priority") in ("HIGH", "MEDIUM", "LOW"), ictx,
+                 "item.priority must be HIGH|MEDIUM|LOW")
+        _require("text" in it, ictx, "item needs text")
+
+
+_SECTION_VALIDATORS = {
+    "rows": _validate_rows,
+    "table": _validate_table,
+    "chart": _validate_chart,
+    "prose": _validate_prose,
+    "verdict": _validate_verdict,
+    "timeline": _validate_timeline,
+    "action_items": _validate_action_items,
+}
+
+
+def validate_drill(key: str, entry: dict) -> None:
+    """Validate a single drill registry entry. Raises ValueError on mismatch.
+
+    Enforces the shape documented above — required top-level fields, known
+    section types, and per-type constraints. Optional fields (status_chip,
+    actions, updated_at, source) are validated shallowly when present.
+    """
+    ctx = f"drill {key!r}"
+    _require(isinstance(entry, dict), ctx, "entry must be a dict")
+    for f in ("eyebrow", "title", "summary"):
+        _require(isinstance(entry.get(f), str), ctx, f"{f} must be a string")
+    sections = entry.get("sections")
+    _require(isinstance(sections, list), ctx, "sections must be a list")
+    for i, section in enumerate(sections):
+        sctx = f"{ctx}.sections[{i}]"
+        _require(isinstance(section, dict), sctx, "section must be a dict")
+        stype = section.get("type")
+        _require(stype in SECTION_TYPES, sctx,
+                 f"type must be one of {SECTION_TYPES}, got {stype!r}")
+        _SECTION_VALIDATORS[stype](section, sctx)
+    chip = entry.get("status_chip")
+    if chip is not None:
+        _require(isinstance(chip, dict), ctx, "status_chip must be a dict")
+        _require(isinstance(chip.get("label"), str), ctx,
+                 "status_chip.label required")
+        _validate_tone(chip.get("tone"), f"{ctx}.status_chip")
+    actions = entry.get("actions")
+    if actions is not None:
+        _require(isinstance(actions, list), ctx, "actions must be a list")
+        for i, a in enumerate(actions):
+            actx = f"{ctx}.actions[{i}]"
+            _require(isinstance(a.get("label"), str), actx, "label required")
+            _require(a.get("intent") in ("navigate", "chat", "export"), actx,
+                     "intent must be navigate|chat|export")
+
+
+def validate_registry(registry: dict) -> None:
+    """Validate every entry in the drill registry. Fails loudly on first
+    nonconformant entry, collecting errors into a single message."""
+    errors = []
+    for key, entry in registry.items():
+        try:
+            validate_drill(key, entry)
+        except ValueError as e:
+            errors.append(str(e))
+    if errors:
+        raise ValueError(
+            "Drill registry failed validation:\n  - "
+            + "\n  - ".join(errors)
+        )
+
+
 # Source spreadsheets and downstream surfaces (Transactions, Q1 reimbursement,
 # Provider Reconciliation) use longer provider names than the canonical ones
 # build_drills() emits into the drill registry. Canonicalize on every
@@ -343,6 +516,7 @@ def build_drills(data: dict) -> dict:
         budget_row = all_providers.get(name)
         if budget_row:
             sections.append({
+                "type": "rows",
                 "title": "Contract & Spend",
                 "rows": [
                     {"label": "Amended budget (Exh B Amend 1)", "value": f"${budget_row['budget']:,.0f}"},
@@ -355,6 +529,7 @@ def build_drills(data: dict) -> dict:
             })
         elif name == "Recovery Operation (AIE + P&K)":
             sections.append({
+                "type": "rows",
                 "title": "Recovery Operation — AI Engage + Pete & Kelly Vargo",
                 "rows": [
                     {"label": "AI Engage budget", "value": "$245,000"},
@@ -388,6 +563,7 @@ def build_drills(data: dict) -> dict:
                 })
 
             sections.append({
+                "type": "rows",
                 "title": "Placements",
                 "rows": quarterly_rows + [
                     {"label": "Provider reported (net)", "value": str(fp["total_placements_net"])},
@@ -402,6 +578,7 @@ def build_drills(data: dict) -> dict:
             if fp["true_cpp"] > 0:
                 cpp_cat = "Green (highly cost-effective)" if fp["true_cpp"] <= 2500 else ("Amber (acceptable)" if fp["true_cpp"] <= 4000 else "Red (problem)")
                 sections.append({
+                    "type": "rows",
                     "title": "Cost Analysis",
                     "rows": [
                         {"label": "Reported-only CPP", "value": f"${fp['cpp']:,.0f}"},
@@ -417,6 +594,7 @@ def build_drills(data: dict) -> dict:
         ]
         if related_items:
             sections.append({
+                "type": "rows",
                 "title": f"Open Action Items ({len(related_items)})",
                 "rows": [{"label": f"[{item['priority']}] {item['owner']}", "value": item["action"][:140]}
                          for item in related_items],
@@ -439,6 +617,7 @@ def build_drills(data: dict) -> dict:
                 "title": name,
                 "summary": p.get("notes", "")[:140],
                 "sections": [{
+                    "type": "rows",
                     "title": "Contract & Spend",
                     "rows": [
                         {"label": "Amended budget", "value": f"${p['budget']:,.0f}"},
@@ -468,6 +647,7 @@ def build_drills(data: dict) -> dict:
             "title": cat["name"],
             "summary": cat.get("note", f"${cat['remaining']:,.0f} remaining across {data['summary']['months_remaining']} months"),
             "sections": [{
+                "type": "rows",
                 "title": "Current Status",
                 "rows": rows,
                 "note": "Once Class tracking and production QB sync land, this drill will also list every transaction in the category.",
@@ -481,6 +661,7 @@ def build_drills(data: dict) -> dict:
             "title": item["area"] if item["area"] else "(no area)",
             "summary": f"Owner: {item['owner']}",
             "sections": [{
+                "type": "rows",
                 "title": "Full action description",
                 "rows": [{"label": "Action", "value": item["action"]}],
                 "note": "Source: v3 Reconciliation Action Items sheet (3/27/26). Will update as Krista/Bethany work through items.",
@@ -559,11 +740,13 @@ def build_drills(data: dict) -> dict:
             "summary": f"{dim['readiness']} audit-ready · owner: {dim['owner']}",
             "sections": [
                 {
+                    "type": "rows",
                     "title": "What auditors look for",
                     "rows": [{"label": dim["what_auditors_look_for"],
                               "value": dim["readiness"]}],
                 },
                 {
+                    "type": "rows",
                     "title": "Open gaps",
                     "rows": [{"label": "Full gap detail pending first "
                                        "audit-readiness sweep",
@@ -600,6 +783,7 @@ def build_drills(data: dict) -> dict:
         "summary": "All CFA-side operations — staff, overhead, and recovery contractors",
         "sections": [
             {
+                "type": "rows",
                 "title": f"Staff & overhead — ${summary['backbone_remaining']:,.0f} remaining",
                 "rows": [
                     {"label": "Personnel — Salaries · ~$36,852/mo · ~6.0 months runway",
@@ -613,6 +797,7 @@ def build_drills(data: dict) -> dict:
                 ],
             },
             {
+                "type": "rows",
                 "title": f"Recovery contractors — ${summary['cfa_contractor_remaining']:,.0f} remaining",
                 "rows": [
                     {"label": "AI Engage · directs the recovery work",
@@ -637,6 +822,7 @@ def build_drills(data: dict) -> dict:
         "summary": f"PIP threshold ({placements['pip_threshold']}) cleared on April 6 · 255 to grant goal",
         "sections": [
             {
+                "type": "rows",
                 "title": f"Where the {placements['confirmed_total']} came from",
                 "rows": [
                     {"label": "Coalition reported placements · Q4 net of retractions",
@@ -661,6 +847,7 @@ def build_drills(data: dict) -> dict:
         "summary": "Q1 provider invoices paid by CFA · invoiced to ESD April 30",
         "sections": [
             {
+                "type": "rows",
                 "title": "Outstanding receivable from ESD",
                 "rows": [
                     {"label": f"{row['provider']} · {row['actual']} placements × ${row['rate']:,}",
@@ -684,6 +871,7 @@ def build_drills(data: dict) -> dict:
         "summary": "Filtered to severity = HIGH · status = open",
         "sections": [
             {
+                "type": "rows",
                 "title": "High-priority items from v3 reconciliation",
                 "rows": [
                     {"label": f"{item['area']} · {item['owner']}",
@@ -698,6 +886,9 @@ def build_drills(data: dict) -> dict:
             "full detail view, including related action items."
         ),
     }
+
+    # Fail loudly if any drill entry drifts from the schema.
+    validate_registry(drills)
 
     return drills
 
