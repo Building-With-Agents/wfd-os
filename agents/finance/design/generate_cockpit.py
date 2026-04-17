@@ -1,25 +1,36 @@
 """
 CFA Cockpit — Generator
 
-Reads the four K8341 spreadsheets, computes derived figures, renders the
+Reads the K8341 source spreadsheets, computes derived figures, renders the
 Jinja2 template, and writes the final HTML.
 
 Usage:
-    python3 generate_cockpit.py
-    python3 generate_cockpit.py --project-dir /path/to/spreadsheets --out /path/to/output.html
+    python generate_cockpit.py
+    python generate_cockpit.py --project-dir /path/to/spreadsheets --out /path/to/output.html
+    COCKPIT_DATA_DIR=/path/to/spreadsheets python generate_cockpit.py
+
+By default, reads from agents/finance/design/fixtures/ (gitignored local
+copies of the source spreadsheets) and writes to agents/finance/design/
+CFA_Cockpit.html alongside the template.
 
 In production (wfd-os Finance portal), this becomes a server-side render where
 the data dict comes from grant-compliance API endpoints instead of openpyxl.
 """
 
 import argparse
+import os
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from cockpit_data import canonical_provider, extract_all
+from cockpit_data import DEFAULT_DATA_DIR, canonical_provider, extract_all, resolve_data_dir
 
 
-def render_cockpit(project_dir: Path, template_path: Path, out_path: Path) -> None:
+HERE = Path(__file__).resolve().parent
+DEFAULT_TEMPLATE = HERE / "cockpit_template.html"
+DEFAULT_OUT = HERE / "CFA_Cockpit.html"
+
+
+def render_cockpit(project_dir, template_path: Path, out_path: Path) -> None:
     # 1. Extract data from spreadsheets
     data = extract_all(project_dir)
 
@@ -56,20 +67,24 @@ def render_cockpit(project_dir: Path, template_path: Path, out_path: Path) -> No
         high_priority_count=high_priority_count,
     )
 
-    out_path.write_text(rendered)
-    print(f"✓ Rendered cockpit to {out_path}")
-    print(f"  Backbone runway: ${data['summary']['backbone_runway_combined']:,.0f}")
-    print(f"  GJC remaining: ${data['summary']['gjc_remaining']:,.0f}")
-    print(f"  Action items: {len(data['action_items'])} ({high_priority_count} high)")
-    print(f"  Providers loaded: {sum(len(v) for v in data['providers'].values())}")
+    out_path.write_text(rendered, encoding="utf-8")
+    print(f"Rendered cockpit to {out_path}")
+    print(f"  Data dir:           {resolve_data_dir(project_dir)}")
+    print(f"  Backbone runway:    ${data['summary']['backbone_runway_combined']:,.0f}")
+    print(f"  GJC remaining:      ${data['summary']['gjc_remaining']:,.0f}")
+    print(f"  Action items:       {len(data['action_items'])} ({high_priority_count} high)")
+    print(f"  Providers loaded:   {sum(len(v) for v in data['providers'].values())}")
     print(f"  Trailing Q1 invoices: ${trailing_q1_total:,.0f}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--project-dir", default="/mnt/project", type=Path)
-    parser.add_argument("--template", default="/home/claude/cockpit_template.html", type=Path)
-    parser.add_argument("--out", default="/mnt/user-data/outputs/CFA_Cockpit.html", type=Path)
+    parser.add_argument("--project-dir", default=None, type=Path,
+                        help="Directory of source spreadsheets. Defaults to "
+                             "COCKPIT_DATA_DIR env var, else "
+                             f"{DEFAULT_DATA_DIR}")
+    parser.add_argument("--template", default=DEFAULT_TEMPLATE, type=Path)
+    parser.add_argument("--out", default=DEFAULT_OUT, type=Path)
     args = parser.parse_args()
 
     render_cockpit(args.project_dir, args.template, args.out)

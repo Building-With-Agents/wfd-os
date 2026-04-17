@@ -764,7 +764,7 @@ def extract_recovered_placements(twc_path: Path) -> dict:
     plus status totals. In production this comes from the SharePoint sync.
     """
     from collections import Counter, defaultdict
-    if not twc_path.exists():
+    if twc_path is None or not twc_path.exists():
         return {"by_provider": {}, "by_status": {}, "total_validated": 0,
                 "available": False}
 
@@ -984,19 +984,67 @@ def build_financial_performance(cpp: dict, placements: dict, providers: dict,
         return 0.0
 
 
-def extract_all(project_dir: Path) -> dict:
-    """Top-level entry: read all four spreadsheets, return structured data."""
-    project_dir = Path(project_dir)
-    recon = project_dir / "K8341_Provider_Reconciliation_v3_327.xlsx"
-    cpp = project_dir / "K8341_Cost_Per_Placement.xlsx"
-    exhb = project_dir / "K8341_GJC_CFA_WTWC_Exh_B_RBKJ_3_23_26_1.xlsx"
-    # WJI TWC Candidate Tracking — uploaded to user-data, not project
-    twc_candidates = [
-        Path("/mnt/user-data/uploads/WJI_TWC_Candidate_Tracking__1_.xlsx"),
-        Path("/mnt/user-data/uploads/WJI_TWC_Candidate_Tracking.xlsx"),
-        project_dir / "WJI_TWC_Candidate_Tracking.xlsx",
-    ]
-    twc = next((p for p in twc_candidates if p.exists()), twc_candidates[0])
+DEFAULT_DATA_DIR = Path(__file__).resolve().parent / "fixtures"
+
+
+def resolve_data_dir(project_dir: "Path | str | None" = None) -> Path:
+    """Resolve the spreadsheet source directory.
+
+    Precedence: explicit argument > COCKPIT_DATA_DIR env var >
+    `agents/finance/design/fixtures/` next to this module.
+    """
+    import os
+    if project_dir is not None:
+        return Path(project_dir)
+    env = os.environ.get("COCKPIT_DATA_DIR")
+    if env:
+        return Path(env)
+    return DEFAULT_DATA_DIR
+
+
+def _find_fixture(project_dir: Path, patterns: list,
+                  *, required: bool = True):
+    """Return the first xlsx in `project_dir` matching any glob pattern.
+
+    Tolerates filename drift — hyphens vs underscores, spaces, ampersands,
+    trailing "(1)" — so callers don't have to hardcode exact names.
+    """
+    for pat in patterns:
+        matches = sorted(project_dir.glob(pat))
+        if matches:
+            return matches[0]
+    if required:
+        raise FileNotFoundError(
+            f"No fixture in {project_dir} matched any of: {patterns}"
+        )
+    return None
+
+
+def extract_all(project_dir=None) -> dict:
+    """Top-level entry: read all source spreadsheets, return structured data.
+
+    `project_dir` defaults to agents/finance/design/fixtures/. Override via
+    the `COCKPIT_DATA_DIR` environment variable or by passing a path.
+    """
+    project_dir = resolve_data_dir(project_dir)
+    recon = _find_fixture(project_dir, [
+        "*Provider_Reconciliation*.xlsx",
+        "*Provider Reconciliation*.xlsx",
+    ])
+    cpp = _find_fixture(project_dir, [
+        "*Cost_Per_Placement*.xlsx",
+        "*Cost Per Placement*.xlsx",
+    ])
+    exhb = _find_fixture(project_dir, [
+        "*Exh_B*.xlsx",
+        "*Exh B*.xlsx",
+    ])
+    twc = _find_fixture(project_dir, [
+        "*TWC_Candidate_Tracking*.xlsx",
+        "*TWC Candidate Tracking*.xlsx",
+        "WJI_TWC*.xlsx",
+        "WJI TWC*.xlsx",
+    ], required=False)
 
     providers = extract_providers(recon)
     action_items = extract_action_items(recon)
@@ -1076,7 +1124,7 @@ def extract_all(project_dir: Path) -> dict:
 
 if __name__ == "__main__":
     import json
-    data = extract_all(Path("/mnt/project"))
+    data = extract_all()
     # Pretty-print summary for sanity check
     print(json.dumps(data["summary"], indent=2, default=str))
     print(f"\nProviders found: " + ", ".join(
