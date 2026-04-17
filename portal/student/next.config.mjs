@@ -1,5 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Pin Turbopack's workspace root to this directory. Without this, Turbopack
+  // infers a higher ancestor (wfd-os/portal or wfd-os/) because lib/content.ts
+  // reads ../../content, which causes CSS resolution to look for `tailwindcss`
+  // in the wrong node_modules and fails compilation.
+  turbopack: {
+    root: import.meta.dirname,
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
@@ -14,7 +21,7 @@ const nextConfig = {
       },
       {
         source: "/api/consulting/:path*",
-        destination: "http://localhost:8006/api/consulting/:path*",
+        destination: "http://localhost:8003/api/consulting/:path*",
       },
       {
         source: "/api/wji/:path*",
@@ -35,6 +42,15 @@ const nextConfig = {
       {
         source: "/api/showcase/:path*",
         destination: "http://localhost:8002/api/showcase/:path*",
+      },
+      // grant-compliance FastAPI runs on :8000. Its routes are at the
+      // root of that service (/qb/status, /grants, /transactions, etc.)
+      // — not under an /api prefix — so the rewrite strips our /api/grant-compliance
+      // prefix entirely. Example: /api/grant-compliance/qb/status (portal)
+      // → http://localhost:8000/qb/status (scaffold).
+      {
+        source: "/api/grant-compliance/:path*",
+        destination: "http://localhost:8000/:path*",
       },
       {
         source: "/api/stats",

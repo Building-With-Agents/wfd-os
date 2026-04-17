@@ -37,6 +37,9 @@ from agents.assistant.student_agent import student_agent  # noqa: E402
 from agents.assistant.staff_agent import staff_agent  # noqa: E402
 from agents.assistant.college_agent import college_agent  # noqa: E402
 from agents.assistant.youth_agent import youth_agent  # noqa: E402
+from agents.assistant.bd_agent import bd_agent  # noqa: E402
+from agents.assistant.marketing_agent import marketing_agent  # noqa: E402
+from agents.assistant.finance_agent import finance_agent  # noqa: E402
 
 app = FastAPI(title="WFD OS Conversational Agent API", version="0.1.0")
 
@@ -105,6 +108,9 @@ _REGISTERED_AGENTS: dict[str, BaseAgent] = {
     "staff": staff_agent,
     "college": college_agent,
     "youth": youth_agent,
+    "bd": bd_agent,
+    "marketing": marketing_agent,
+    "finance": finance_agent,
 }
 
 
