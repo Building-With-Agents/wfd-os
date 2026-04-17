@@ -16,7 +16,7 @@ import argparse
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from cockpit_data import extract_all
+from cockpit_data import canonical_provider, extract_all
 
 
 def render_cockpit(project_dir: Path, template_path: Path, out_path: Path) -> None:
@@ -37,6 +37,7 @@ def render_cockpit(project_dir: Path, template_path: Path, out_path: Path) -> No
         loader=FileSystemLoader(template_path.parent),
         autoescape=select_autoescape(["html"]),
     )
+    env.globals["canonical_provider"] = canonical_provider
     template = env.get_template(template_path.name)
 
     # 4. Render

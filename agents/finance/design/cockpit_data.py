@@ -13,6 +13,35 @@ from datetime import date
 from pathlib import Path
 
 
+# Source spreadsheets and downstream surfaces (Transactions, Q1 reimbursement,
+# Provider Reconciliation) use longer provider names than the canonical ones
+# build_drills() emits into the drill registry. Canonicalize on every
+# data-drill emission so clicks always resolve to the registered drill entry.
+PROVIDER_CANONICAL = {
+    "Vets2Tech / St. Martin University": "Vets2Tech",
+    "St Martins - Washington Vets 2 Tech": "Vets2Tech",
+    "Year Up Puget Sound": "Year Up",
+    "Code Day X Mint": "Code Day",
+    "Code Day X MinT": "Code Day",
+    "Code Day / MinT": "Code Day",
+    "CodeDay/MinT": "Code Day",
+    "PNW Cyber Challenge": "PNW CCG",
+    "NCESD 171": "NCESD",
+    "Riipen / North Seattle College": "Riipen",
+    "Ada Developers": "Ada",
+    "Ada Developers Academy": "Ada",
+    "AI Engage Group LLC": "AI Engage",
+    "Pete & Kelly Vargo": "CFA Contractors (Pete & Kelly Vargo)",
+}
+
+
+def canonical_provider(name: str) -> str:
+    """Return the canonical drill-registry key for a provider name."""
+    if name is None:
+        return ""
+    return PROVIDER_CANONICAL.get(name, name)
+
+
 def extract_providers(recon_path: Path) -> dict:
     """Read v3 Provider Reconciliation. Returns providers grouped by status."""
     wb = load_workbook(recon_path, data_only=True)
@@ -456,6 +485,94 @@ def build_drills(data: dict) -> dict:
                 "rows": [{"label": "Action", "value": item["action"]}],
                 "note": "Source: v3 Reconciliation Action Items sheet (3/27/26). Will update as Krista/Bethany work through items.",
             }],
+        }
+
+    # ---------- Audit dimension drills ----------
+    # Placeholder gap detail until the first audit-readiness sweep lands.
+    # Each entry mirrors the row in the Audit Readiness table.
+    audit_dimensions = [
+        {
+            "id": "allowable_costs",
+            "title": "Allowable costs",
+            "owner": "Krista",
+            "readiness": "96%",
+            "tone": "good",
+            "what_auditors_look_for":
+                "Every transaction maps to an allowable category under the grant "
+                "budget (Exhibit B) and 2 CFR 200 cost principles.",
+        },
+        {
+            "id": "transaction_documentation",
+            "title": "Transaction documentation",
+            "owner": "Krista",
+            "readiness": "88%",
+            "tone": "watch",
+            "what_auditors_look_for":
+                "Vendor invoices, receipts, and written approvals on file for "
+                "every transaction — especially those over $2,500.",
+        },
+        {
+            "id": "time_effort",
+            "title": "Time & effort certifications",
+            "owner": "Ritu",
+            "readiness": "0%",
+            "tone": "critical",
+            "what_auditors_look_for":
+                "Quarterly attestations from every federally-funded staff "
+                "member documenting the share of effort charged to K8341.",
+        },
+        {
+            "id": "procurement",
+            "title": "Procurement & competition",
+            "owner": "Ritu",
+            "readiness": "92%",
+            "tone": "good",
+            "what_auditors_look_for":
+                "Competitive process or a documented sole-source justification "
+                "on file for every contract awarded under the grant.",
+        },
+        {
+            "id": "subrecipient_monitoring",
+            "title": "Subrecipient monitoring",
+            "owner": "Ritu · Bethany",
+            "readiness": "81%",
+            "tone": "watch",
+            "what_auditors_look_for":
+                "Risk assessment, periodic monitoring, and follow-up evidence "
+                "for each provider receiving grant pass-through funds.",
+        },
+        {
+            "id": "performance_reporting",
+            "title": "Performance reporting accuracy",
+            "owner": "Bethany · Gage",
+            "readiness": "95%",
+            "tone": "good",
+            "what_auditors_look_for":
+                "Reported placement counts reconcile to the underlying WSAC + "
+                "WJI TWC tracking source data with a clear audit trail.",
+        },
+    ]
+    for dim in audit_dimensions:
+        drills[f"audit:{dim['id']}"] = {
+            "eyebrow": "Audit Dimension",
+            "title": dim["title"],
+            "summary": f"{dim['readiness']} audit-ready · owner: {dim['owner']}",
+            "sections": [
+                {
+                    "title": "What auditors look for",
+                    "rows": [{"label": dim["what_auditors_look_for"],
+                              "value": dim["readiness"]}],
+                },
+                {
+                    "title": "Open gaps",
+                    "rows": [{"label": "Full gap detail pending first "
+                                       "audit-readiness sweep",
+                              "value": "—"}],
+                    "note": "This placeholder will be replaced once the "
+                            "initial audit-readiness review produces a "
+                            "dimension-specific gap list.",
+                },
+            ],
         }
 
     return drills

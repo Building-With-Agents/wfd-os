@@ -338,6 +338,7 @@
     margin-bottom: 6px;
   }
   .verdict .body { font-size: 13px; color: var(--text-2); }
+  .verdict.good { background: var(--good-soft); border-left-color: var(--good); }
   .verdict.watch { background: var(--watch-soft); border-left-color: var(--watch); }
   .verdict.critical { background: var(--critical-soft); border-left-color: var(--critical); }
 
@@ -1163,7 +1164,7 @@
               {% for row in placements.quarterly_placements %}
               {% set net = row.total_through_q4_25 + row.q1_26_actual + row.q1_26_retraction %}
               {% set pct = (net / row.target * 100) if row.target > 0 else 0 %}
-              <tr data-drill="provider:{{ row.provider }}">
+              <tr data-drill="provider:{{ canonical_provider(row.provider) }}">
                 <td style="padding-left:20px;">{{ row.provider }}</td>
                 {% for v in row.q %}
                 <td class="right num" style="color:{% if v == 0 %}var(--text-3){% else %}var(--text-1){% endif %};">{{ v if v > 0 else '—' }}</td>
@@ -1230,7 +1231,7 @@
             </thead>
             <tbody>
               {% for row in placements.q1_provider_actuals_breakdown %}
-              <tr data-drill="provider:{{ row.provider }}">
+              <tr data-drill="provider:{{ canonical_provider(row.provider) }}">
                 <td style="padding-left:20px;">{{ row.provider }}{% if row.actual is none %} <span style="font-size:11px;color:var(--critical);">· contract not finalized</span>{% endif %}</td>
                 <td class="right num">{{ row.expected }}</td>
                 <td class="right num">{% if row.actual is none %}—{% else %}{{ row.actual }}{% endif %}</td>
@@ -1290,7 +1291,7 @@
             <tbody>
               <tr class="subhead"><td colspan="5" style="padding-left:20px;">Active — closing out</td></tr>
               {% for p in providers.active %}
-              <tr data-drill="provider:{{ p.name }}">
+              <tr data-drill="provider:{{ canonical_provider(p.name) }}">
                 <td style="padding-left:20px;">{{ p.name }}</td>
                 <td class="right num">${{ "{:,.0f}".format(p.budget) }}</td>
                 <td class="right num">${{ "{:,.0f}".format(p.qb_actual) }}</td>
@@ -1301,7 +1302,7 @@
 
               <tr class="subhead"><td colspan="5" style="padding-left:20px;">Closed — placement-based</td></tr>
               {% for p in providers.closed_with_placements %}
-              <tr data-drill="provider:{{ p.name }}">
+              <tr data-drill="provider:{{ canonical_provider(p.name) }}">
                 <td style="padding-left:20px;">{{ p.name }}</td>
                 <td class="right num">${{ "{:,.0f}".format(p.budget) }}</td>
                 <td class="right num">${{ "{:,.0f}".format(p.qb_actual) }}</td>
@@ -1312,7 +1313,7 @@
 
               <tr class="subhead"><td colspan="5" style="padding-left:20px;">Closed — support / engagement</td></tr>
               {% for p in providers.closed_support %}
-              <tr data-drill="provider:{{ p.name }}">
+              <tr data-drill="provider:{{ canonical_provider(p.name) }}">
                 <td style="padding-left:20px;">{{ p.name }}</td>
                 <td class="right num">${{ "{:,.0f}".format(p.budget) }}</td>
                 <td class="right num">${{ "{:,.0f}".format(p.qb_actual) }}</td>
@@ -1323,7 +1324,7 @@
 
               <tr class="subhead"><td colspan="5" style="padding-left:20px;">ESD-directed terminations — no further payments</td></tr>
               {% for p in providers.terminated %}
-              <tr data-drill="provider:{{ p.name }}">
+              <tr data-drill="provider:{{ canonical_provider(p.name) }}">
                 <td style="padding-left:20px;">{{ p.name }}</td>
                 <td class="right num">${{ "{:,.0f}".format(p.budget) }}</td>
                 <td class="right num">${{ "{:,.0f}".format(p.qb_actual) }}</td>
@@ -1334,7 +1335,7 @@
 
               <tr class="subhead"><td colspan="5" style="padding-left:20px;">CFA Contractors — recovery engine</td></tr>
               {% for p in providers.cfa_contractors %}
-              <tr data-drill="provider:{{ p.name }}">
+              <tr data-drill="provider:{{ canonical_provider(p.name) }}">
                 <td style="padding-left:20px;">{{ p.name }}</td>
                 <td class="right num">${{ "{:,.0f}".format(p.budget) }}</td>
                 <td class="right num">${{ "{:,.0f}".format(p.qb_actual) }}</td>
@@ -1437,7 +1438,7 @@
             </thead>
             <tbody>
               {% for row in financial_performance %}
-              <tr data-drill="provider:{{ row.provider }}" {% if row.category == 'recovery' %}style="background:var(--surface-warm);"{% elif row.category == 'cfa_direct' %}style="background:var(--surface-alt);"{% endif %}>
+              <tr data-drill="provider:{{ canonical_provider(row.provider) }}" {% if row.category == 'recovery' %}style="background:var(--surface-warm);"{% elif row.category == 'cfa_direct' %}style="background:var(--surface-alt);"{% endif %}>
                 <td style="padding-left:20px;font-weight:500;">{{ row.provider }}{% if row.category == 'recovery' %} <span style="font-size:10px;color:var(--text-3);font-weight:400;">· LinkedIn outreach</span>{% endif %}</td>
                 {% for i in range(8) %}
                   {% set pmt = row.quarterly_payments[i] %}
@@ -1568,7 +1569,7 @@
               <tr>
                 <td style="padding-left:20px;" class="num">2026-04-14</td>
                 <td>Bill</td>
-                <td>AI Engage Group LLC</td>
+                <td data-drill="provider:{{ canonical_provider('AI Engage Group LLC') }}">AI Engage Group LLC</td>
                 <td>March recovery work — 47 candidates reviewed</td>
                 <td>CFA Contractors</td>
                 <td class="right num" style="padding-right:20px;">$12,000</td>
@@ -1592,7 +1593,7 @@
               <tr>
                 <td style="padding-left:20px;" class="num">2026-04-08</td>
                 <td>Bill</td>
-                <td>Pete &amp; Kelly Vargo</td>
+                <td data-drill="provider:{{ canonical_provider('Pete & Kelly Vargo') }}">Pete &amp; Kelly Vargo</td>
                 <td>March outreach contract</td>
                 <td>CFA Contractors</td>
                 <td class="right num" style="padding-right:20px;">$18,500</td>
@@ -1608,7 +1609,7 @@
               <tr>
                 <td style="padding-left:20px;" class="num">2026-04-02</td>
                 <td>Bill</td>
-                <td>Code Day X MinT</td>
+                <td data-drill="provider:{{ canonical_provider('Code Day X MinT') }}">Code Day X MinT</td>
                 <td>Q1 final invoice — 8 placements × $3,222</td>
                 <td>GJC Contractors</td>
                 <td class="right num" style="padding-right:20px;">$25,776</td>
@@ -1757,7 +1758,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr>
+              <tr data-drill="audit:allowable_costs">
                 <td style="padding-left:20px;">Allowable costs</td>
                 <td style="color:var(--text-2);font-size:12px;">Every transaction maps to an allowable category</td>
                 <td class="right">
@@ -1765,7 +1766,7 @@
                 </td>
                 <td style="padding-right:20px;">Krista</td>
               </tr>
-              <tr>
+              <tr data-drill="audit:transaction_documentation">
                 <td style="padding-left:20px;">Transaction documentation</td>
                 <td style="color:var(--text-2);font-size:12px;">Vendor invoices, receipts, approvals on file</td>
                 <td class="right">
@@ -1773,7 +1774,7 @@
                 </td>
                 <td style="padding-right:20px;">Krista</td>
               </tr>
-              <tr>
+              <tr data-drill="audit:time_effort">
                 <td style="padding-left:20px;">Time &amp; effort certifications</td>
                 <td style="color:var(--text-2);font-size:12px;">Quarterly attestations from federally-funded staff</td>
                 <td class="right">
@@ -1781,7 +1782,7 @@
                 </td>
                 <td style="padding-right:20px;">Ritu</td>
               </tr>
-              <tr>
+              <tr data-drill="audit:procurement">
                 <td style="padding-left:20px;">Procurement &amp; competition</td>
                 <td style="color:var(--text-2);font-size:12px;">Competitive process or sole-source justification per contract</td>
                 <td class="right">
@@ -1789,7 +1790,7 @@
                 </td>
                 <td style="padding-right:20px;">Ritu</td>
               </tr>
-              <tr>
+              <tr data-drill="audit:subrecipient_monitoring">
                 <td style="padding-left:20px;">Subrecipient monitoring</td>
                 <td style="color:var(--text-2);font-size:12px;">Risk assessment, monitoring, follow-up per provider</td>
                 <td class="right">
@@ -1797,7 +1798,7 @@
                 </td>
                 <td style="padding-right:20px;">Ritu · Bethany</td>
               </tr>
-              <tr>
+              <tr data-drill="audit:performance_reporting">
                 <td style="padding-left:20px;">Performance reporting accuracy</td>
                 <td style="color:var(--text-2);font-size:12px;">Reported placements reconcilable to source data</td>
                 <td class="right">
