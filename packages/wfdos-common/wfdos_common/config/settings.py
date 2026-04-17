@@ -242,6 +242,33 @@ class PlatformSettings(BaseSettings):
     model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
 
 
+class JieSettings(BaseSettings):
+    """Job-Intelligence-Engine HTTP client config (LaborPulse proxy).
+
+    LaborPulse (`agents/laborpulse/api.py`) forwards streaming Q&A
+    requests to JIE's `POST /analytics/query`. All four settings have
+    safe-empty defaults so the wfd-os stack boots without JIE creds;
+    the proxy raises `ServiceUnavailableError` at call time if
+    `base_url` is empty, matching the stripped-.env 503 posture set by
+    the @llm_gated tier decorator (#25).
+    """
+
+    base_url: str = Field(default="", alias="JIE_BASE_URL")
+    # API key header ("X-API-Key: ...") for JIE-side auth. Empty means JIE
+    # is unauthenticated (dev / open-localhost).
+    api_key: str = Field(default="", alias="JIE_API_KEY")
+    # JSON-POST timeout (the non-streaming /feedback path and any quick
+    # JIE pings). The streaming /query path uses streaming_read_timeout.
+    timeout_seconds: int = Field(default=120, alias="JIE_TIMEOUT_SECONDS")
+    # SSE stays open while JIE synthesizes. Generous to cover cold-start
+    # + multi-step tool use.
+    streaming_read_timeout_seconds: int = Field(
+        default=300, alias="JIE_STREAMING_TIMEOUT"
+    )
+
+    model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
+
+
 class AuthSettings(BaseSettings):
     """Magic-link auth (#24) + role-based access settings.
 
@@ -341,6 +368,7 @@ class Settings(BaseSettings):
     tenancy: TenancySettings = Field(default_factory=TenancySettings)
     platform: PlatformSettings = Field(default_factory=PlatformSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
+    jie: JieSettings = Field(default_factory=JieSettings)
 
     model_config = SettingsConfigDict(extra="ignore")
 
