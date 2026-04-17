@@ -1894,84 +1894,9 @@
   // opens a slide-out panel with the content from the registry below.
   // =====================================================================
 
-  // Registry populated from Python at render time
+  // Registry populated from Python at render time. Every drill — hero,
+  // category, decision, provider, audit — lives in this one dict.
   const drillRegistry = {{ drills | tojson }};
-
-  // Hero cell drills (legacy, inline content — kept for backbone/flags/cash)
-  const heroDrillContent = {
-    backbone: {
-      eyebrow: 'Backbone Runway',
-      title: '${{ "{:,.0f}".format(summary.backbone_runway_combined) }} across {{ summary.months_remaining }} months',
-      summary: 'All CFA-side operations — staff, overhead, and recovery contractors',
-      sections: [
-        {
-          title: 'Staff & overhead — ${{ "{:,.0f}".format(summary.backbone_remaining) }} remaining',
-          rows: [
-            {label: 'Personnel — Salaries · ~$36,852/mo · ~6.0 months runway', value: '${{ "{:,.0f}".format(summary.categories[3].remaining) }}'},
-            {label: 'Personnel — Benefits · ~$5,815/mo', value: '${{ "{:,.0f}".format(summary.categories[4].remaining) }}'},
-            {label: 'Other Direct Costs · travel, comms, supplies', value: '${{ "{:,.0f}".format(summary.categories[5].remaining) }}'},
-            {label: 'Indirect Costs · de minimis 10%', value: '${{ "{:,.0f}".format(summary.categories[6].remaining) }}'},
-          ],
-        },
-        {
-          title: 'Recovery contractors — ${{ "{:,.0f}".format(summary.cfa_contractor_remaining) }} remaining',
-          rows: [
-            {label: 'AI Engage · directs the recovery work', value: '$105,000'},
-            {label: 'Pete & Kelly Vargo · LinkedIn outreach + verification', value: '$105,217'},
-          ],
-        }
-      ],
-      note: 'Verdict: At current burn (~$78k/month combined), backbone runway lands within ~$3k of the September 30 grant end. The $700k+ projected unspent in GJC Contractors is the only available buffer — moving even $200k via budget amendment buys real recovery-work runway.'
-    },
-    placements: {
-      eyebrow: 'Placements',
-      title: '{{ placements.confirmed_total }} confirmed of {{ "{:,}".format(placements.grant_goal) }}',
-      summary: 'PIP threshold ({{ placements.pip_threshold }}) cleared on April 6 · 255 to grant goal',
-      sections: [
-        {
-          title: 'Where the {{ placements.confirmed_total }} came from',
-          rows: [
-            {label: 'Coalition reported placements · Q4 net of retractions', value: '{{ placements.coalition_reported }}'},
-            {label: 'CFA verified Good Jobs · AIE + P&K LinkedIn recovery', value: '{{ placements.cfa_verified }}'},
-            {label: 'Provider Q1 actuals · final GJC contributions', value: '{{ placements.q1_provider_actuals }}'},
-          ],
-        }
-      ],
-      note: 'Live data. Synced from WJI TWC Candidate Tracking. {{ recovered.total_validated }} validated rows across 9 providers.'
-    },
-    reimbursement: {
-      eyebrow: 'Cash Position',
-      title: '${{ "{:,.0f}".format(trailing_q1_total) }} awaiting ESD reimbursement',
-      summary: 'Q1 provider invoices paid by CFA · invoiced to ESD April 30',
-      sections: [
-        {
-          title: 'Outstanding receivable from ESD',
-          rows: [
-            {% for row in placements.q1_provider_actuals_breakdown %}{% if row.invoice %}
-            {label: '{{ row.provider }} · {{ row.actual }} placements × ${{ "{:,}".format(row.rate) }}', value: '${{ "{:,}".format(row.invoice) }}'},
-            {% endif %}{% endfor %}
-          ],
-        }
-      ],
-      note: 'Cycle timing. Invoice goes to ESD April 30 with the monthly advance request. Historical turnaround ~21 days, funds expected ~May 21. CFA must float this amount from operating cash for 3 weeks.'
-    },
-    flags: {
-      eyebrow: 'Critical Flags',
-      title: '{{ high_priority_count }} items need decisions this week',
-      summary: 'Filtered to severity = HIGH · status = open',
-      sections: [
-        {
-          title: 'High-priority items from v3 reconciliation',
-          rows: [
-            {% for item in action_items %}{% if item.priority == 'HIGH' %}
-            {label: '{{ item.area }} · {{ item.owner }}', value: '{{ item.action[:120]|replace("'", "\\'") }}'},
-            {% endif %}{% endfor %}
-          ],
-        }
-      ],
-      note: 'Click any provider name throughout the cockpit to see their full detail view, including related action items.'
-    }
-  };
 
   // Render drill content to HTML
   function renderDrill(content) {
@@ -1997,8 +1922,7 @@
   const panel = document.getElementById('drillPanel');
 
   function openDrill(key) {
-    // Hero cells have their own content; everything else uses the registry
-    let content = heroDrillContent[key] || drillRegistry[key];
+    const content = drillRegistry[key];
     if (!content) {
       console.warn('No drill content for:', key);
       return;

@@ -575,6 +575,130 @@ def build_drills(data: dict) -> dict:
             ],
         }
 
+    # ---------- Hero cell drills ----------
+    # Four entries keyed by bare name (backbone, placements, reimbursement,
+    # flags) to match the hero cells' data-drill attributes. Same rigid
+    # {title, rows: [{label, value}]} schema as everything else — content
+    # ported verbatim from the old heroDrillContent inline object in
+    # cockpit_template.html.
+    summary = data["summary"]
+    placements = data["placements"]
+    action_items = data["action_items"]
+    recovered = data["recovered"]
+    categories = summary["categories"]
+    trailing_q1_total = sum(
+        row["invoice"] for row in placements["q1_provider_actuals_breakdown"]
+        if row["invoice"] is not None
+    )
+    high_priority_count = sum(
+        1 for item in action_items if item["priority"] == "HIGH"
+    )
+
+    drills["backbone"] = {
+        "eyebrow": "Backbone Runway",
+        "title": f"${summary['backbone_runway_combined']:,.0f} across {summary['months_remaining']} months",
+        "summary": "All CFA-side operations — staff, overhead, and recovery contractors",
+        "sections": [
+            {
+                "title": f"Staff & overhead — ${summary['backbone_remaining']:,.0f} remaining",
+                "rows": [
+                    {"label": "Personnel — Salaries · ~$36,852/mo · ~6.0 months runway",
+                     "value": f"${categories[3]['remaining']:,.0f}"},
+                    {"label": "Personnel — Benefits · ~$5,815/mo",
+                     "value": f"${categories[4]['remaining']:,.0f}"},
+                    {"label": "Other Direct Costs · travel, comms, supplies",
+                     "value": f"${categories[5]['remaining']:,.0f}"},
+                    {"label": "Indirect Costs · de minimis 10%",
+                     "value": f"${categories[6]['remaining']:,.0f}"},
+                ],
+            },
+            {
+                "title": f"Recovery contractors — ${summary['cfa_contractor_remaining']:,.0f} remaining",
+                "rows": [
+                    {"label": "AI Engage · directs the recovery work",
+                     "value": "$105,000"},
+                    {"label": "Pete & Kelly Vargo · LinkedIn outreach + verification",
+                     "value": "$105,217"},
+                ],
+            },
+        ],
+        "note": (
+            "Verdict: At current burn (~$78k/month combined), backbone "
+            "runway lands within ~$3k of the September 30 grant end. "
+            "The $700k+ projected unspent in GJC Contractors is the only "
+            "available buffer — moving even $200k via budget amendment "
+            "buys real recovery-work runway."
+        ),
+    }
+
+    drills["placements"] = {
+        "eyebrow": "Placements",
+        "title": f"{placements['confirmed_total']} confirmed of {placements['grant_goal']:,}",
+        "summary": f"PIP threshold ({placements['pip_threshold']}) cleared on April 6 · 255 to grant goal",
+        "sections": [
+            {
+                "title": f"Where the {placements['confirmed_total']} came from",
+                "rows": [
+                    {"label": "Coalition reported placements · Q4 net of retractions",
+                     "value": str(placements["coalition_reported"])},
+                    {"label": "CFA verified Good Jobs · AIE + P&K LinkedIn recovery",
+                     "value": str(placements["cfa_verified"])},
+                    {"label": "Provider Q1 actuals · final GJC contributions",
+                     "value": str(placements["q1_provider_actuals"])},
+                ],
+            },
+        ],
+        "note": (
+            f"Live data. Synced from WJI TWC Candidate Tracking. "
+            f"{recovered.get('total_validated', 0)} validated rows across "
+            f"9 providers."
+        ),
+    }
+
+    drills["reimbursement"] = {
+        "eyebrow": "Cash Position",
+        "title": f"${trailing_q1_total:,.0f} awaiting ESD reimbursement",
+        "summary": "Q1 provider invoices paid by CFA · invoiced to ESD April 30",
+        "sections": [
+            {
+                "title": "Outstanding receivable from ESD",
+                "rows": [
+                    {"label": f"{row['provider']} · {row['actual']} placements × ${row['rate']:,}",
+                     "value": f"${row['invoice']:,}"}
+                    for row in placements["q1_provider_actuals_breakdown"]
+                    if row.get("invoice")
+                ],
+            },
+        ],
+        "note": (
+            "Cycle timing. Invoice goes to ESD April 30 with the monthly "
+            "advance request. Historical turnaround ~21 days, funds "
+            "expected ~May 21. CFA must float this amount from operating "
+            "cash for 3 weeks."
+        ),
+    }
+
+    drills["flags"] = {
+        "eyebrow": "Critical Flags",
+        "title": f"{high_priority_count} items need decisions this week",
+        "summary": "Filtered to severity = HIGH · status = open",
+        "sections": [
+            {
+                "title": "High-priority items from v3 reconciliation",
+                "rows": [
+                    {"label": f"{item['area']} · {item['owner']}",
+                     "value": item["action"][:120]}
+                    for item in action_items
+                    if item["priority"] == "HIGH"
+                ],
+            },
+        ],
+        "note": (
+            "Click any provider name throughout the cockpit to see their "
+            "full detail view, including related action items."
+        ),
+    }
+
     return drills
 
 
