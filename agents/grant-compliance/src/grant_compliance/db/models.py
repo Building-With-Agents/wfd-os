@@ -125,6 +125,60 @@ class BudgetLine(Base):
 # ---------------------------------------------------------------------------
 
 
+class QbOAuthToken(Base):
+    """Persisted QB OAuth credentials for a single QB realm (company).
+
+    A realm corresponds to one QuickBooks Online company file. In the current
+    architecture we expect a single realm per deployment (one org's books),
+    but the schema supports multi-realm if the platform ever needs it.
+
+    Security note: access_token and refresh_token are stored in plaintext
+    today. This is TOLERABLE only while QB_ENVIRONMENT=sandbox — sandbox
+    data is synthetic. For production, the `_refuse_production_without_encryption_key`
+    guard in config.py refuses to start. Before flipping to production:
+      1. Set ENCRYPTION_KEY to a Fernet key
+      2. Wrap access_token / refresh_token getters/setters with Fernet
+         encrypt/decrypt in a property
+      3. Migrate any existing rows through the new encryption
+    See CLAUDE.md "Enforced constraints" and the "Before Step 1" section
+    in README for context.
+    """
+
+    __tablename__ = "qb_oauth_tokens"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    realm_id: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    # Tokens: plaintext in sandbox, encrypted in production (see class docstring).
+    access_token: Mapped[str] = mapped_column(Text, nullable=False)
+    refresh_token: Mapped[str] = mapped_column(Text, nullable=False)
+    # Intuit returns access_token with 3600s TTL (1 hour) and refresh_token
+    # with ~100 day TTL. We track both expiries so the refresh path can
+    # detect when the refresh_token itself is close to expiring.
+    access_token_expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    refresh_token_expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    # QB_ENVIRONMENT at the time of authorization. Sanity-check at use:
+    # if this says "sandbox" but current settings say "production", we
+    # refuse to use the token. Prevents token leak across environments.
+    environment: Mapped[str] = mapped_column(String(20), nullable=False)
+    # The Intuit user whose consent created this token. Informational —
+    # used for audit trail. Set to dev_user_email or similar at callback.
+    authorized_by: Mapped[Optional[str]] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    # Manually flagged as revoked (e.g. Ritu revokes Waifinder's access at Intuit).
+    # Also set when a refresh fails with "invalid_grant" — the refresh chain
+    # is broken, need to re-authorize.
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+
+
 class QbAccount(Base):
     """Mirror of a QB chart-of-accounts entry."""
 

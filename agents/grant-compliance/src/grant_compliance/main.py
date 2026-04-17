@@ -10,6 +10,7 @@ from grant_compliance.api.routes import (
     allocations,
     compliance,
     grants,
+    qb_oauth,
     reports,
     time_effort,
     transactions,
@@ -43,6 +44,7 @@ app.include_router(allocations.router)
 app.include_router(compliance.router)
 app.include_router(time_effort.router)
 app.include_router(reports.router)
+app.include_router(qb_oauth.router)
 
 
 @app.get("/health")
