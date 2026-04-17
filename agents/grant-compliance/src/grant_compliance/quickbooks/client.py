@@ -7,10 +7,14 @@ the transport layer, before the request reaches Intuit's servers.
 Adding write paths requires ALL of the following:
   (a) Explicit human approval recorded in a design document
   (b) A separate `qb_writeback` module — do not add write methods here
-  (c) A distinct QuickBooks user with write permissions (NOT the read-only user)
+  (c) A distinct OAuth credential (separate app registration or separate
+      admin-authorized token) — this is audit separation at Intuit, NOT
+      capability separation. The token's capabilities come from the
+      OAuth scope, not from the authorizing user's role.
   (d) Its own approval gate and audit log entries for every write
 
-See CLAUDE.md "Enforced constraints" section.
+See CLAUDE.md "Enforced constraints" section for the full three-layer
+defense model (OAuth scope / _ReadOnlyHttpxClient / Intuit audit log).
 
 QB Accounting API docs:
 https://developer.intuit.com/app/developer/qbo/docs/api/accounting/all-entities

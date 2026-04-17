@@ -94,22 +94,30 @@ How to confirm:
 - Note its Realm ID (Company ID) — you do NOT set this in `.env`; it's
   captured from the OAuth callback by `quickbooks/oauth.py`
 
-### 3. A read-only QB user is created in the sandbox company
+### 3. Authorize the OAuth flow as a Master Admin / Company Admin user
 
-**Layer 3 of the read-only defense.** Layer 1 is the `_ReadOnlyHttpxClient`
-HTTP guard. Layer 2 is the `test_qbclient_has_no_write_method_names` CI
-check. Layer 3 is the Intuit-side user permissions: the OAuth flow must
-be authorized as a user whose role in QuickBooks has all write permissions
-disabled. Even if layers 1-2 were bypassed, Intuit would reject the write
-on the server side because the token doesn't have write scope.
+**Important correction from an earlier draft of this doc:** a low-privilege
+"read-only" QB user CANNOT authorize the OAuth flow. QuickBooks Online
+restricts third-party app authorization to Master Admin or Company Admin
+users. Additionally, the token's capabilities come from the app's
+requested scope (`com.intuit.quickbooks.accounting`, which is read+write —
+Intuit offers no read-only variant), NOT from the authorizing user's role.
+So the OAuth flow must be completed as an admin user, and the resulting
+token is full read+write on the Intuit side regardless of who authorized.
 
-How to create:
-- In the sandbox company: Settings → Manage users → Add user
-- Role: Reports-only, OR a custom role with every Create/Edit/Delete
-  permission disabled
-- Invite a dedicated "read-only integration" user, NOT your admin user
-- Sign out, sign in as the new user, then run the OAuth flow to generate
-  tokens for that user specifically
+**Where read-only enforcement actually comes from:**
+- Primary: `_ReadOnlyHttpxClient` in `quickbooks/client.py` — raises
+  `NotImplementedError` for any non-GET request. See CLAUDE.md
+  "Enforced constraints" for the three-layer defense model.
+- Post-hoc: Intuit's own audit log, which records the app + user + time
+  + endpoint for every API call. Useful for forensics, not prevention.
+
+How to complete this step:
+- Sign in to the sandbox company as an admin user
+- Run the OAuth flow (see step 4 below for the env chain); approve the
+  app's access to the sandbox company
+- The Intuit callback returns a token our server persists in
+  `grant_compliance.qb_oauth_tokens`
 
 ### 4. The scaffold can load QB credentials from the env chain
 
