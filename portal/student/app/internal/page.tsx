@@ -1,4 +1,5 @@
 "use client"
+import { apiFetch } from "@/lib/fetch"
 
 import { useEffect, useState } from "react"
 import {
@@ -278,7 +279,7 @@ export default function InternalDashboard() {
 
   const loadData = (opts: { silent?: boolean } = {}) => {
     if (!opts.silent) setRefreshing(true)
-    fetch(`${API_BASE}/pipeline`)
+    apiFetch(`${API_BASE}/pipeline`)
       .then(r => r.json())
       .then((d) => {
         setData(d)
@@ -314,7 +315,7 @@ export default function InternalDashboard() {
     if (!deletingInquiry) return
     setDeleting(true)
     try {
-      const res = await fetch(`${API_BASE}/inquiry/${deletingInquiry.id}`, { method: "DELETE" })
+      const res = await apiFetch(`${API_BASE}/inquiry/${deletingInquiry.id}`, { method: "DELETE" })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       // Optimistic local removal so the card disappears immediately
       setData((prev) => prev
@@ -334,7 +335,7 @@ export default function InternalDashboard() {
   const clearTestEntries = async () => {
     setDeleting(true)
     try {
-      const res = await fetch(`${API_BASE}/inquiries/test-entries`, { method: "DELETE" })
+      const res = await apiFetch(`${API_BASE}/inquiries/test-entries`, { method: "DELETE" })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       showToast("info", `Cleared ${data.deleted_count} test entr${data.deleted_count === 1 ? "y" : "ies"}`)
@@ -348,7 +349,7 @@ export default function InternalDashboard() {
   }
 
   const handleUpdate = async (id: string, newStatus: string) => {
-    const res = await fetch(`${API_BASE}/inquiry/${id}/status`, {
+    const res = await apiFetch(`${API_BASE}/inquiry/${id}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
@@ -363,7 +364,7 @@ export default function InternalDashboard() {
   }
 
   const handleConvert = async (id: string) => {
-    const res = await fetch(`${API_BASE}/inquiry/${id}/convert`, { method: "POST" })
+    const res = await apiFetch(`${API_BASE}/inquiry/${id}/convert`, { method: "POST" })
     const result = await res.json()
     setConvertSuccess(result)
     loadData()
@@ -371,7 +372,7 @@ export default function InternalDashboard() {
 
   const completeScoping = async () => {
     if (!scopingInquiry) return
-    await fetch(`${API_BASE}/inquiry/${scopingInquiry.id}/status`, {
+    await apiFetch(`${API_BASE}/inquiry/${scopingInquiry.id}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "scoped" }),
@@ -439,9 +440,24 @@ export default function InternalDashboard() {
                   <ExternalLink className="h-3.5 w-3.5" /> View public consulting page
                 </Button>
               </a>
+              <a href="/internal/bd">
+                <Button size="sm" variant="outline" className="gap-1 text-xs">
+                  <Briefcase className="h-3.5 w-3.5" /> BD Command Center
+                </Button>
+              </a>
+              <a href="/internal/jessica">
+                <Button size="sm" variant="outline" className="gap-1 text-xs">
+                  <PenTool className="h-3.5 w-3.5" /> Jessica
+                </Button>
+              </a>
               <a href="/internal/marketing">
                 <Button size="sm" variant="outline" className="gap-1 text-xs">
                   <FileText className="h-3.5 w-3.5" /> Marketing
+                </Button>
+              </a>
+              <a href="/internal/finance">
+                <Button size="sm" variant="outline" className="gap-1 text-xs">
+                  <DollarSign className="h-3.5 w-3.5" /> Finance
                 </Button>
               </a>
               <Button size="sm" variant="outline" className="gap-1 text-xs">
@@ -877,7 +893,7 @@ function PostUpdateForm({
     setSubmitting(true)
     setError(null)
     try {
-      const res = await fetch(`${API_BASE}/engagement/${engagement.id}/updates`, {
+      const res = await apiFetch(`${API_BASE}/engagement/${engagement.id}/updates`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
