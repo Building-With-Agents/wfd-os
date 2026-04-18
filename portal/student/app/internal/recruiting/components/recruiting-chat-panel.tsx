@@ -33,19 +33,19 @@ export function RecruitingChatPanel({ activeView }: { activeView: string }) {
         <div className="cockpit-chat-section-head">Matching status</div>
         <div
           style={{
-            background: "var(--cockpit-watch-soft)",
-            borderLeft: "3px solid var(--cockpit-watch)",
+            background: "var(--cockpit-good-soft)",
+            borderLeft: "3px solid var(--cockpit-good)",
             padding: "12px 14px",
             fontSize: "var(--cockpit-fs-helper)",
             color: "var(--cockpit-text-2)",
             lineHeight: 1.55,
           }}
         >
-          <strong>Matching is paused</strong> while student embeddings are
-          still being generated. Job embeddings are ready (29 roles).
-          When the student side lights up, cosine-match queries will
-          populate the &ldquo;matches&rdquo; columns automatically — no UI
-          change. Tracking this as Phase 2D.
+          <strong>Matching is live.</strong> Both sides embedded with
+          text-embedding-3-small: 103 jobs (job_v1 template with
+          LLM-cleaned descriptions) and 146 Tier-A students
+          (student_v2 template). Match counts use a cosine ≥ 0.50
+          threshold; drills show the top candidates by similarity.
         </div>
       </div>
       <div className="cockpit-chat-input">

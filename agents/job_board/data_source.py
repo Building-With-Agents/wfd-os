@@ -14,9 +14,11 @@ and returns {"matching_status": "pending_student_index"} instead of
 fake numbers. Same endpoints "light up" automatically the moment
 embeddings land — callers don't change.
 
-Today (Apr 2026) student embeddings count is 0. Jobs embeddings exist
-(29 jobs_enriched rows in the embeddings table), so job-side vectors
-are ready; the matching waits on the student side.
+As of Phase 2D (2026-04-18) both sides are embedded with
+text-embedding-3-small: 103 jobs_enriched rows + 146 student rows
+(Tier A pool: institution + parsed resume + >=1 skill). Matching is
+live; match_count per job and with_matches in workday_stats are
+computed against COSINE_MATCH_THRESHOLD.
 """
 
 from __future__ import annotations
@@ -49,6 +51,14 @@ IN_FLIGHT_APP_STATUSES = (
     "sent",
     "delivered",
 )
+
+# Cosine-similarity floor for counting a student as a "match" for a job.
+# Picked during Phase 2D Stage 4 validation (see scripts/_validate_*.py):
+# - Tech students vs tech jobs score 0.49-0.60 → 2-5 matches each
+# - Thin-profile students (minimal skills) score <0.45 → correctly zero
+# - Workforce-analytics students vs workforce jobs score 0.54-0.57
+# 0.50 is the cleanest cutoff between "real signal" and "grasping".
+COSINE_MATCH_THRESHOLD = 0.50
 
 
 class DataSource(ABC):
@@ -135,31 +145,43 @@ class PostgresDataSource(DataSource):
     def list_jobs(self, filters: dict, limit: int = 50, offset: int = 0) -> list[dict]:
         clauses, params = _build_job_filters(filters)
         where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        # match_count per job: student embeddings whose cosine similarity
+        # to the job embedding clears COSINE_MATCH_THRESHOLD. Subquery
+        # runs once per returned job; with ~150 students and an HNSW
+        # index the fan-out is well under 10ms/job. Returns 0 for jobs
+        # that have no corresponding row in the embeddings table yet
+        # (COALESCE over the inner subquery's NULL).
+        cosine_distance_max = 1 - COSINE_MATCH_THRESHOLD
         sql = f"""
             SELECT
               j.*,
               (SELECT COUNT(*) FROM applications a
                  WHERE a.job_id = j.job_id
-                   AND a.status = ANY(%s)) AS in_flight_app_count
+                   AND a.status = ANY(%s)) AS in_flight_app_count,
+              COALESCE((
+                SELECT COUNT(*) FROM embeddings e_s
+                WHERE e_s.entity_type = 'student'
+                  AND (e_s.embedding <=> (
+                    SELECT embedding FROM embeddings
+                    WHERE entity_type = 'jobs_enriched'
+                      AND entity_id = j.job_id::text
+                  )) <= %s
+              ), 0) AS match_count
             FROM v_jobs_active j
             {where}
             ORDER BY j.posted_at DESC NULLS LAST, j.job_id DESC
             LIMIT %s OFFSET %s
         """
         with _conn() as conn, conn.cursor() as cur:
-            # Parameter order matches SQL %s order: the ANY(%s) in the
-            # subselect column fires BEFORE the WHERE filter params.
+            # Parameter order tracks SQL %s order: in-flight statuses,
+            # cosine distance ceiling, then filter params, then paging.
             cur.execute(
                 sql,
-                [list(IN_FLIGHT_APP_STATUSES)] + params + [limit, offset],
+                [list(IN_FLIGHT_APP_STATUSES), cosine_distance_max]
+                + params
+                + [limit, offset],
             )
             rows = _dictfetchall(cur)
-        # match_count: 0 until student embeddings exist; when they do,
-        # this query counts students above the cosine threshold. For
-        # 2B MVP we keep the column on the response but always 0 — the
-        # matching_status field on per-job-matches is the honest tell.
-        for r in rows:
-            r["match_count"] = 0
         return [_serialize(r) for r in rows]
 
     def get_job(self, job_id: int) -> Optional[dict]:
@@ -342,13 +364,27 @@ class PostgresDataSource(DataSource):
         }
 
 
-def _count_jobs_with_matches() -> int:  # pragma: no cover — reserved for when embeddings land
-    """Count jobs with at least one student match above threshold.
+def _count_jobs_with_matches() -> int:
+    """Count jobs with at least one student match above COSINE_MATCH_THRESHOLD.
 
-    Kept as a no-op helper for now. When embeddings land, wire up the
-    real cosine threshold query here and return the count.
+    Used by workday_stats for the "With matches" hero cell. Runs one
+    cross-table query against the embeddings table; at today's scale
+    (103 jobs × ~150 students) this returns in ~100ms. Both sides were
+    embedded with text-embedding-3-small, so cosine is directly
+    comparable.
     """
-    return 0
+    cosine_distance_max = 1 - COSINE_MATCH_THRESHOLD
+    sql = """
+        SELECT COUNT(DISTINCT e_j.entity_id)
+        FROM embeddings e_j
+        JOIN embeddings e_s
+          ON e_s.entity_type = 'student'
+         AND (e_j.embedding <=> e_s.embedding) <= %s
+        WHERE e_j.entity_type = 'jobs_enriched'
+    """
+    with _conn() as conn, conn.cursor() as cur:
+        cur.execute(sql, (cosine_distance_max,))
+        return cur.fetchone()[0] or 0
 
 
 # ---------------------------------------------------------------------------
