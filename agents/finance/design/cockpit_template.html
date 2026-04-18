@@ -605,34 +605,22 @@
     color: var(--text-3);
     margin-bottom: 12px;
   }
-  .drill-row {
+  /* Key-value row inside a rows-type drill section. Two columns only —
+     label on the left, value on the right. Non-clickable (drill rows
+     don't trigger anything), so no cursor/hover. */
+  .drill-kv {
     display: grid;
-    grid-template-columns: 1fr auto auto auto;
+    grid-template-columns: 1fr auto;
     gap: 16px;
     align-items: center;
     padding: 10px 0;
     border-bottom: 1px solid var(--border);
     font-size: 13px;
-    cursor: pointer;
   }
-  .drill-row:hover { background: var(--surface-alt); }
-  .drill-row:last-child { border-bottom: none; }
-  .drill-row .name { font-weight: 500; }
-  .drill-row .name .tag { font-size: 10px; color: var(--text-3); display: block; font-weight: 400; margin-top: 2px; }
-  .drill-row .amt { font-family: 'DM Mono', monospace; font-size: 13px; text-align: right; min-width: 80px; }
-  .drill-row .pct { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-2); min-width: 40px; text-align: right; }
-  .drill-row .bar-mini { width: 60px; }
-  .drill-subtotal {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 16px;
-    padding: 12px 0 0;
-    margin-top: 8px;
-    border-top: 1px solid var(--border-strong);
-    font-weight: 600;
-    font-size: 14px;
-  }
-  .drill-subtotal .amt { font-family: 'DM Mono', monospace; }
+  .drill-kv:last-child { border-bottom: none; }
+  .drill-kv-label { font-weight: 500; }
+  .drill-kv-value { font-family: 'DM Mono', monospace; font-size: 13px; text-align: right; min-width: 80px; }
+  .drill-kv-value.emphasize { font-weight: 700; color: var(--brand); }
   .drill-callout {
     background: var(--surface-warm);
     border-left: 3px solid var(--brand);
@@ -1245,9 +1233,7 @@
             <!-- True total label at end of bar -->
             <text x="{{ pc.label_width + bar.reported_width + 8 }}" y="{{ y + pc.bar_height/2 + 4 }}" font-size="12" font-weight="600" font-family="DM Mono, monospace" fill="#1A1A1A">{{ bar.true_placements }}</text>
             {% if bar.target > 0 %}
-              {% set pct_of_target = (bar.true_placements / bar.target * 100) | round(0) %}
-              {% set color = '#1F6B5C' if pct_of_target >= 100 else ('#B8821B' if pct_of_target >= 75 else '#B8462E') %}
-              <text x="{{ pc.label_width + bar.reported_width + 50 }}" y="{{ y + pc.bar_height/2 + 4 }}" font-size="10" font-family="DM Mono, monospace" fill="{{ color }}">{{ pct_of_target }}%</text>
+              <text x="{{ pc.label_width + bar.reported_width + 50 }}" y="{{ y + pc.bar_height/2 + 4 }}" font-size="10" font-family="DM Mono, monospace" fill="var(--{{ bar.pct_tone }})">{{ bar.pct_of_target }}%</text>
             {% endif %}
             {% endfor %}
           </svg>
@@ -1283,8 +1269,8 @@
             </thead>
             <tbody>
               {% for row in placements.quarterly_placements %}
-              {% set net = row.total_through_q4_25 + row.q1_26_actual + row.q1_26_retraction %}
-              {% set pct = (net / row.target * 100) if row.target > 0 else 0 %}
+              {% set net = row.net %}
+              {% set pct = row.pct %}
               <tr data-drill="provider:{{ canonical_provider(row.provider) }}">
                 <td style="padding-left:20px;">{{ row.provider }}</td>
                 {% for v in row.q %}
@@ -1297,9 +1283,9 @@
                 <td class="right num" style="color:var(--text-2);">{{ row.target }}</td>
                 <td class="right" style="padding-right:20px;">
                   <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">
-                    <span class="num" style="font-size:11px;color:{% if pct >= 100 %}var(--good){% elif pct >= 75 %}var(--watch){% else %}var(--critical){% endif %};">{{ "{:.0f}".format(pct) }}%</span>
+                    <span class="num" style="font-size:11px;color:var(--{{ row.pct_tone }});">{{ "{:.0f}".format(pct) }}%</span>
                     <div class="bar" style="width:50px;background:var(--surface-warm);border-radius:3px;height:6px;overflow:hidden;">
-                      <div style="width:{{ pct if pct <= 100 else 100 }}%;height:100%;background:{% if pct >= 100 %}var(--good){% elif pct >= 75 %}var(--watch){% else %}var(--critical){% endif %};"></div>
+                      <div style="width:{{ pct if pct <= 100 else 100 }}%;height:100%;background:var(--{{ row.pct_tone }});"></div>
                     </div>
                   </div>
                 </td>
@@ -1590,16 +1576,14 @@
                 <td class="right num" style="font-weight:600;">{{ row.true_placements }}</td>
                 <td class="right" style="">
                   {% if row.cpp > 0 %}
-                    {% set cpp_color = 'good' if row.cpp <= 2500 else ('watch' if row.cpp <= 4000 else 'critical') %}
-                    <span class="num" style="color:var(--{{ cpp_color }});">${{ "{:,.0f}".format(row.cpp) }}</span>
+                    <span class="num" style="color:var(--{{ row.cpp_tone }});">${{ "{:,.0f}".format(row.cpp) }}</span>
                   {% else %}
                     <span style="color:var(--text-3);">—</span>
                   {% endif %}
                 </td>
                 <td class="right" style="padding-right:20px;">
                   {% if row.true_cpp > 0 %}
-                    {% set tcpp_color = 'good' if row.true_cpp <= 2500 else ('watch' if row.true_cpp <= 4000 else 'critical') %}
-                    <span class="num" style="font-weight:700;color:var(--{{ tcpp_color }});">${{ "{:,.0f}".format(row.true_cpp) }}</span>
+                    <span class="num" style="font-weight:700;color:var(--{{ row.true_cpp_tone }});">${{ "{:,.0f}".format(row.true_cpp) }}</span>
                   {% else %}
                     <span style="color:var(--text-3);">—</span>
                   {% endif %}
@@ -2034,9 +2018,9 @@
 
   function renderRowsSection(s) {
     const rows = (s.rows || []).map(r => `
-      <div class="drill-row">
-        <div class="name">${escapeHtml(r.label)}</div>
-        <div class="amt" style="${r.emphasize ? 'font-weight:700;color:var(--brand);' : ''}">${escapeHtml(r.value)}</div>
+      <div class="drill-kv">
+        <div class="drill-kv-label">${escapeHtml(r.label)}</div>
+        <div class="drill-kv-value${r.emphasize ? ' emphasize' : ''}">${escapeHtml(r.value)}</div>
       </div>`).join('');
     const note = s.note ? `<div class="drill-callout">${escapeHtml(s.note)}</div>` : '';
     return `<h3>${escapeHtml(s.title)}</h3>${rows}${note}`;

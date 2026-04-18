@@ -611,30 +611,31 @@ def _cost_analysis_rows_section(fp: dict) -> dict:
 
 
 def _cost_analysis_verdict_section(fp: dict) -> dict:
-    """Verdict-type cost analysis — for providers in the amber/red bands."""
+    """Verdict-type cost analysis — for providers in the amber/red bands.
+
+    Voice: data-forward. State the number, state the threshold relation,
+    let the reader draw the conclusion. No editorializing verbs like
+    "exceeds" or "sits between" — just the facts.
+    """
     tone = _cpp_tone(fp["true_cpp"])
-    gap_vs_target = ""
-    band = _cpp_band_label(fp["true_cpp"])
-    body = (
-        f"True CPP sits at ${fp['true_cpp']:,.0f} — {band}. "
-        f"Reported-only CPP was ${fp['cpp']:,.0f} on ${fp['total_paid']:,.0f} "
-        f"paid across {fp['total_placements_net']} reported placements"
-    )
+    pieces = [f"{fp['total_placements_net']} placements reported"]
     if fp.get("recovered"):
-        body += f" plus {fp['recovered']} CFA-recovered. "
+        pieces.append(f"plus {fp['recovered']} recovered through CFA outreach")
+    placements_clause = ", ".join(pieces)
+    if fp.get("recovered") and fp["true_cpp"] != fp["cpp"]:
+        cpp_clause = (
+            f"Reported-only CPP was ${fp['cpp']:,.0f}; including recovery, "
+            f"true CPP is ${fp['true_cpp']:,.0f}."
+        )
     else:
-        body += ". "
-    body += f"Band: {band}."
+        cpp_clause = f"True CPP: ${fp['true_cpp']:,.0f}."
+    body = (
+        f"{placements_clause} on ${fp['total_paid']:,.0f} paid. {cpp_clause}"
+    )
     if tone == "critical":
-        headline = (
-            f"Cost per placement is in the red. "
-            f"${fp['true_cpp']:,.0f} exceeds the $4k threshold."
-        )
-    else:
-        headline = (
-            f"Cost per placement is amber. "
-            f"${fp['true_cpp']:,.0f} sits between $2.5k and $4k."
-        )
+        headline = f"True CPP ${fp['true_cpp']:,.0f} — above the $4k red threshold."
+    else:  # watch
+        headline = f"True CPP ${fp['true_cpp']:,.0f} — in the amber band ($2.5k–$4k)."
     return {
         "type": "verdict",
         "tone": tone,
@@ -673,16 +674,6 @@ def _contract_and_spend_section(budget_row: dict) -> dict:
     }
 
 
-# Providers migrated to the polymorphic schema (verdict/table/chart/action_items
-# instead of flat rows). Phase 1C step 2 starts with two; step 3 expands to
-# every provider in financial_performance.
-_MIGRATED_PROVIDERS = {"NCESD", "Ada"}
-
-# Category drills whose "Once Class tracking..." note has been promoted to a
-# status_chip per Phase 1C.4. Step 2 ships one; step 3 sweeps the rest.
-_MIGRATED_CATEGORIES = {"GJC Contractors — Training Providers"}
-
-
 def build_drills(data: dict) -> dict:
     """Build drill-down content for every entity worth exploring.
 
@@ -696,8 +687,20 @@ def build_drills(data: dict) -> dict:
     for group, plist in data["providers"].items():
         for p in plist:
             all_providers[p["name"]] = {**p, "group": group}
+    # financial_performance uses canonical names ("NCESD"), while
+    # all_providers is keyed by the raw reconciliation name ("NCESD 171").
+    # Map canonical → budget row so per-provider drills can find Contract &
+    # Spend data even when the name was canonicalized.
+    budget_by_canonical = {
+        canonical_provider(name): row
+        for name, row in all_providers.items()
+    }
 
     # ---------- Per-provider drills ----------
+    # Every provider in financial_performance goes through the polymorphic
+    # path: Contract & Spend (rows) + Placements (table) + Placements chart
+    # + Cost Analysis (rows if green, verdict if amber/red) + related
+    # Action Items.
     quarter_labels = data["placements"]["quarter_labels"]
     target_by_provider = {
         r["provider"]: r["target"]
@@ -705,62 +708,16 @@ def build_drills(data: dict) -> dict:
     }
     for fp in data["financial_performance"]:
         name = fp["provider"]
-        budget_row = all_providers.get(name)
+        # Resolve the budget row both by raw name (direct match) and by
+        # canonical name (for renamed providers like "NCESD" ← "NCESD 171").
+        budget_row = all_providers.get(name) or budget_by_canonical.get(name)
         related_items = [
             item for item in data["action_items"]
             if name.lower() in item["area"].lower() or name.lower() in item["action"].lower()
         ]
-
-        if name in _MIGRATED_PROVIDERS:
-            # Polymorphic-schema section mix: verdict (amber/red), rows,
-            # table, chart, action_items.
-            sections = []
-            if budget_row:
-                sections.append(_contract_and_spend_section(budget_row))
-            if fp["total_placements_net"] > 0 or fp["recovered"] > 0:
-                sections.append(_placements_table_section(fp, quarter_labels))
-                target = target_by_provider.get(name)
-                sections.append(_placements_chart_section(fp, quarter_labels, target))
-                if fp["true_cpp"] > 0:
-                    if _cpp_tone(fp["true_cpp"]) in ("watch", "critical"):
-                        sections.append(_cost_analysis_verdict_section(fp))
-                    else:
-                        sections.append(_cost_analysis_rows_section(fp))
-            if related_items:
-                sections.append(_action_items_section_for(related_items))
-
-            entry = {
-                "eyebrow": "Provider",
-                "title": name,
-                "summary": f"Full provider view · {fp.get('total_placements_net', 0)} reported + {fp.get('recovered', 0)} recovered",
-                "sections": sections,
-            }
-            # Providers in critical CPP band get a status chip up top
-            if fp["true_cpp"] > 0 and _cpp_tone(fp["true_cpp"]) == "critical":
-                entry["status_chip"] = {
-                    "label": "Cost-per-placement in red band",
-                    "tone": "critical",
-                }
-            drills[f"provider:{name}"] = entry
-            continue
-
-        # ---------- Pre-migration path (every other provider) ----------
         sections = []
-
-        # Section 1: Financial position
         if budget_row:
-            sections.append({
-                "type": "rows",
-                "title": "Contract & Spend",
-                "rows": [
-                    {"label": "Amended budget (Exh B Amend 1)", "value": f"${budget_row['budget']:,.0f}"},
-                    {"label": "Paid to date (QB 3/26/26)", "value": f"${budget_row['qb_actual']:,.0f}"},
-                    {"label": "Balance remaining", "value": f"${budget_row['balance']:,.0f}",
-                     "emphasize": budget_row['balance'] != 0},
-                    {"label": "Status group", "value": budget_row['group'].replace('_', ' ').title()},
-                ],
-                "note": budget_row.get("notes", ""),
-            })
+            sections.append(_contract_and_spend_section(budget_row))
         elif name == "Recovery Operation (AIE + P&K)":
             sections.append({
                 "type": "rows",
@@ -774,67 +731,30 @@ def build_drills(data: dict) -> dict:
                 ],
                 "note": "Joint recovery operation — AIE directs, Pete & Kelly execute LinkedIn outreach + verification under Bethany's supervision.",
             })
-
-        # Section 2: Placements
         if fp["total_placements_net"] > 0 or fp["recovered"] > 0:
-            quarterly_rows = []
-            if fp["category"] == "training" and any(fp["quarterly_placements"]):
-                labels = data["placements"]["quarter_labels"]
-                for i, (pl, pm) in enumerate(zip(fp["quarterly_placements"], fp["quarterly_payments"])):
-                    if pl > 0 or pm > 0:
-                        quarterly_rows.append({
-                            "label": labels[i],
-                            "value": f"{pl} placements · ${pm:,.0f} paid" if pm else f"{pl} placements"
-                        })
-            quarterly_rows.append({
-                "label": "Q1 '26 actual",
-                "value": f"{fp['q1_26_placements']} placements" + (f" · ${fp['q1_26_invoice']:,.0f} pending" if fp.get("q1_26_invoice") else ""),
-            })
-            if fp["q1_26_retraction"]:
-                quarterly_rows.append({
-                    "label": "Q1 '26 retraction",
-                    "value": f"{fp['q1_26_retraction']} placements",
-                })
-
-            sections.append({
-                "type": "rows",
-                "title": "Placements",
-                "rows": quarterly_rows + [
-                    {"label": "Provider reported (net)", "value": str(fp["total_placements_net"])},
-                    {"label": "CFA recovered via LinkedIn", "value": str(fp["recovered"]),
-                     "emphasize": fp["recovered"] > 0},
-                    {"label": "True total", "value": str(fp["true_placements"]),
-                     "emphasize": True},
-                ],
-            })
-
-            # Section 3: Cost analysis
+            sections.append(_placements_table_section(fp, quarter_labels))
+            target = target_by_provider.get(name)
+            sections.append(_placements_chart_section(fp, quarter_labels, target))
             if fp["true_cpp"] > 0:
-                sections.append({
-                    "type": "rows",
-                    "title": "Cost Analysis",
-                    "rows": [
-                        {"label": "Reported-only CPP", "value": f"${fp['cpp']:,.0f}"},
-                        {"label": "True CPP (incl. recovery)", "value": f"${fp['true_cpp']:,.0f}", "emphasize": True},
-                        {"label": "Threshold band", "value": _cpp_band_label(fp["true_cpp"])},
-                    ],
-                })
-
-        # Section 4: Related action items
+                if _cpp_tone(fp["true_cpp"]) in ("watch", "critical"):
+                    sections.append(_cost_analysis_verdict_section(fp))
+                else:
+                    sections.append(_cost_analysis_rows_section(fp))
         if related_items:
-            sections.append({
-                "type": "rows",
-                "title": f"Open Action Items ({len(related_items)})",
-                "rows": [{"label": f"[{item['priority']}] {item['owner']}", "value": item["action"][:140]}
-                         for item in related_items],
-            })
+            sections.append(_action_items_section_for(related_items))
 
-        drills[f"provider:{name}"] = {
+        entry = {
             "eyebrow": "Provider",
             "title": name,
             "summary": f"Full provider view · {fp.get('total_placements_net', 0)} reported + {fp.get('recovered', 0)} recovered",
             "sections": sections,
         }
+        if fp["true_cpp"] > 0 and _cpp_tone(fp["true_cpp"]) == "critical":
+            entry["status_chip"] = {
+                "label": "Cost-per-placement in red band",
+                "tone": "critical",
+            }
+        drills[f"provider:{name}"] = entry
 
     # ---------- Strategic partner drills (no placements but still budget lines) ----------
     for name, p in all_providers.items():
@@ -871,32 +791,24 @@ def build_drills(data: dict) -> dict:
         if cat.get("prorated"):
             rows.append({"label": "⚠ Data quality", "value": "Pro-rated from $1,227,851 QB lump sum — real breakout pending from Krista"})
 
-        entry = {
+        # Every category drill gets the "Transaction detail pending" chip.
+        # The old per-drill boilerplate note ("Once Class tracking and
+        # production QB sync land...") was the same across seven drills —
+        # promoted once, shown at the top of the panel.
+        drills[key] = {
             "eyebrow": "Budget Category",
             "title": cat["name"],
             "summary": cat.get("note", f"${cat['remaining']:,.0f} remaining across {data['summary']['months_remaining']} months"),
+            "status_chip": {
+                "label": "Transaction detail pending",
+                "tone": "watch",
+            },
             "sections": [{
                 "type": "rows",
                 "title": "Current Status",
                 "rows": rows,
             }],
         }
-        if cat["name"] in _MIGRATED_CATEGORIES:
-            # Phase 1C.4: promote the boilerplate note to a status_chip so
-            # it stops repeating across seven category drills.
-            entry["status_chip"] = {
-                "label": "Transaction detail pending",
-                "tone": "watch",
-            }
-        else:
-            # Until the rest of the categories are migrated in step 3,
-            # keep the pre-migration note so the drill still tells users
-            # transaction detail is coming.
-            entry["sections"][0]["note"] = (
-                "Once Class tracking and production QB sync land, this "
-                "drill will also list every transaction in the category."
-            )
-        drills[key] = entry
 
     # ---------- Decision drills ----------
     for i, item in enumerate(data["action_items"]):
@@ -1112,7 +1024,11 @@ def build_drills(data: dict) -> dict:
     drills["flags"] = {
         "eyebrow": "Critical Flags",
         "title": f"{high_priority_count} items need decisions this week",
-        "summary": "Filtered to severity = HIGH · status = open",
+        # "status = open" removed — action_items has no status field.
+        # The workflow (closed items are deleted, not flagged) keeps this
+        # descriptively correct without enforcing it in code. Adding a
+        # real status column is a larger conversation with Krista/Bethany.
+        "summary": "Filtered to severity = HIGH",
         "sections": [
             {
                 "type": "rows",
@@ -1272,6 +1188,18 @@ def build_chart_data(data: dict) -> dict:
         bar["reported_width"] = bar["total_placements_net"] / max_plac * bar_w
         bar["recovered_width"] = bar["recovered"] / max_plac * bar_w
         bar["target_x"] = target / max_plac * bar_w
+        # Tone for the % badge next to each bar. Moved out of Jinja
+        # ternaries so all color-band logic lives in Python.
+        if target > 0:
+            pct_of_target = round(bar["true_placements"] / target * 100)
+            bar["pct_of_target"] = pct_of_target
+            bar["pct_tone"] = (
+                "good" if pct_of_target >= 100
+                else ("watch" if pct_of_target >= 75 else "critical")
+            )
+        else:
+            bar["pct_of_target"] = 0
+            bar["pct_tone"] = "neutral"
 
     charts["provider_contribution"] = {
         "bars": bars,
@@ -1459,6 +1387,10 @@ def build_financial_performance(cpp: dict, placements: dict, providers: dict,
             "true_placements": true_placements,
             "cpp": cpp_value,
             "true_cpp": true_cpp,
+            # Tones pre-computed in Python so the template never runs a
+            # color-band ternary.
+            "cpp_tone": _cpp_tone(cpp_value),
+            "true_cpp_tone": _cpp_tone(true_cpp),
         })
 
     # Add Apprenti (training but not in CPP file due to no payments yet)
@@ -1479,6 +1411,8 @@ def build_financial_performance(cpp: dict, placements: dict, providers: dict,
             "true_placements": recovered_count,
             "cpp": 0,
             "true_cpp": 0,
+            "cpp_tone": _cpp_tone(0),
+            "true_cpp_tone": _cpp_tone(0),
         })
 
     # CFA Direct row — placements found by recovery work that aren't traceable
@@ -1499,6 +1433,8 @@ def build_financial_performance(cpp: dict, placements: dict, providers: dict,
             "true_placements": cfa_direct,
             "cpp": 0,
             "true_cpp": 0,
+            "cpp_tone": _cpp_tone(0),
+            "true_cpp_tone": _cpp_tone(0),
         })
 
     # Recovery Operation row (AI Engage + Pete & Kelly combined)
@@ -1508,6 +1444,7 @@ def build_financial_performance(cpp: dict, placements: dict, providers: dict,
                     if "Pete" in p["name"] or "Vargo" in p["name"]), 0)
     recovery_paid = aie_paid + pk_paid
     recovery_placements = recovered.get("total_validated", 256)
+    recovery_cpp = recovery_paid / recovery_placements if recovery_placements else 0
     rows.append({
         "provider": "Recovery Operation (AIE + P&K)",
         "category": "recovery",
@@ -1520,8 +1457,10 @@ def build_financial_performance(cpp: dict, placements: dict, providers: dict,
         "total_placements_net": recovery_placements,
         "recovered": 0,  # recovery operation IS the source of recovered, doesn't get re-credited
         "true_placements": recovery_placements,
-        "cpp": recovery_paid / recovery_placements if recovery_placements else 0,
-        "true_cpp": recovery_paid / recovery_placements if recovery_placements else 0,
+        "cpp": recovery_cpp,
+        "true_cpp": recovery_cpp,
+        "cpp_tone": _cpp_tone(recovery_cpp),
+        "true_cpp_tone": _cpp_tone(recovery_cpp),
     })
 
     return rows
@@ -1663,6 +1602,18 @@ def extract_all(project_dir=None) -> dict:
         ],
         "quarter_labels": ["Q1'24", "Q2'24", "Q3'24", "Q4'24", "Q1'25", "Q2'25", "Q3'25", "Q4'25"],
     }
+
+    # Pre-compute net / pct / pct_tone on every quarterly placement row so
+    # the template never runs a band ternary for progress color.
+    for row in placements["quarterly_placements"]:
+        net = row["total_through_q4_25"] + row["q1_26_actual"] + row["q1_26_retraction"]
+        pct = (net / row["target"] * 100) if row["target"] > 0 else 0
+        row["net"] = net
+        row["pct"] = pct
+        row["pct_tone"] = (
+            "good" if pct >= 100
+            else ("watch" if pct >= 75 else "critical")
+        )
 
     result = {
         "providers": providers,
