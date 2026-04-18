@@ -10,11 +10,16 @@
 // compliance flags against the grant-compliance scaffold on :8000)
 // moved to /internal/finance/operations/ and is preserved verbatim.
 
+import { AgentShell } from "../_shared/agent-shell"
 import { CockpitClient } from "./cockpit-client"
 import fixture from "./lib/cockpit-fixture.json"
 import type { CockpitFixture } from "./lib/types"
 
 export default function FinanceCockpitPage() {
   const data = fixture as unknown as CockpitFixture
-  return <CockpitClient data={data} />
+  return (
+    <AgentShell>
+      <CockpitClient data={data} />
+    </AgentShell>
+  )
 }

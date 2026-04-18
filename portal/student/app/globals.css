@@ -102,6 +102,132 @@
   letter-spacing: -0.01em;
 }
 
+/* ----- Agent shell (shared nav sidebar + content) -----
+ * Wraps every agent surface under /internal/*. Applied at the shell
+ * root; every child (including the cockpit-app flex row) sits beside
+ * the sidebar. */
+.cockpit-surface.agent-shell { display: flex; min-height: 100vh; }
+.cockpit-surface .agent-shell-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.cockpit-surface .agent-sidebar {
+  width: 180px;
+  flex-shrink: 0;
+  background: var(--cockpit-surface-alt);
+  border-right: 1px solid var(--cockpit-border);
+  padding: 20px 0;
+  font-size: var(--cockpit-fs-body);
+}
+.cockpit-surface .agent-sidebar-header {
+  font-size: var(--cockpit-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  padding: 0 20px 14px;
+}
+.cockpit-surface .agent-sidebar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.cockpit-surface .agent-sidebar-list > li {
+  list-style: none;
+}
+.cockpit-surface .agent-sidebar-item {
+  display: block;
+  padding: 8px 20px;
+  color: var(--cockpit-text-2);
+  text-decoration: none;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s;
+}
+.cockpit-surface a.agent-sidebar-item:hover { color: var(--cockpit-text-1); }
+.cockpit-surface .agent-sidebar-item[data-active="true"] {
+  background: var(--cockpit-surface-warm);
+  color: var(--cockpit-text-1);
+  font-weight: 600;
+  border-left: 2px solid var(--cockpit-brand);
+  padding-left: 18px;
+}
+.cockpit-surface .agent-sidebar-item[data-parent="true"] {
+  /* Recruiting parent row: not itself a link, just a label above its
+   * sub-items. Kept visually distinct from active + hover states. */
+  color: var(--cockpit-text-2);
+  cursor: default;
+}
+.cockpit-surface .agent-sidebar-sublist {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 4px;
+}
+.cockpit-surface .agent-sidebar-sublist > li {
+  list-style: none;
+}
+.cockpit-surface .agent-sidebar-subitem {
+  display: block;
+  padding: 6px 20px 6px 32px;
+  color: var(--cockpit-text-2);
+  text-decoration: none;
+  font-size: var(--cockpit-fs-helper);
+  transition: background 0.12s, color 0.12s;
+}
+.cockpit-surface .agent-sidebar-subitem:hover { color: var(--cockpit-text-1); }
+.cockpit-surface .agent-sidebar-subitem[data-active="true"] {
+  background: var(--cockpit-surface-warm);
+  color: var(--cockpit-text-1);
+  font-weight: 600;
+  border-left: 2px solid var(--cockpit-brand);
+  padding-left: 30px;
+}
+
+/* ----- Coming-soon placeholder ----- */
+.cockpit-surface .coming-soon-page {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+}
+.cockpit-surface .coming-soon-inner {
+  max-width: 560px;
+}
+.cockpit-surface .coming-soon-eyebrow {
+  font-size: var(--cockpit-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  margin-bottom: 10px;
+}
+.cockpit-surface .coming-soon-title {
+  font-size: var(--cockpit-fs-display);
+  line-height: 1.15;
+  margin-bottom: 10px;
+}
+.cockpit-surface .coming-soon-tagline {
+  font-size: var(--cockpit-fs-section);
+  color: var(--cockpit-text-2);
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+.cockpit-surface .coming-soon-body {
+  font-size: var(--cockpit-fs-body);
+  color: var(--cockpit-text-2);
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+.cockpit-surface .coming-soon-chip {
+  display: inline-block;
+  background: var(--cockpit-watch-soft);
+  color: var(--cockpit-watch);
+  padding: 4px 12px;
+  font-size: var(--cockpit-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+}
+
 /* ----- App shell ----- */
 .cockpit-surface .cockpit-app { display: flex; min-height: 100vh; }
 .cockpit-surface .cockpit-main { flex: 1; min-width: 0; overflow-y: auto; }

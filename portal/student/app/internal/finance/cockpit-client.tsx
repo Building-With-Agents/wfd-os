@@ -49,7 +49,10 @@ export function CockpitClient({ data }: { data: CockpitFixture }) {
   const activeTabLabel = tabs.find((t) => t.id === activeTab)?.label ?? activeTab
 
   return (
-    <div className="cockpit-surface">
+    // cockpit-surface is applied at the AgentShell level now so the
+    // sidebar shares the same design tokens. This component just
+    // renders the cockpit layout inside the shell's content slot.
+    <>
       <div className="cockpit-app">
         <div className="cockpit-main">
           <Topbar today={data.summary.today} />
@@ -62,6 +65,6 @@ export function CockpitClient({ data }: { data: CockpitFixture }) {
         <ChatPanel activeTab={activeTabLabel} />
       </div>
       <DrillPanel entry={activeDrill} onClose={closeDrill} />
-    </div>
+    </>
   )
 }
