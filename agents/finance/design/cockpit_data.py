@@ -633,7 +633,7 @@ def _cost_analysis_verdict_section(fp: dict) -> dict:
         f"{placements_clause} on ${fp['total_paid']:,.0f} paid. {cpp_clause}"
     )
     if tone == "critical":
-        headline = f"True CPP ${fp['true_cpp']:,.0f} — above the $4k red threshold."
+        headline = f"True CPP ${fp['true_cpp']:,.0f} — in the red band (>$4k)."
     else:  # watch
         headline = f"True CPP ${fp['true_cpp']:,.0f} — in the amber band ($2.5k–$4k)."
     return {
@@ -735,7 +735,11 @@ def build_drills(data: dict) -> dict:
             sections.append(_placements_table_section(fp, quarter_labels))
             target = target_by_provider.get(name)
             sections.append(_placements_chart_section(fp, quarter_labels, target))
-            if fp["true_cpp"] > 0:
+            # Recovery Operation's CPP is "cost per recovered placement,"
+            # not "cost per delivered placement" — the training-provider
+            # threshold bands don't apply. Contract & Spend already
+            # carries the relevant story.
+            if fp["true_cpp"] > 0 and fp["category"] != "recovery":
                 if _cpp_tone(fp["true_cpp"]) in ("watch", "critical"):
                     sections.append(_cost_analysis_verdict_section(fp))
                 else:
