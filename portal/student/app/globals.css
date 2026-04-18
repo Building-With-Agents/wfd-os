@@ -837,6 +837,205 @@
 }
 .cockpit-surface .cockpit-drill-action-text { grid-column: 2; color: var(--cockpit-text-1); line-height: 1.45; }
 
+/* ----- Workday view (Recruiting) -----
+ * Reuses the cockpit surface tokens + hero chrome. Adds Recruiting-
+ * specific primitives: search box, filter chip row, job cards,
+ * pagination. Scoped under .cockpit-surface so tokens resolve. */
+
+.cockpit-surface .workday-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 12px;
+  padding: 10px 14px;
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border);
+  border-radius: 2px;
+  max-width: 640px;
+}
+.cockpit-surface .workday-search-icon {
+  color: var(--cockpit-text-3);
+  font-size: var(--cockpit-fs-section);
+}
+.cockpit-surface .workday-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--cockpit-fs-body);
+  color: var(--cockpit-text-1);
+  outline: none;
+}
+.cockpit-surface .workday-search-input::placeholder {
+  color: var(--cockpit-text-3);
+}
+.cockpit-surface .workday-search-hint {
+  font-size: var(--cockpit-fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--cockpit-text-3);
+  padding: 2px 8px;
+  background: var(--cockpit-surface-alt);
+  border-radius: 2px;
+}
+
+.cockpit-surface .workday-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.cockpit-surface .workday-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border);
+  padding: 6px 12px;
+  font-size: var(--cockpit-fs-helper);
+}
+.cockpit-surface .workday-chip-label {
+  font-weight: 600;
+  color: var(--cockpit-text-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: var(--cockpit-fs-meta);
+}
+.cockpit-surface .workday-chip-input,
+.cockpit-surface .workday-chip-select {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-1);
+  outline: none;
+  min-width: 90px;
+}
+.cockpit-surface .workday-chip-toggle { cursor: pointer; }
+.cockpit-surface .workday-chip-clear {
+  background: transparent;
+  border: none;
+  font: inherit;
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-3);
+  cursor: pointer;
+  padding: 6px 8px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cockpit-surface .workday-chip-clear:hover { color: var(--cockpit-text-1); }
+
+.cockpit-surface .workday-job-list {
+  padding: 28px 32px;
+  background: var(--cockpit-surface);
+}
+.cockpit-surface .workday-job-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+.cockpit-surface .workday-job-list-head h2 {
+  font-size: var(--cockpit-fs-section);
+  font-weight: 500;
+}
+.cockpit-surface .workday-job-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--cockpit-border);
+  border: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .workday-job-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: center;
+  background: var(--cockpit-surface);
+  border: none;
+  padding: 16px 20px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: background 0.12s;
+}
+.cockpit-surface .workday-job-card:hover { background: var(--cockpit-surface-alt); }
+.cockpit-surface .workday-job-card-title {
+  font-size: var(--cockpit-fs-button);
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--cockpit-text-1);
+}
+.cockpit-surface .workday-job-card-meta {
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-2);
+}
+.cockpit-surface .workday-job-card-inflight {
+  margin-top: 4px;
+  font-size: var(--cockpit-fs-label);
+  color: var(--cockpit-good);
+}
+.cockpit-surface .workday-job-card-badge {
+  font-size: var(--cockpit-fs-label);
+  color: var(--cockpit-text-2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.cockpit-surface .workday-job-card-badge[data-pending="true"] {
+  color: var(--cockpit-watch);
+}
+.cockpit-surface .workday-job-match-pending {
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--cockpit-fs-helper);
+}
+
+.cockpit-surface .workday-job-list-empty,
+.cockpit-surface .workday-job-list-error {
+  padding: 32px;
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border);
+  text-align: center;
+  color: var(--cockpit-text-2);
+}
+.cockpit-surface .workday-job-list-error p { color: var(--cockpit-critical); }
+.cockpit-surface .workday-retry-btn {
+  margin-top: 12px;
+  background: var(--cockpit-brand);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cockpit-surface .workday-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding: 12px 0;
+}
+.cockpit-surface .workday-page-btn {
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border-strong);
+  padding: 8px 14px;
+  font: inherit;
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-1);
+  cursor: pointer;
+}
+.cockpit-surface .workday-page-btn:hover:not(:disabled) { background: var(--cockpit-surface-alt); }
+.cockpit-surface .workday-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.cockpit-surface .workday-page-meta {
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-3);
+}
+
 .dark {
   --background: oklch(0.18 0.02 280);
   --foreground: oklch(0.95 0.01 280);
