@@ -1,7 +1,14 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import type { CockpitFixture, DrillEntry } from "./lib/types"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import type {
+  CockpitStatusPayload,
+  HeroPayload,
+  DecisionsPayload,
+  TabPayload,
+  DrillEntry,
+} from "./lib/types"
+import { fetchTab, fetchDrill } from "./lib/api"
 import { Topbar } from "./components/cockpit-shell/topbar"
 import { HeroGrid } from "./components/cockpit-shell/hero-grid"
 import { DecisionsList } from "./components/cockpit-shell/decisions-list"
@@ -9,62 +16,113 @@ import { TabsBar, type TabDef } from "./components/cockpit-shell/tabs-bar"
 import { DrillPanel } from "./components/cockpit-shell/drill-panel"
 import { ChatPanel } from "./components/cockpit-shell/chat-panel"
 import { ActivityFeed } from "./components/cockpit-shell/activity-feed"
-import { TabContent } from "./components/tabs/tab-content"
+import { TabContent, TabLoading, TabError } from "./components/tabs/tab-content"
 
-export function CockpitClient({ data }: { data: CockpitFixture }) {
+interface InitialState {
+  status: CockpitStatusPayload
+  hero: HeroPayload
+  decisions: DecisionsPayload
+}
+
+export function CockpitClient({ initial }: { initial: InitialState }) {
   const [activeTab, setActiveTab] = useState<string>("budget")
+
+  // Lazy-fetched tab content. Keyed by tab id; undefined = not requested.
+  const [tabCache, setTabCache] = useState<Record<string, TabPayload>>({})
+  const [tabLoading, setTabLoading] = useState<Record<string, boolean>>({})
+  const [tabError, setTabError] = useState<Record<string, string | null>>({})
+
+  // Lazy-fetched drill content.
   const [activeDrillKey, setActiveDrillKey] = useState<string | null>(null)
+  const [drillCache, setDrillCache] = useState<Record<string, DrillEntry>>({})
+  const [drillLoading, setDrillLoading] = useState(false)
+  const [drillError, setDrillError] = useState<string | null>(null)
 
-  const tabs: TabDef[] = useMemo(
-    () => [
-      { id: "budget", label: "Budget & Burn" },
-      { id: "placements", label: "Placements" },
-      { id: "providers", label: "Providers", count: data.providers.active.length },
-      { id: "transactions", label: "Transactions", count: 53 },
-      { id: "reporting", label: "ESD Reporting", count: 2 },
-      { id: "audit", label: "Audit Readiness" },
-    ],
-    [data.providers.active.length],
-  )
+  const tabs: TabDef[] = useMemo(() => [
+    { id: "budget", label: "Budget & Burn" },
+    { id: "placements", label: "Placements" },
+    { id: "providers", label: "Providers" },
+    { id: "transactions", label: "Transactions", count: 53 },
+    { id: "reporting", label: "ESD Reporting", count: 2 },
+    { id: "audit", label: "Audit Readiness" },
+  ], [])
 
-  const activeDrill: DrillEntry | null = activeDrillKey
-    ? (data.drills[activeDrillKey] ?? null)
-    : null
-
-  function openDrill(key: string) {
-    if (!data.drills[key]) {
-      // Surface broken drill keys in the console exactly the way the
-      // HTML cockpit's openDrill() does. Validation runs on the Python
-      // side at build time so this branch should never fire — but keep
-      // the warn for parity.
-      console.warn("No drill content for:", key)
-      return
+  const loadTab = useCallback(async (tabId: string) => {
+    if (tabCache[tabId] || tabLoading[tabId]) return
+    setTabLoading((s) => ({ ...s, [tabId]: true }))
+    setTabError((s) => ({ ...s, [tabId]: null }))
+    try {
+      const payload = await fetchTab(tabId)
+      setTabCache((s) => ({ ...s, [tabId]: payload }))
+    } catch (err) {
+      setTabError((s) => ({ ...s, [tabId]: String(err) }))
+    } finally {
+      setTabLoading((s) => ({ ...s, [tabId]: false }))
     }
+  }, [tabCache, tabLoading])
+
+  // Kick off the first-tab fetch on mount so the user sees Budget content
+  // without an explicit click.
+  useEffect(() => {
+    void loadTab(activeTab)
+  }, [activeTab, loadTab])
+
+  const openDrill = useCallback(async (key: string) => {
     setActiveDrillKey(key)
-  }
-  function closeDrill() {
+    if (drillCache[key]) return
+    setDrillLoading(true)
+    setDrillError(null)
+    try {
+      const entry = await fetchDrill(key)
+      setDrillCache((s) => ({ ...s, [key]: entry }))
+    } catch (err) {
+      setDrillError(String(err))
+    } finally {
+      setDrillLoading(false)
+    }
+  }, [drillCache])
+
+  const closeDrill = useCallback(() => {
     setActiveDrillKey(null)
-  }
+    setDrillError(null)
+  }, [])
 
   const activeTabLabel = tabs.find((t) => t.id === activeTab)?.label ?? activeTab
 
+  const tabPayload = tabCache[activeTab]
+  const tabFetchError = tabError[activeTab]
+
+  const activeDrill: DrillEntry | null = activeDrillKey ? drillCache[activeDrillKey] ?? null : null
+
   return (
-    // cockpit-surface is applied at the AgentShell level now so the
-    // sidebar shares the same design tokens. This component just
-    // renders the cockpit layout inside the shell's content slot.
     <>
       <div className="cockpit-app">
         <div className="cockpit-main">
-          <Topbar today={data.summary.today} />
-          <HeroGrid data={data} onOpen={openDrill} />
-          <DecisionsList items={data.action_items} onOpen={openDrill} />
+          <Topbar today={initial.status.as_of} />
+          <HeroGrid
+            status={initial.status}
+            hero={initial.hero}
+            onOpen={openDrill}
+          />
+          <DecisionsList decisions={initial.decisions} onOpen={openDrill} />
           <TabsBar tabs={tabs} activeId={activeTab} onChange={setActiveTab} />
-          <TabContent tab={activeTab} data={data} onOpen={openDrill} />
+          {tabFetchError ? (
+            <TabError tabId={activeTab} error={tabFetchError} onRetry={() => loadTab(activeTab)} />
+          ) : tabPayload ? (
+            <TabContent payload={tabPayload} onOpen={openDrill} />
+          ) : (
+            <TabLoading tabId={activeTab} />
+          )}
           <ActivityFeed />
         </div>
         <ChatPanel activeTab={activeTabLabel} />
       </div>
-      <DrillPanel entry={activeDrill} onClose={closeDrill} />
+      <DrillPanel
+        entry={activeDrill}
+        loading={drillLoading && !activeDrill}
+        error={drillError}
+        onClose={closeDrill}
+      />
     </>
   )
 }

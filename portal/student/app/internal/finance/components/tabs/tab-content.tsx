@@ -1,15 +1,46 @@
 "use client"
 
-// Phase 2A scaffold tab content. Each tab renders enough content to
-// prove the layout + drill wiring works end-to-end against the
-// fixture. Polish + the audit-surfaced patterns (multi-row thead,
-// threshold-zone bar chart, wide-table-scroll, grouped-data-table
-// subheaders) are picked up in later phases — see deferred_fixes.md.
+// Phase 2B tab content. Each tab takes its own typed payload from
+// /api/finance/cockpit/tabs/{tab_id}. Dispatch reads the `tab`
+// discriminator and renders the right component. Loading + error
+// states are owned by cockpit-client.tsx — this module handles
+// rendering only.
 
 import { Fragment } from "react"
-import type { CockpitFixture } from "../../lib/types"
+import type {
+  TabPayload,
+  BudgetTabPayload,
+  PlacementsTabPayload,
+  ProvidersTabPayload,
+  TransactionsTabPayload,
+  ReportingTabPayload,
+  AuditTabPayload,
+} from "../../lib/types"
 import { fmtUSD, fmtPct, fmtNum } from "../../lib/format"
 import { VerdictBox } from "../cockpit-shell/verdict-box"
+
+// ---------- shared cell-style helpers ----------
+
+function cellHead(align: "left" | "right", padHoriz = 0, last = false): React.CSSProperties {
+  return {
+    textAlign: align,
+    fontSize: "var(--cockpit-fs-meta)",
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "var(--cockpit-text-3)",
+    fontWeight: 600,
+    padding: `8px ${last ? padHoriz + "px" : 12 + "px"} 8px ${padHoriz}px`,
+    borderBottom: "1px solid var(--cockpit-border)",
+  }
+}
+function cell(align: "left" | "right", padHoriz = 0): React.CSSProperties {
+  return {
+    textAlign: align,
+    padding: `10px ${padHoriz || 12}px 10px ${padHoriz}px`,
+    borderBottom: "1px solid var(--cockpit-border)",
+    verticalAlign: "middle",
+  }
+}
 
 function StatCard({
   label,
@@ -55,35 +86,40 @@ function DrillableRow({
   )
 }
 
-// ---------------- BUDGET TAB ----------------
+// Mirrors PROVIDER_CANONICAL in agents/finance/design/cockpit_data.py so
+// row-level drill keys resolve even when the reconciliation sheet uses a
+// long variant name (NCESD 171 → NCESD).
+const PROVIDER_CANONICAL: Record<string, string> = {
+  "Vets2Tech / St. Martin University": "Vets2Tech",
+  "St Martins - Washington Vets 2 Tech": "Vets2Tech",
+  "Year Up Puget Sound": "Year Up",
+  "Code Day X Mint": "Code Day",
+  "Code Day X MinT": "Code Day",
+  "Code Day / MinT": "Code Day",
+  "CodeDay/MinT": "Code Day",
+  "PNW Cyber Challenge": "PNW CCG",
+  "NCESD 171": "NCESD",
+  "Riipen / North Seattle College": "Riipen",
+  "Ada Developers": "Ada",
+  "Ada Developers Academy": "Ada",
+  "AI Engage Group LLC": "AI Engage",
+  "Pete & Kelly Vargo": "CFA Contractors (Pete & Kelly Vargo)",
+}
+function canonicalProvider(name: string): string {
+  return PROVIDER_CANONICAL[name] ?? name
+}
 
-function BudgetTab({ data, onOpen }: TabProps) {
-  const cats = data.summary.categories
-  const totalBudget = data.summary.grant_total_budget
-  const totalSpent = data.summary.gjc_paid + data.summary.cfa_contractor_paid + data.summary.backbone_qb_paid
+// ---------- tab implementations ----------
+
+function BudgetTab({ payload, onOpen }: { payload: BudgetTabPayload; onOpen: (k: string) => void }) {
+  const { categories, totals, months_remaining, verdict } = payload
   return (
     <div className="cockpit-tab-pane">
-      <VerdictBox
-        tone="watch"
-        headline="Backbone runway lands within ~$3k of the September 30 grant end."
-        body={
-          <>
-            At current burn (~$78k/month across backbone + contractors), the
-            four backbone categories run out roughly aligned with grant end.
-            CFA Contractors finishes with ~$0 if AI Engage and Pete &amp; Kelly
-            stay at current pace. The $700k+ unspent in GJC Contractors is the
-            lever — moving even $200k via budget amendment buys substantial
-            recovery-work runway.
-          </>
-        }
-      />
-
+      <VerdictBox tone={verdict.tone} headline={verdict.headline} body={verdict.body} />
       <div className="cockpit-panel">
         <div className="cockpit-panel-head">
           <h3>Budget by category</h3>
-          <span className="cockpit-helper">
-            Click any category for drill detail
-          </span>
+          <span className="cockpit-helper">Click any category for drill detail</span>
         </div>
         <div style={{ padding: 0 }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--cockpit-fs-body)" }}>
@@ -98,12 +134,8 @@ function BudgetTab({ data, onOpen }: TabProps) {
               </tr>
             </thead>
             <tbody>
-              {cats.map((cat) => (
-                <DrillableRow
-                  key={cat.name}
-                  drillKey={`category:${cat.name}`}
-                  onOpen={onOpen}
-                >
+              {categories.map((cat) => (
+                <DrillableRow key={cat.name} drillKey={`category:${cat.name}`} onOpen={onOpen}>
                   <td style={cell("left", 20)}>
                     {cat.name}
                     {cat.prorated && (
@@ -117,20 +149,18 @@ function BudgetTab({ data, onOpen }: TabProps) {
                   <td style={cell("right")} className="cockpit-num">{fmtUSD(cat.remaining)}</td>
                   <td style={cell("right")} className="cockpit-num">{fmtPct(cat.pct, 1)}</td>
                   <td style={cell("right", 20)} className="cockpit-num">
-                    {fmtUSD(cat.remaining / data.summary.months_remaining)}/mo
+                    {fmtUSD(cat.remaining / months_remaining)}/mo
                   </td>
                 </DrillableRow>
               ))}
               <tr style={{ borderTop: "1px solid var(--cockpit-border-strong)", background: "var(--cockpit-surface-alt)", fontWeight: 600 }}>
                 <td style={cell("left", 20)}>Total</td>
-                <td style={cell("right")} className="cockpit-num">{fmtUSD(totalBudget)}</td>
-                <td style={cell("right")} className="cockpit-num">{fmtUSD(totalSpent)}</td>
-                <td style={cell("right")} className="cockpit-num">{fmtUSD(totalBudget - totalSpent)}</td>
-                <td style={cell("right")} className="cockpit-num">
-                  {fmtPct((totalSpent / totalBudget) * 100, 1)}
-                </td>
+                <td style={cell("right")} className="cockpit-num">{fmtUSD(totals.budget)}</td>
+                <td style={cell("right")} className="cockpit-num">{fmtUSD(totals.spent)}</td>
+                <td style={cell("right")} className="cockpit-num">{fmtUSD(totals.remaining)}</td>
+                <td style={cell("right")} className="cockpit-num">{fmtPct(totals.pct, 1)}</td>
                 <td style={cell("right", 20)} className="cockpit-num">
-                  {fmtUSD((totalBudget - totalSpent) / data.summary.months_remaining)}/mo
+                  {fmtUSD(totals.remaining / months_remaining)}/mo
                 </td>
               </tr>
             </tbody>
@@ -141,31 +171,16 @@ function BudgetTab({ data, onOpen }: TabProps) {
   )
 }
 
-// ---------------- PLACEMENTS TAB ----------------
-
-function PlacementsTab({ data, onOpen }: TabProps) {
-  const p = data.placements
+function PlacementsTab({ payload, onOpen }: { payload: PlacementsTabPayload; onOpen: (k: string) => void }) {
+  const { summary, recovered_total, quarterly_placements, quarter_labels, verdict } = payload
   return (
     <div className="cockpit-tab-pane">
-      <VerdictBox
-        tone="good"
-        headline={`${p.confirmed_total} confirmed of ${fmtNum(p.grant_goal)} — PIP threshold cleared.`}
-        body={
-          <>
-            Coalition reported {p.coalition_reported} placements through Q4 net of
-            retractions. CFA verified {p.cfa_verified} additional Good Jobs via
-            LinkedIn outreach. {p.q1_provider_actuals} more from Provider Q1 actuals.
-            Recovery target Q2-Q3: {p.recovery_target} more to hit the {fmtNum(p.grant_goal)} goal.
-          </>
-        }
-      />
-
+      <VerdictBox tone={verdict.tone} headline={verdict.headline} body={verdict.body} />
       <div className="cockpit-three-col">
-        <StatCard label="Confirmed total" value={p.confirmed_total} sub="Above PIP threshold" />
-        <StatCard label="Q1 '26 actuals" value={p.q1_provider_actuals} sub="From provider invoices" />
-        <StatCard label="Recovered (CFA)" value={data.recovered.total_validated} sub="Validated via LinkedIn" />
+        <StatCard label="Confirmed total" value={summary.confirmed_total} sub="Above PIP threshold" />
+        <StatCard label="Q1 '26 actuals" value={summary.q1_provider_actuals} sub="From provider invoices" />
+        <StatCard label="Recovered (CFA)" value={recovered_total} sub="Validated via LinkedIn" />
       </div>
-
       <div className="cockpit-panel">
         <div className="cockpit-panel-head">
           <h3>Quarterly placements by provider</h3>
@@ -176,7 +191,7 @@ function PlacementsTab({ data, onOpen }: TabProps) {
             <thead>
               <tr>
                 <th style={cellHead("left", 20)}>Provider</th>
-                {p.quarter_labels.map((q) => (
+                {quarter_labels.map((q) => (
                   <th key={q} style={cellHead("right")}>{q}</th>
                 ))}
                 <th style={cellHead("right")}>Net</th>
@@ -185,7 +200,7 @@ function PlacementsTab({ data, onOpen }: TabProps) {
               </tr>
             </thead>
             <tbody>
-              {p.quarterly_placements.map((row) => (
+              {quarterly_placements.map((row) => (
                 <DrillableRow
                   key={row.provider}
                   drillKey={`provider:${row.provider}`}
@@ -214,40 +229,27 @@ function PlacementsTab({ data, onOpen }: TabProps) {
   )
 }
 
-// ---------------- PROVIDERS TAB ----------------
-
-function ProvidersTab({ data, onOpen }: TabProps) {
-  const groups = [
-    { label: "Active — closing out", rows: data.providers.active },
-    { label: "Closed — placement-based", rows: data.providers.closed_with_placements },
-    { label: "Closed — support / engagement", rows: data.providers.closed_support },
-    { label: "ESD-directed terminations", rows: data.providers.terminated },
-    { label: "CFA Contractors — recovery engine", rows: data.providers.cfa_contractors },
-  ]
+function ProvidersTab({ payload, onOpen }: { payload: ProvidersTabPayload; onOpen: (k: string) => void }) {
+  const { stats, groups } = payload
   return (
     <div className="cockpit-tab-pane">
       <div className="cockpit-three-col">
         <StatCard
           label="Total providers"
-          value={Object.values(data.providers).flat().length}
+          value={stats.total_providers}
           sub="Across all statuses"
         />
         <StatCard
           label="Active — closing out"
-          value={data.providers.active.length}
-          sub={`Plus ${data.providers.cfa_contractors.length} recovery contractors`}
+          value={stats.active}
+          sub={`Plus ${stats.cfa_contractors} recovery contractors`}
         />
         <StatCard
           label="Closed or terminated"
-          value={
-            data.providers.closed_with_placements.length +
-            data.providers.closed_support.length +
-            data.providers.terminated.length
-          }
-          sub={`${data.providers.terminated.length} ESD-directed terminations`}
+          value={stats.closed}
+          sub={`${stats.terminated} ESD-directed terminations`}
         />
       </div>
-
       <div className="cockpit-panel">
         <div className="cockpit-panel-head">
           <h3>Provider Reconciliation — v3 (3/27/2026)</h3>
@@ -266,7 +268,7 @@ function ProvidersTab({ data, onOpen }: TabProps) {
             </thead>
             <tbody>
               {groups.map((g) => (
-                <Fragment key={g.label}>
+                <Fragment key={g.id}>
                   <tr style={{ background: "var(--cockpit-surface-alt)" }}>
                     <td colSpan={5} style={{ ...cell("left", 20), fontSize: "var(--cockpit-fs-meta)", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--cockpit-text-2)", fontWeight: 600 }}>
                       {g.label}
@@ -295,47 +297,14 @@ function ProvidersTab({ data, onOpen }: TabProps) {
   )
 }
 
-// Provider name canonicalization for drill keys. Mirrors PROVIDER_CANONICAL
-// in agents/finance/design/cockpit_data.py — extracted into a small map
-// so React-side rows can resolve drill keys without round-tripping through
-// the Python layer.
-const PROVIDER_CANONICAL: Record<string, string> = {
-  "Vets2Tech / St. Martin University": "Vets2Tech",
-  "St Martins - Washington Vets 2 Tech": "Vets2Tech",
-  "Year Up Puget Sound": "Year Up",
-  "Code Day X Mint": "Code Day",
-  "Code Day X MinT": "Code Day",
-  "Code Day / MinT": "Code Day",
-  "CodeDay/MinT": "Code Day",
-  "PNW Cyber Challenge": "PNW CCG",
-  "NCESD 171": "NCESD",
-  "Riipen / North Seattle College": "Riipen",
-  "Ada Developers": "Ada",
-  "Ada Developers Academy": "Ada",
-  "AI Engage Group LLC": "AI Engage",
-  "Pete & Kelly Vargo": "CFA Contractors (Pete & Kelly Vargo)",
-}
-function canonicalProvider(name: string): string {
-  return PROVIDER_CANONICAL[name] ?? name
-}
-
-// ---------------- TRANSACTIONS TAB ----------------
-
-function TransactionsTab({ onOpen }: TabProps) {
-  const txns = [
-    { date: "2026-04-14", type: "Bill", vendor: "AI Engage Group LLC", memo: "March recovery work — 47 candidates reviewed", cat: "CFA Contractors", amt: 12000 },
-    { date: "2026-04-12", type: "Purchase", vendor: "Brosnahan Insurance Agency", memo: "Workers comp Q2 2026", cat: "Personnel — Benefits", amt: 1847 },
-    { date: "2026-04-10", type: "Purchase", vendor: "Unknown vendor ●", memo: "Office supplies", cat: "Other Direct", amt: 1243, anomaly: true },
-    { date: "2026-04-08", type: "Bill", vendor: "Pete & Kelly Vargo", memo: "March outreach contract", cat: "CFA Contractors", amt: 18500 },
-    { date: "2026-04-05", type: "JE", vendor: "Payroll Apr 1-15", memo: "K8341 allocation", cat: "Personnel — Salaries", amt: 17184 },
-    { date: "2026-04-02", type: "Bill", vendor: "Code Day X MinT", memo: "Q1 final invoice — 8 placements × $3,222", cat: "GJC Contractors", amt: 25776 },
-  ]
+function TransactionsTab({ payload, onOpen }: { payload: TransactionsTabPayload; onOpen: (k: string) => void }) {
+  const { stats, transactions, total_count, note } = payload
   return (
     <div className="cockpit-tab-pane">
       <div className="cockpit-three-col">
-        <StatCard label="Mirrored from QB" value={53} sub="Sandbox · production sync pending" />
-        <StatCard label="Tagged with Class" value="0 / 53" sub="Class tracking status pending Krista" />
-        <StatCard label="Anomalies open" value={2} sub="Missing docs · 1 over-threshold CC" valueColor="var(--cockpit-watch)" />
+        <StatCard label="Mirrored from QB" value={stats.mirrored_from_qb} sub="Sandbox · production sync pending" />
+        <StatCard label="Tagged with Class" value={`${stats.tagged_with_class.tagged} / ${stats.tagged_with_class.total}`} sub="Class tracking status pending Krista" />
+        <StatCard label="Anomalies open" value={stats.anomalies_open} sub="Missing docs · 1 over-threshold CC" valueColor="var(--cockpit-watch)" />
       </div>
       <div className="cockpit-panel">
         <div className="cockpit-panel-head">
@@ -355,7 +324,7 @@ function TransactionsTab({ onOpen }: TabProps) {
               </tr>
             </thead>
             <tbody>
-              {txns.map((t, i) => {
+              {transactions.map((t, i) => {
                 const drillKey = canonicalProvider(t.vendor)
                 const isDrillable = !t.anomaly && drillKey !== t.vendor
                 return (
@@ -373,12 +342,12 @@ function TransactionsTab({ onOpen }: TabProps) {
                       {t.vendor}
                     </td>
                     <td style={cell("left")}>{t.memo}</td>
-                    <td style={cell("left")}>{t.cat}</td>
+                    <td style={cell("left")}>{t.category}</td>
                     <td
                       style={{ ...cell("right", 20), color: t.anomaly ? "var(--cockpit-watch)" : undefined }}
                       className="cockpit-num"
                     >
-                      {fmtUSD(t.amt)}
+                      {fmtUSD(t.amount)}
                     </td>
                   </tr>
                 )
@@ -387,24 +356,15 @@ function TransactionsTab({ onOpen }: TabProps) {
           </table>
         </div>
         <div style={{ padding: "12px 20px", fontSize: "var(--cockpit-fs-helper)", color: "var(--cockpit-text-3)", background: "var(--cockpit-surface-alt)", borderTop: "1px solid var(--cockpit-border)" }}>
-          Showing 6 of 53 · production QB sync pending
+          Showing {transactions.length} of {total_count} · {note}
         </div>
       </div>
     </div>
   )
 }
 
-// ---------------- REPORTING TAB ----------------
-
-function ReportingTab() {
-  const cycle = [
-    { num: "01", name: "March reconciled", date: "Apr 5 · ✓", state: "done" },
-    { num: "02", name: "April advance drafted", date: "Apr 17 · today", state: "current" },
-    { num: "03", name: "Submit to ESD", date: "Apr 30 · due", state: "" },
-    { num: "04", name: "ESD funds advance", date: "~May 21 · est.", state: "" },
-    { num: "05", name: "Spend through April", date: "Apr 30 close", state: "" },
-    { num: "06", name: "Reconcile vs. actual", date: "May 5 · est.", state: "" },
-  ]
+function ReportingTab({ payload }: { payload: ReportingTabPayload }) {
+  const { cycle } = payload
   return (
     <div className="cockpit-tab-pane">
       <div className="cockpit-panel">
@@ -444,34 +404,15 @@ function ReportingTab() {
   )
 }
 
-// ---------------- AUDIT TAB ----------------
-
-function AuditTab({ onOpen }: TabProps) {
-  const dims = [
-    { id: "allowable_costs", label: "Allowable costs", what: "Every transaction maps to an allowable category", pct: 96, tone: "good" as const, owner: "Krista" },
-    { id: "transaction_documentation", label: "Transaction documentation", what: "Vendor invoices, receipts, approvals on file", pct: 88, tone: "watch" as const, owner: "Krista" },
-    { id: "time_effort", label: "Time & effort certifications", what: "Quarterly attestations from federally-funded staff", pct: 0, tone: "critical" as const, owner: "Ritu" },
-    { id: "procurement", label: "Procurement & competition", what: "Competitive process or sole-source justification per contract", pct: 92, tone: "good" as const, owner: "Ritu" },
-    { id: "subrecipient_monitoring", label: "Subrecipient monitoring", what: "Risk assessment, monitoring, follow-up per provider", pct: 81, tone: "watch" as const, owner: "Ritu · Bethany" },
-    { id: "performance_reporting", label: "Performance reporting accuracy", what: "Reported placements reconcilable to source data", pct: 95, tone: "good" as const, owner: "Bethany · Gage" },
-  ]
+function AuditTab({ payload, onOpen }: { payload: AuditTabPayload; onOpen: (k: string) => void }) {
+  const { stats, dimensions, verdict } = payload
   return (
     <div className="cockpit-tab-pane">
-      <VerdictBox
-        headline="73% audit-ready. Biggest gap is time & effort certifications."
-        body={
-          <>
-            Single Audit covering K8341 spend will be due roughly September 2027.
-            ESD monitoring visits can happen anytime with 2-4 weeks notice. Worth
-            closing the documentation gaps now while institutional memory is fresh,
-            not in a year when staff may have turned over.
-          </>
-        }
-      />
+      <VerdictBox tone={verdict.tone} headline={verdict.headline} body={verdict.body} />
       <div className="cockpit-three-col">
-        <StatCard label="Overall readiness" value="73%" sub="Across 6 audit dimensions" valueColor="var(--cockpit-watch)" />
-        <StatCard label="Documentation gap" value={12} sub="Transactions over $2,500 missing invoices" />
-        <StatCard label="T&E certifications" value="0 / 9" sub="Quarterly certs since grant start" valueColor="var(--cockpit-critical)" />
+        <StatCard label="Overall readiness" value={stats.overall} sub="Across 6 audit dimensions" valueColor="var(--cockpit-watch)" />
+        <StatCard label="Documentation gap" value={stats.doc_gap} sub="Transactions over $2,500 missing invoices" />
+        <StatCard label="T&E certifications" value={stats.te_certs} sub="Quarterly certs since grant start" valueColor="var(--cockpit-critical)" />
       </div>
       <div className="cockpit-panel">
         <div className="cockpit-panel-head">
@@ -489,7 +430,7 @@ function AuditTab({ onOpen }: TabProps) {
               </tr>
             </thead>
             <tbody>
-              {dims.map((d) => (
+              {dimensions.map((d) => (
                 <DrillableRow key={d.id} drillKey={`audit:${d.id}`} onOpen={onOpen}>
                   <td style={cell("left", 20)}>{d.label}</td>
                   <td style={{ ...cell("left"), color: "var(--cockpit-text-2)", fontSize: "var(--cockpit-fs-helper)" }}>{d.what}</td>
@@ -507,44 +448,67 @@ function AuditTab({ onOpen }: TabProps) {
   )
 }
 
-// ---------------- shared cell-style helpers ----------------
+// ---------- dispatch ----------
 
-function cellHead(align: "left" | "right", padHoriz = 0, last = false): React.CSSProperties {
-  return {
-    textAlign: align,
-    fontSize: "var(--cockpit-fs-meta)",
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: "var(--cockpit-text-3)",
-    fontWeight: 600,
-    padding: `8px ${last ? padHoriz + "px" : 12 + "px"} 8px ${padHoriz}px`,
-    borderBottom: "1px solid var(--cockpit-border)",
-  }
-}
-function cell(align: "left" | "right", padHoriz = 0): React.CSSProperties {
-  return {
-    textAlign: align,
-    padding: `10px ${padHoriz || 12}px 10px ${padHoriz}px`,
-    borderBottom: "1px solid var(--cockpit-border)",
-    verticalAlign: "middle",
-  }
-}
-
-// ---------------- dispatch ----------------
-
-interface TabProps {
-  data: CockpitFixture
+export function TabContent({
+  payload,
+  onOpen,
+}: {
+  payload: TabPayload
   onOpen: (key: string) => void
+}) {
+  switch (payload.tab) {
+    case "budget":       return <BudgetTab       payload={payload} onOpen={onOpen} />
+    case "placements":   return <PlacementsTab   payload={payload} onOpen={onOpen} />
+    case "providers":    return <ProvidersTab    payload={payload} onOpen={onOpen} />
+    case "transactions": return <TransactionsTab payload={payload} onOpen={onOpen} />
+    case "reporting":    return <ReportingTab    payload={payload} />
+    case "audit":        return <AuditTab        payload={payload} onOpen={onOpen} />
+    default: {
+      const exhaustive: never = payload
+      console.warn("Unknown tab payload", exhaustive)
+      return null
+    }
+  }
 }
 
-export function TabContent({ tab, data, onOpen }: { tab: string } & TabProps) {
-  switch (tab) {
-    case "budget":       return <BudgetTab data={data} onOpen={onOpen} />
-    case "placements":   return <PlacementsTab data={data} onOpen={onOpen} />
-    case "providers":    return <ProvidersTab data={data} onOpen={onOpen} />
-    case "transactions": return <TransactionsTab data={data} onOpen={onOpen} />
-    case "reporting":    return <ReportingTab />
-    case "audit":        return <AuditTab data={data} onOpen={onOpen} />
-    default:             return <BudgetTab data={data} onOpen={onOpen} />
-  }
+export function TabLoading({ tabId }: { tabId: string }) {
+  return (
+    <div className="cockpit-tab-pane">
+      <div style={{
+        padding: 48,
+        textAlign: "center",
+        color: "var(--cockpit-text-3)",
+        fontSize: "var(--cockpit-fs-body)",
+      }}>
+        Loading {tabId} content…
+      </div>
+    </div>
+  )
+}
+
+export function TabError({ tabId, error, onRetry }: { tabId: string; error: string; onRetry: () => void }) {
+  return (
+    <div className="cockpit-tab-pane">
+      <div className="cockpit-panel" style={{ padding: 24 }}>
+        <h3 style={{ color: "var(--cockpit-critical)" }}>Couldn&apos;t load {tabId}</h3>
+        <p style={{ marginTop: 8, color: "var(--cockpit-text-2)" }}>{error}</p>
+        <button
+          type="button"
+          onClick={onRetry}
+          style={{
+            marginTop: 16,
+            background: "var(--cockpit-brand)",
+            color: "white",
+            border: "none",
+            padding: "8px 16px",
+            cursor: "pointer",
+            font: "inherit",
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    </div>
+  )
 }

@@ -1,18 +1,12 @@
 "use client"
 
-import type { ActionItem_, Tone } from "../../lib/types"
-
-function priorityTone(priority: string): Tone {
-  if (priority === "HIGH") return "critical"
-  if (priority === "MEDIUM") return "watch"
-  return "neutral"
-}
+import type { DecisionsPayload } from "../../lib/types"
 
 export function DecisionsList({
-  items,
+  decisions,
   onOpen,
 }: {
-  items: ActionItem_[]
+  decisions: DecisionsPayload
   onOpen: (key: string) => void
 }) {
   return (
@@ -20,30 +14,25 @@ export function DecisionsList({
       <div className="cockpit-section-head">
         <h2 className="cockpit-display">This week&apos;s decisions</h2>
         <span className="cockpit-helper">
-          {items.length} items from v3 reconciliation Action Items · prioritized
+          {decisions.total} items from v3 reconciliation Action Items · prioritized
         </span>
       </div>
       <div className="cockpit-decision-list">
-        {items.map((item, i) => (
+        {decisions.items.map((item) => (
           <button
-            key={i}
+            key={item.id}
             type="button"
             className="cockpit-decision"
-            onClick={() => onOpen(`decision:${i}`)}
+            onClick={() => onOpen(item.drill_key)}
           >
-            <div
-              className="cockpit-decision-marker"
-              data-tone={priorityTone(item.priority)}
-            />
+            <div className="cockpit-decision-marker" data-tone={item.priority_tone} />
             <div>
-              <div className="cockpit-decision-title">
-                {item.area} — {item.action}
-              </div>
+              <div className="cockpit-decision-title">{item.title}</div>
               <div className="cockpit-decision-meta">Owner: {item.owner}</div>
             </div>
             <div className="cockpit-decision-right">
               <div className="cockpit-decision-priority">{item.priority}</div>
-              <div>open</div>
+              <div>{item.status}</div>
             </div>
           </button>
         ))}

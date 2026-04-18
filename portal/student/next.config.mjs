@@ -35,6 +35,15 @@ const nextConfig = {
         source: "/api/marketing/:path*",
         destination: "http://localhost:8008/api/marketing/:path*",
       },
+      // Finance cockpit API (agents/finance/cockpit_api.py on :8013).
+      // Its routes are at the service root (/cockpit/status, /cockpit/hero,
+      // etc.) — the rewrite strips the /api/finance prefix.
+      //   /api/finance/cockpit/hero  (portal)
+      //   -> http://localhost:8013/cockpit/hero  (service)
+      {
+        source: "/api/finance/:path*",
+        destination: "http://localhost:8013/:path*",
+      },
       {
         source: "/api/apollo/:path*",
         destination: "http://localhost:8010/api/apollo/:path*",

@@ -261,6 +261,176 @@ export interface FinancialPerformanceRow {
   true_cpp_tone: Tone
 }
 
+// ---------- API response shapes (Phase 2B, from cockpit_api.py) ----------
+//
+// These mirror the endpoint responses exactly. Kept narrow — each shape is
+// the contract for one endpoint. The legacy CockpitFixture below is what the
+// old static JSON fixture exported; it stays around for type-reference
+// purposes but isn't imported anywhere now that we fetch live.
+
+export interface CockpitStatusPayload {
+  as_of: string
+  months_remaining: number
+  days_remaining: number
+  last_sync: string | null
+  data_sources: Array<{
+    type: string
+    path?: string
+    files?: string[]
+    available: boolean
+    loaded_at: string | null
+    status?: string
+  }>
+}
+
+export interface HeroCellPayload {
+  drill_key: string
+  label: string
+  value: string
+  value_suffix?: string
+  subtitle: string
+  status_chip: StatusChip
+  updated_at: string
+  source: string
+  live_minutes_ago?: number
+}
+
+export interface HeroPayload {
+  backbone: HeroCellPayload
+  placements: HeroCellPayload
+  cash: HeroCellPayload
+  flags: HeroCellPayload
+}
+
+export interface DecisionItem {
+  id: string
+  drill_key: string
+  title: string
+  area: string
+  action: string
+  owner: string
+  priority: "HIGH" | "MEDIUM" | "LOW"
+  priority_tone: Tone
+  status: string
+  source: string
+  created_at: string
+}
+
+export interface DecisionsPayload {
+  items: DecisionItem[]
+  sorted_by: string
+  total: number
+}
+
+export interface VerdictPayload {
+  tone: Tone
+  headline: string
+  body: string
+}
+
+// Per-tab shapes — discriminated by `tab`. Each matches _tab_* in cockpit_api.py.
+
+export interface BudgetTabPayload {
+  tab: "budget"
+  verdict: VerdictPayload
+  categories: SummaryCategory[]
+  totals: { budget: number; spent: number; remaining: number; pct: number }
+  months_remaining: number
+}
+
+export interface PlacementsTabPayload {
+  tab: "placements"
+  summary: {
+    confirmed_total: number
+    grant_goal: number
+    pip_threshold: number
+    coalition_reported: number
+    cfa_verified: number
+    q1_provider_actuals: number
+    recovery_target: number
+  }
+  recovered_total: number
+  quarterly_placements: QuarterlyPlacementsRow[]
+  quarter_labels: string[]
+  verdict: VerdictPayload
+}
+
+export interface ProvidersTabPayload {
+  tab: "providers"
+  stats: {
+    total_providers: number
+    active: number
+    cfa_contractors: number
+    closed: number
+    terminated: number
+  }
+  groups: Array<{
+    id: string
+    label: string
+    rows: ProviderRow[]
+  }>
+}
+
+export interface TransactionRow {
+  date: string
+  type: string
+  vendor: string
+  memo: string
+  category: string
+  amount: number
+  anomaly: boolean
+}
+
+export interface TransactionsTabPayload {
+  tab: "transactions"
+  stats: {
+    mirrored_from_qb: number
+    tagged_with_class: { tagged: number; total: number }
+    anomalies_open: number
+  }
+  transactions: TransactionRow[]
+  total_count: number
+  note: string
+}
+
+export interface ReportingCycleStep {
+  num: string
+  name: string
+  date: string
+  state: "done" | "current" | ""
+}
+
+export interface ReportingTabPayload {
+  tab: "reporting"
+  cycle: ReportingCycleStep[]
+}
+
+export interface AuditDimension {
+  id: string
+  label: string
+  what: string
+  pct: number
+  tone: Tone
+  owner: string
+}
+
+export interface AuditTabPayload {
+  tab: "audit"
+  verdict: VerdictPayload
+  stats: { overall: string; doc_gap: number; te_certs: string }
+  dimensions: AuditDimension[]
+}
+
+export type TabPayload =
+  | BudgetTabPayload
+  | PlacementsTabPayload
+  | ProvidersTabPayload
+  | TransactionsTabPayload
+  | ReportingTabPayload
+  | AuditTabPayload
+
+// ---------- Legacy static-fixture shape (pre-2B) ----------
+
 export interface CockpitFixture {
   summary: CockpitSummary
   providers: ProvidersByGroup
