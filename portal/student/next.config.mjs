@@ -44,6 +44,17 @@ const nextConfig = {
         source: "/api/finance/:path*",
         destination: "http://localhost:8013/:path*",
       },
+      // Recruiting API (agents/job_board/api.py on :8012). Routes at
+      // service root (/jobs, /students, /applications, /stats/workday).
+      // Directory name uses underscore for Python importability — the
+      // user-facing language stays "Recruiting" (URL prefix + sidebar
+      // nav both use that term).
+      //   /api/recruiting/jobs  (portal)
+      //   -> http://localhost:8012/jobs  (service)
+      {
+        source: "/api/recruiting/:path*",
+        destination: "http://localhost:8012/:path*",
+      },
       {
         source: "/api/apollo/:path*",
         destination: "http://localhost:8010/api/apollo/:path*",
