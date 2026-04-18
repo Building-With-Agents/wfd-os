@@ -1,146 +1,43 @@
-// Polymorphic drill content schema. Mirrors the Python TypedDict shape
-// in agents/finance/design/cockpit_data.py exactly.
-//
-// Section types are discriminated by the `type` field. Each renderer in
-// components/drill-sections/ handles one variant. Tone values map to the
-// CSS custom properties --good / --watch / --critical / --text-3.
+// Finance-specific type definitions.
+// Cross-agent primitives (Tone, StatusChip, DrillEntry, all DrillSection
+// variants, HeroGridCell, VerdictPayload) live in
+// portal/student/app/internal/_shared/types.ts — this file imports and
+// re-exports the ones Finance components reference, then layers
+// Finance-specific API payload shapes on top.
 
-export type Tone = "good" | "watch" | "critical" | "neutral"
+import type {
+  Tone,
+  StatusChip,
+  DrillEntry,
+  DrillSection,
+  VerdictPayload,
+} from "../../_shared/types"
 
-export type SectionType =
-  | "rows"
-  | "table"
-  | "chart"
-  | "prose"
-  | "verdict"
-  | "timeline"
-  | "action_items"
+// Re-export cross-agent types so finance/**/*.tsx can keep importing
+// from ./lib/types without reaching across the whole tree. New files
+// in finance/ can import from _shared/types directly — either works.
+export type { Tone, StatusChip, DrillEntry, DrillSection, VerdictPayload } from "../../_shared/types"
+export type {
+  RowsSection,
+  TableSection,
+  ChartSection,
+  ProseSection,
+  VerdictSection,
+  TimelineSection,
+  ActionItemsSection,
+  TableColumn,
+  ActionItem,
+  TimelineEvent,
+  AxisDef,
+  ChartReferenceLine,
+  DrillAction,
+  DrillRegistry,
+  SectionType,
+  HeroGridCell,
+} from "../../_shared/types"
 
-// ---------- Per-section types ----------
 
-export interface RowsSection {
-  type: "rows"
-  title: string
-  rows: Array<{
-    label: string
-    value: string | number
-    emphasize?: boolean
-  }>
-  note?: string
-}
-
-export interface TableColumn {
-  key: string
-  label: string
-  align?: "left" | "right"
-  numeric?: boolean
-}
-
-export interface TableSection {
-  type: "table"
-  title: string
-  columns: TableColumn[]
-  rows: Array<Record<string, string | number | boolean>>
-  note?: string
-}
-
-export interface AxisDef {
-  key: string
-  label?: string
-}
-
-export interface ChartReferenceLine {
-  value: number
-  label?: string
-  tone?: Tone
-}
-
-export interface ChartSection {
-  type: "chart"
-  title: string
-  chart_type: "bar" | "line" | "area"
-  x_axis: AxisDef
-  y_axis: AxisDef
-  data: Array<Record<string, string | number> & { tone?: Tone }>
-  reference_lines?: ChartReferenceLine[]
-  note?: string
-}
-
-export interface ProseSection {
-  type: "prose"
-  title?: string
-  body: string
-}
-
-export interface VerdictSection {
-  type: "verdict"
-  tone: Tone
-  headline: string
-  body: string
-}
-
-export interface TimelineEvent {
-  date: string
-  title: string
-  tone?: Tone
-}
-
-export interface TimelineSection {
-  type: "timeline"
-  title: string
-  events: TimelineEvent[]
-}
-
-export interface ActionItem {
-  priority: "HIGH" | "MEDIUM" | "LOW"
-  owner?: string
-  text: string
-}
-
-export interface ActionItemsSection {
-  type: "action_items"
-  title: string
-  items: ActionItem[]
-}
-
-export type DrillSection =
-  | RowsSection
-  | TableSection
-  | ChartSection
-  | ProseSection
-  | VerdictSection
-  | TimelineSection
-  | ActionItemsSection
-
-// ---------- Top-level drill entry ----------
-
-export interface StatusChip {
-  label: string
-  tone: Tone
-}
-
-export interface DrillAction {
-  label: string
-  intent: "navigate" | "chat" | "export"
-  target?: string
-  prompt?: string
-}
-
-export interface DrillEntry {
-  eyebrow: string
-  title: string
-  summary: string
-  status_chip?: StatusChip
-  sections: DrillSection[]
-  actions?: DrillAction[]
-  updated_at?: string
-  source?: string
-  note?: string
-}
-
-export type DrillRegistry = Record<string, DrillEntry>
-
-// ---------- Cockpit-wide data shape (mirrors extract_all output) ----------
+// ---------- Finance domain types (derived from extract_all output) ----------
 
 export interface SummaryCategory {
   name: string
@@ -177,13 +74,6 @@ export interface CockpitSummary {
   categories: SummaryCategory[]
 }
 
-export interface ActionItem_ {
-  priority: "HIGH" | "MEDIUM" | "LOW"
-  area: string
-  action: string
-  owner: string
-}
-
 export interface ProviderRow {
   name: string
   budget: number
@@ -191,14 +81,6 @@ export interface ProviderRow {
   balance: number
   notes: string
   category: "training" | "strategic" | "cfa_contractor"
-}
-
-export interface ProvidersByGroup {
-  active: ProviderRow[]
-  closed_with_placements: ProviderRow[]
-  closed_support: ProviderRow[]
-  terminated: ProviderRow[]
-  cfa_contractors: ProviderRow[]
 }
 
 export interface QuarterlyPlacementsRow {
@@ -213,60 +95,8 @@ export interface QuarterlyPlacementsRow {
   pct_tone: Tone
 }
 
-export interface Q1ProviderActual {
-  provider: string
-  expected: string
-  actual: number | null
-  rate: number
-  invoice: number | null
-  variance_color: string
-}
 
-export interface CockpitPlacements {
-  confirmed_total: number
-  pip_threshold: number
-  grant_goal: number
-  coalition_reported: number
-  cfa_verified: number
-  q1_provider_actuals: number
-  vets2tech_q2_guaranteed: number
-  apprenti_expected_low: number
-  apprenti_expected_high: number
-  recovery_target: number
-  total_participants: number
-  confirmed_plus_guaranteed: number
-  linkedin_unreachable: number
-  reachable_pool: number
-  live_synced_minutes_ago: number
-  q1_provider_actuals_breakdown: Q1ProviderActual[]
-  quarterly_placements: QuarterlyPlacementsRow[]
-  quarter_labels: string[]
-}
-
-export interface FinancialPerformanceRow {
-  provider: string
-  category: "training" | "recovery" | "cfa_direct"
-  quarterly_payments: number[]
-  quarterly_placements: number[]
-  q1_26_invoice: number | null
-  q1_26_placements: number
-  q1_26_retraction: number
-  total_paid: number
-  total_placements_net: number
-  recovered: number
-  true_placements: number
-  cpp: number
-  true_cpp: number
-  cpp_tone: Tone
-  true_cpp_tone: Tone
-}
-
-// ---------- API response shapes (Phase 2B, from cockpit_api.py) ----------
-//
-// These mirror the endpoint responses exactly. Kept narrow — each shape is
-// the contract for one endpoint. The legacy CockpitFixture below is what the
-// old static JSON fixture exported; it stays around for type-reference
-// purposes but isn't imported anywhere now that we fetch live.
+// ---------- Finance API payload shapes (cockpit_api.py) ----------
 
 export interface CockpitStatusPayload {
   as_of: string
@@ -330,13 +160,8 @@ export interface DecisionsPayload {
   total: number
 }
 
-export interface VerdictPayload {
-  tone: Tone
-  headline: string
-  body: string
-}
 
-// Per-tab shapes — discriminated by `tab`. Each matches _tab_* in cockpit_api.py.
+// ---------- Per-tab payloads ----------
 
 export interface BudgetTabPayload {
   tab: "budget"
@@ -436,40 +261,3 @@ export type TabPayload =
   | TransactionsTabPayload
   | ReportingTabPayload
   | AuditTabPayload
-
-// ---------- Legacy static-fixture shape (pre-2B) ----------
-
-export interface CockpitFixture {
-  summary: CockpitSummary
-  providers: ProvidersByGroup
-  action_items: ActionItem_[]
-  placements: CockpitPlacements
-  cost_per_placement: {
-    providers: Array<{
-      name: string
-      quarterly: number[]
-      total_paid: number
-      q1_26_retraction: number
-      total_placements: number
-      net_placements: number
-      cpp: number
-    }>
-    totals: {
-      total_paid: number
-      total_placements: number
-      net_placements: number
-      weighted_cpp: number
-    }
-  }
-  budget: Record<string, number>
-  recovered: {
-    by_provider: Record<string, number>
-    by_status: Record<string, number>
-    total_validated: number
-    available: boolean
-  }
-  financial_performance: FinancialPerformanceRow[]
-  drills: DrillRegistry
-  trailing_q1_total: number
-  high_priority_count: number
-}

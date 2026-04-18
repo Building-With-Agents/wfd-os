@@ -1,4 +1,4 @@
-import type { StatusChip as ChipData } from "../../lib/types"
+import type { StatusChip as ChipData } from "./types"
 
 export function StatusChip({ chip }: { chip: ChipData }) {
   return (

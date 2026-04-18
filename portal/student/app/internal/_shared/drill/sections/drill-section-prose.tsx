@@ -1,4 +1,4 @@
-import type { ProseSection } from "../../lib/types"
+import type { ProseSection } from "../../types"
 
 export function DrillSectionProse({ section }: { section: ProseSection }) {
   return (

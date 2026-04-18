@@ -1,22 +1,17 @@
 "use client"
 
-import type { HeroCellPayload } from "../../lib/types"
+import type { HeroGridCell } from "../types"
 
 export function HeroCell({
   cell,
   onOpen,
 }: {
-  cell: HeroCellPayload
-  onOpen: (key: string) => void
+  cell: HeroGridCell
+  onOpen?: (drillKey: string) => void
 }) {
-  return (
-    <button
-      type="button"
-      className="cockpit-hero-cell"
-      onClick={() => onOpen(cell.drill_key)}
-      data-drill={cell.drill_key}
-      style={{ border: "none", textAlign: "left", font: "inherit", color: "inherit" }}
-    >
+  const drillable = !!cell.drill_key && !!onOpen
+  const inner = (
+    <>
       <div className="cockpit-hero-label">
         {cell.label}
         {cell.live_minutes_ago !== undefined && (
@@ -48,12 +43,31 @@ export function HeroCell({
           </span>
         )}
       </div>
-      <div className="cockpit-hero-sub">{cell.subtitle}</div>
+      {cell.subtitle && <div className="cockpit-hero-sub">{cell.subtitle}</div>}
       {cell.status_chip && (
         <span className="cockpit-hero-badge" data-tone={cell.status_chip.tone}>
           {cell.status_chip.label}
         </span>
       )}
-    </button>
+    </>
+  )
+
+  if (drillable) {
+    return (
+      <button
+        type="button"
+        className="cockpit-hero-cell"
+        onClick={() => onOpen!(cell.drill_key!)}
+        data-drill={cell.drill_key}
+        style={{ border: "none", textAlign: "left", font: "inherit", color: "inherit" }}
+      >
+        {inner}
+      </button>
+    )
+  }
+  return (
+    <div className="cockpit-hero-cell" data-static="true">
+      {inner}
+    </div>
   )
 }

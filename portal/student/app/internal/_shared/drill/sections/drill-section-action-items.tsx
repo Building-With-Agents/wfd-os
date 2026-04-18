@@ -1,4 +1,4 @@
-import type { ActionItemsSection } from "../../lib/types"
+import type { ActionItemsSection } from "../../types"
 
 export function DrillSectionActionItems({
   section,

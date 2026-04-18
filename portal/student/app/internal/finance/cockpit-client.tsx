@@ -9,11 +9,12 @@ import type {
   DrillEntry,
 } from "./lib/types"
 import { fetchTab, fetchDrill } from "./lib/api"
+import { CockpitShell } from "../_shared/cockpit-shell"
+import { HeroGrid } from "../_shared/hero/hero-grid"
+import { TabsBar, type TabDef } from "../_shared/tabs-bar"
+import { DrillPanel } from "../_shared/drill/drill-panel"
 import { Topbar } from "./components/cockpit-shell/topbar"
-import { HeroGrid } from "./components/cockpit-shell/hero-grid"
 import { DecisionsList } from "./components/cockpit-shell/decisions-list"
-import { TabsBar, type TabDef } from "./components/cockpit-shell/tabs-bar"
-import { DrillPanel } from "./components/cockpit-shell/drill-panel"
 import { ChatPanel } from "./components/cockpit-shell/chat-panel"
 import { ActivityFeed } from "./components/cockpit-shell/activity-feed"
 import { TabContent, TabLoading, TabError } from "./components/tabs/tab-content"
@@ -27,12 +28,10 @@ interface InitialState {
 export function CockpitClient({ initial }: { initial: InitialState }) {
   const [activeTab, setActiveTab] = useState<string>("budget")
 
-  // Lazy-fetched tab content. Keyed by tab id; undefined = not requested.
   const [tabCache, setTabCache] = useState<Record<string, TabPayload>>({})
   const [tabLoading, setTabLoading] = useState<Record<string, boolean>>({})
   const [tabError, setTabError] = useState<Record<string, string | null>>({})
 
-  // Lazy-fetched drill content.
   const [activeDrillKey, setActiveDrillKey] = useState<string | null>(null)
   const [drillCache, setDrillCache] = useState<Record<string, DrillEntry>>({})
   const [drillLoading, setDrillLoading] = useState(false)
@@ -62,8 +61,6 @@ export function CockpitClient({ initial }: { initial: InitialState }) {
     }
   }, [tabCache, tabLoading])
 
-  // Kick off the first-tab fetch on mount so the user sees Budget content
-  // without an explicit click.
   useEffect(() => {
     void loadTab(activeTab)
   }, [activeTab, loadTab])
@@ -95,29 +92,47 @@ export function CockpitClient({ initial }: { initial: InitialState }) {
 
   const activeDrill: DrillEntry | null = activeDrillKey ? drillCache[activeDrillKey] ?? null : null
 
+  // The four hero cells come straight from the API payload — its shape
+  // (drill_key + label/value/subtitle + optional value_suffix /
+  // status_chip / live_minutes_ago) is assignable to the shared
+  // HeroGridCell contract.
+  const heroCells = [
+    initial.hero.backbone,
+    initial.hero.placements,
+    initial.hero.cash,
+    initial.hero.flags,
+  ]
+
   return (
     <>
-      <div className="cockpit-app">
-        <div className="cockpit-main">
-          <Topbar today={initial.status.as_of} />
-          <HeroGrid
-            status={initial.status}
-            hero={initial.hero}
-            onOpen={openDrill}
-          />
-          <DecisionsList decisions={initial.decisions} onOpen={openDrill} />
-          <TabsBar tabs={tabs} activeId={activeTab} onChange={setActiveTab} />
-          {tabFetchError ? (
-            <TabError tabId={activeTab} error={tabFetchError} onRetry={() => loadTab(activeTab)} />
-          ) : tabPayload ? (
-            <TabContent payload={tabPayload} onOpen={openDrill} />
-          ) : (
-            <TabLoading tabId={activeTab} />
-          )}
-          <ActivityFeed />
-        </div>
-        <ChatPanel activeTab={activeTabLabel} />
-      </div>
+      <CockpitShell
+        main={
+          <>
+            <Topbar today={initial.status.as_of} />
+            <div className="cockpit-hero">
+              <div className="cockpit-hero-eyebrow">
+                Status as of {initial.status.as_of} — {initial.status.months_remaining} months remaining
+              </div>
+              <h1 className="cockpit-hero-title cockpit-display">Are we okay?</h1>
+              <p className="cockpit-hero-subtitle">
+                A daily glance at runway, placements, and what needs your attention this week.
+              </p>
+              <HeroGrid cells={heroCells} onOpen={openDrill} />
+            </div>
+            <DecisionsList decisions={initial.decisions} onOpen={openDrill} />
+            <TabsBar tabs={tabs} activeId={activeTab} onChange={setActiveTab} />
+            {tabFetchError ? (
+              <TabError tabId={activeTab} error={tabFetchError} onRetry={() => loadTab(activeTab)} />
+            ) : tabPayload ? (
+              <TabContent payload={tabPayload} onOpen={openDrill} />
+            ) : (
+              <TabLoading tabId={activeTab} />
+            )}
+            <ActivityFeed />
+          </>
+        }
+        chat={<ChatPanel activeTab={activeTabLabel} />}
+      />
       <DrillPanel
         entry={activeDrill}
         loading={drillLoading && !activeDrill}

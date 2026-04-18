@@ -1,4 +1,4 @@
-import type { DrillSection } from "../../lib/types"
+import type { DrillSection } from "../../types"
 import { DrillSectionRows } from "./drill-section-rows"
 import { DrillSectionTable } from "./drill-section-table"
 import { DrillSectionChart } from "./drill-section-chart"

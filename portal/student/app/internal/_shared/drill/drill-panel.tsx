@@ -1,9 +1,9 @@
 "use client"
 
 import { useEffect } from "react"
-import type { DrillEntry } from "../../lib/types"
-import { DrillSectionRenderer } from "../drill-sections/drill-section-renderer"
-import { StatusChip } from "./status-chip"
+import type { DrillEntry } from "../types"
+import { DrillSectionRenderer } from "./sections/drill-section-renderer"
+import { StatusChip } from "../status-chip"
 
 export function DrillPanel({
   entry,

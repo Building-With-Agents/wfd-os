@@ -1,4 +1,4 @@
-import type { Tone } from "../../lib/types"
+import type { Tone } from "./types"
 
 export function VerdictBox({
   tone = "watch",

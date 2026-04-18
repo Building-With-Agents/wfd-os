@@ -1,4 +1,4 @@
-import type { VerdictSection } from "../../lib/types"
+import type { VerdictSection } from "../../types"
 
 export function DrillSectionVerdict({ section }: { section: VerdictSection }) {
   return (

@@ -1,4 +1,4 @@
-import type { RowsSection } from "../../lib/types"
+import type { RowsSection } from "../../types"
 
 export function DrillSectionRows({ section }: { section: RowsSection }) {
   return (

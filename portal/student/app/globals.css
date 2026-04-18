@@ -291,7 +291,9 @@
 }
 .cockpit-surface .cockpit-hero-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* Column count comes from --hero-columns set inline by HeroGrid;
+   * fallback 4 for callers that don't supply it. */
+  grid-template-columns: repeat(var(--hero-columns, 4), 1fr);
   gap: 1px;
   background: var(--cockpit-border);
   border: 1px solid var(--cockpit-border);
@@ -299,12 +301,14 @@
 .cockpit-surface .cockpit-hero-cell {
   background: var(--cockpit-surface);
   padding: 18px 20px;
-  cursor: pointer;
   position: relative;
   transition: background 0.12s;
 }
-.cockpit-surface .cockpit-hero-cell:hover { background: var(--cockpit-surface-warm); }
-.cockpit-surface .cockpit-hero-cell::after {
+/* Clickable cells (rendered as <button>) get pointer + hover affordances.
+ * Static cells (data-static="true") skip the hover background and arrow. */
+.cockpit-surface button.cockpit-hero-cell { cursor: pointer; }
+.cockpit-surface button.cockpit-hero-cell:hover { background: var(--cockpit-surface-warm); }
+.cockpit-surface button.cockpit-hero-cell::after {
   content: '↗';
   position: absolute;
   top: 14px;
@@ -314,7 +318,7 @@
   opacity: 0;
   transition: opacity 0.12s;
 }
-.cockpit-surface .cockpit-hero-cell:hover::after { opacity: 1; }
+.cockpit-surface button.cockpit-hero-cell:hover::after { opacity: 1; }
 .cockpit-surface .cockpit-hero-label {
   font-size: var(--cockpit-fs-label);
   font-weight: 600;

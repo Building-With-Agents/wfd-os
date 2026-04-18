@@ -1,4 +1,4 @@
-import type { TableSection } from "../../lib/types"
+import type { TableSection } from "../../types"
 
 export function DrillSectionTable({ section }: { section: TableSection }) {
   return (

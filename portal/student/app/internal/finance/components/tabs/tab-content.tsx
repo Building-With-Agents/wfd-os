@@ -17,7 +17,7 @@ import type {
   AuditTabPayload,
 } from "../../lib/types"
 import { fmtUSD, fmtPct, fmtNum } from "../../lib/format"
-import { VerdictBox } from "../cockpit-shell/verdict-box"
+import { VerdictBox } from "../../../_shared/verdict-box"
 
 // ---------- shared cell-style helpers ----------
 

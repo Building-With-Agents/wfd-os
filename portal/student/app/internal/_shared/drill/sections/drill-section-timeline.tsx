@@ -1,4 +1,4 @@
-import type { TimelineSection } from "../../lib/types"
+import type { TimelineSection } from "../../types"
 
 export function DrillSectionTimeline({ section }: { section: TimelineSection }) {
   return (

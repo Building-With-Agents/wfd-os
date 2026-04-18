@@ -1,4 +1,4 @@
-import type { ChartSection } from "../../lib/types"
+import type { ChartSection } from "../../types"
 
 // Inline SVG bar chart. Compact (drill panel is ~520px wide). Tones on
 // individual bars come from data; reference lines come from
