@@ -120,6 +120,41 @@ from scratch.
 
 ---
 
+## Repo hygiene — disjoint histories
+
+**Issue:** `feature/finance-cockpit` and `integrate/grant-compliance-scaffold`
+have **no common ancestor**. Both branches are rooted at separate "Initial
+commit" SHAs (fb319e2 and 6338bc9 respectively) — two parallel histories
+in the same repo.
+
+**Discovered:** during Phase 2A setup, when attempting to rebase
+`feature/finance-cockpit` onto `integrate/grant-compliance-scaffold` (per
+the original cockpit_design_fixes.md Phase 2 spec). `git merge-base`
+returned no common ancestor; the rebase tried to replay every commit
+since each root and conflicted on the shared files both branches added
+independently (`.gitignore`, `portal/student/app/coalition/*`,
+`portal/student/next.config.mjs`, `reports/phase1-azure-discovery.md`,
+etc.).
+
+**Workaround in use:** cherry-pick individual commits across branches
+when needed (Phase 2A picked `1a2bec6` to get the scaffold + finance_agent).
+Cross-branch operations like rebase/merge don't work cleanly.
+
+**Action needed:** separate conversation with Gary about reconciling the
+two histories. Likely fix: pick one as canonical, replay/cherry-pick the
+other branch's commits onto it via `git filter-repo` or a one-time
+manual replay. Not in scope for cockpit work — but every cross-branch
+operation will hit this until it's fixed.
+
+**Until then:**
+- Do not rebase across the two histories
+- Do not `git merge --allow-unrelated-histories` without a plan
+- Cherry-pick is the safe primitive
+- PRs from each branch land independently into whichever target branch
+  the repo eventually picks as canonical
+
+---
+
 ## Where the cleanup epic plugs in
 
 When this epic gets scheduled:
