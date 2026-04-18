@@ -159,16 +159,28 @@ def health():
 
 @app.get("/cockpit/status")
 def status():
-    """Metadata the top bar + refresh-timestamp surfaces read."""
+    """Metadata the top bar + refresh-timestamp + tab-count badges read."""
     data = _data()
     summary = data["summary"]
     info = _SOURCE.info()
+    providers = data["providers"]
     return {
         "as_of": summary["today"],
         "months_remaining": summary["months_remaining"],
         "days_remaining": summary["days_remaining"],
         "last_sync": info.get("loaded_at"),
         "data_sources": [info],
+        # Per-tab small-metadata counts that belong with the shell's first
+        # paint. Keeps the tab-count badges ("Providers 9") fresh without
+        # forcing the client to fetch every tab eagerly.
+        "tab_counts": {
+            "decisions": len(data["action_items"]),
+            "providers": len(providers["active"]),
+            "transactions": 53,  # static sample until QB sync lands
+            "reporting": 2,      # April cycle + monthly placement report
+            "audit": 6,          # dimensions
+            "high_priority": _high_priority_count(data),
+        },
     }
 
 

@@ -281,6 +281,14 @@ export interface CockpitStatusPayload {
     loaded_at: string | null
     status?: string
   }>
+  tab_counts: {
+    decisions: number
+    providers: number
+    transactions: number
+    reporting: number
+    audit: number
+    high_priority: number
+  }
 }
 
 export interface HeroCellPayload {

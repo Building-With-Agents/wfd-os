@@ -38,14 +38,15 @@ export function CockpitClient({ initial }: { initial: InitialState }) {
   const [drillLoading, setDrillLoading] = useState(false)
   const [drillError, setDrillError] = useState<string | null>(null)
 
+  const counts = initial.status.tab_counts
   const tabs: TabDef[] = useMemo(() => [
     { id: "budget", label: "Budget & Burn" },
     { id: "placements", label: "Placements" },
-    { id: "providers", label: "Providers" },
-    { id: "transactions", label: "Transactions", count: 53 },
-    { id: "reporting", label: "ESD Reporting", count: 2 },
-    { id: "audit", label: "Audit Readiness" },
-  ], [])
+    { id: "providers", label: "Providers", count: counts.providers },
+    { id: "transactions", label: "Transactions", count: counts.transactions },
+    { id: "reporting", label: "ESD Reporting", count: counts.reporting },
+    { id: "audit", label: "Audit Readiness", count: counts.audit },
+  ], [counts])
 
   const loadTab = useCallback(async (tabId: string) => {
     if (tabCache[tabId] || tabLoading[tabId]) return
