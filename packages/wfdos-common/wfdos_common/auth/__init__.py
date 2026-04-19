@@ -21,6 +21,18 @@ from wfdos_common.auth.dependencies import (
 )
 from wfdos_common.auth.middleware import SessionMiddleware
 from wfdos_common.auth.routes import LoginBody, build_auth_router
+from wfdos_common.auth.tiers import (
+    ALL_TIERS,
+    TIER_LLM_GATED,
+    TIER_PUBLIC,
+    TIER_READ_ONLY,
+    TierTag,
+    audit_tier_tags,
+    get_tier,
+    llm_gated,
+    public,
+    read_only,
+)
 from wfdos_common.auth.tokens import (
     Session,
     TokenError,
@@ -34,18 +46,28 @@ from wfdos_common.auth.tokens import (
 
 __all__ = [
     "ALLOWED_ROLES",
+    "ALL_TIERS",
+    "LoginBody",
     "Session",
+    "SessionMiddleware",
+    "TIER_LLM_GATED",
+    "TIER_PUBLIC",
+    "TIER_READ_ONLY",
+    "TierTag",
     "TokenError",
     "TokenExpiredError",
     "TokenInvalidError",
-    "SessionMiddleware",
-    "LoginBody",
     "any_role",
+    "audit_tier_tags",
     "build_auth_router",
     "current_user",
+    "get_tier",
     "is_allowed",
     "issue_magic_link",
     "issue_session",
+    "llm_gated",
+    "public",
+    "read_only",
     "require_role",
     "resolve_role",
     "verify_magic_link",
