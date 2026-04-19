@@ -49,6 +49,9 @@ Changing them without a 90-day redirect breaks the funnel.
 | `/pricing`                   | Pricing summary (stub today; fleshed out with #32) | 90 days            |
 | `/cfa/ai-consulting`         | Consulting service landing                          | 90 days            |
 | `/cfa/ai-consulting/chat`    | Consulting intake agent (public)                    | 90 days            |
+| `/laborpulse`                | Workforce-development director Q&A (auth required)  | 90 days            |
+| `/api/laborpulse/query`      | SSE streaming Q&A proxy to JIE                      | 90 days            |
+| `/api/laborpulse/feedback`   | Thumbs-up/down write to `qa_feedback`               | 90 days            |
 
 ### CTA routes (future)
 

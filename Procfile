@@ -36,6 +36,7 @@ wji-api: uvicorn agents.portal.wji_api:app --host 0.0.0.0 --port 8007
 marketing-api: uvicorn agents.marketing.api:app --host 0.0.0.0 --port 8008
 assistant-api: uvicorn agents.assistant.api:app --host 0.0.0.0 --port 8009
 apollo-api: uvicorn agents.apollo.api:app --host 0.0.0.0 --port 8010
+laborpulse-api: uvicorn agents.laborpulse.api:app --host 0.0.0.0 --port 8012
 
 # aiohttp services (Teams bots + scoping webhook).
 # These use `cd <dir> && python <file>.py` because their own imports

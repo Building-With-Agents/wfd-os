@@ -72,6 +72,7 @@ def test_host_map_has_default_fallback(conf_text: str):
         "/api/marketing/",
         "/api/assistant/",
         "/api/apollo/",
+        "/api/laborpulse/",
     ],
 )
 def test_api_location_block_present(conf_text: str, location_prefix: str):
@@ -175,3 +176,37 @@ def test_login_endpoint_applies_login_zone(conf_text: str):
     )
     assert login_block is not None
     assert "zone=platform_login" in login_block.group(0)
+
+
+# ---------------------------------------------------------------------------
+# LaborPulse location-specific invariants
+# ---------------------------------------------------------------------------
+
+
+def test_laborpulse_location_bumps_read_timeout(conf_text: str):
+    """JIE synthesis can take 15-45s; the LaborPulse location must bump
+    proxy_read_timeout above the default so the connection doesn't
+    close mid-query. Everything else matches the other API locations."""
+    block = re.search(
+        r"location\s+/api/laborpulse/\s*\{[^}]*\}",
+        conf_text,
+        flags=re.DOTALL,
+    )
+    assert block is not None
+    body = block.group(0)
+    assert re.search(r"proxy_read_timeout\s+3\d{2}s", body) or "proxy_read_timeout 300s" in body
+
+
+def test_laborpulse_rate_limit_zone_defined(conf_text: str):
+    assert re.search(
+        r"limit_req_zone\s+\S+\s+zone=platform_laborpulse",
+        conf_text,
+    )
+
+
+def test_laborpulse_upstream_on_port_8012(conf_text: str):
+    assert re.search(
+        r"upstream\s+wfdos_laborpulse_api\s*\{[^}]*127\.0\.0\.1:8012",
+        conf_text,
+        flags=re.DOTALL,
+    )
