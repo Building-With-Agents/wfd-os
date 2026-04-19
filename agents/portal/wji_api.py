@@ -21,15 +21,22 @@ from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 import psycopg2.extras
 
+from wfdos_common.errors import NotFoundError, ValidationFailure, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware
+
 
 app = FastAPI(title="WJI Grant Closeout API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
 
 
 def get_conn():
@@ -164,25 +171,25 @@ async def upload_placements(
     Unknown columns are preserved in raw_data (jsonb).
     """
     if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls", ".xlsm")):
-        raise HTTPException(status_code=400, detail="File must be .xlsx, .xls, or .xlsm")
+        raise ValidationFailure("File must be .xlsx, .xls, or .xlsm")
 
     content = await file.read()
     if not content:
-        raise HTTPException(status_code=400, detail="Empty file")
+        raise ValidationFailure("Empty file")
 
     # Parse Excel
     import openpyxl
     try:
         wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True, read_only=True)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not read Excel file: {e}")
+        raise ValidationFailure(f"Could not read Excel file: {e}")
 
     ws = wb.active
     rows = ws.iter_rows(values_only=True)
     try:
         header_row = next(rows)
     except StopIteration:
-        raise HTTPException(status_code=400, detail="Empty worksheet")
+        raise ValidationFailure("Empty worksheet")
 
     headers = [str(h).strip() if h is not None else "" for h in header_row]
     headers_normed = {_norm(h): h for h in headers if h}
@@ -286,11 +293,11 @@ async def upload_payments(
     Negative amounts kept as-is (QB refunds appear negative).
     """
     if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="File must be .csv")
+        raise ValidationFailure("File must be .csv")
 
     content = await file.read()
     if not content:
-        raise HTTPException(status_code=400, detail="Empty file")
+        raise ValidationFailure("Empty file")
 
     # Decode — try utf-8, fall back to cp1252 (QB often exports cp1252)
     text: str | None = None
@@ -301,14 +308,14 @@ async def upload_payments(
         except UnicodeDecodeError:
             continue
     if text is None:
-        raise HTTPException(status_code=400, detail="Could not decode file as text")
+        raise ValidationFailure("Could not decode file as text")
 
     import csv as csvmod
     reader = csvmod.reader(io.StringIO(text))
     try:
         header_row = next(reader)
     except StopIteration:
-        raise HTTPException(status_code=400, detail="Empty CSV")
+        raise ValidationFailure("Empty CSV")
 
     headers = [h.strip() for h in header_row]
     headers_normed = {_norm(h): h for h in headers if h}
@@ -553,7 +560,7 @@ def delete_batch(batch_id: int):
     conn.commit()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Batch not found")
+        raise NotFoundError("batch")
     return {"success": True, "batch_id": batch_id, "upload_type": row[0], "filename": row[1]}
 
 

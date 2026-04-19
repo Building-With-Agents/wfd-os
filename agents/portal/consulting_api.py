@@ -19,7 +19,13 @@ import psycopg2.extras
 # doesn't shadow Python's stdlib `email` package.
 from wfdos_common.config import settings
 from wfdos_common.email import notify_internal, send_email
-from wfdos_common.logging import configure as configure_logging, get_logger
+from wfdos_common.errors import (
+    NotFoundError,
+    ServiceUnavailableError,
+    ValidationFailure,
+    install_error_handlers,
+)
+from wfdos_common.logging import RequestContextMiddleware, configure as configure_logging, get_logger
 
 # Configure structured logging at module import (idempotent).
 configure_logging(service_name="consulting-api")
@@ -30,12 +36,16 @@ log = get_logger(__name__)
 
 app = FastAPI(title="Waifinder Consulting API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3003", "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
 
 
 def get_conn():
@@ -220,7 +230,7 @@ def get_client_engagement(client_id: str):
         client_id = engagement["id"]
     if not engagement:
         conn.close()
-        raise HTTPException(status_code=404, detail="Engagement not found")
+        raise NotFoundError("engagement")
     engagement = dict(engagement)
 
     # Milestones
@@ -338,7 +348,7 @@ def get_client_documents(client_id: str):
     eng = cur.fetchone()
     conn.close()
     if not eng:
-        raise HTTPException(status_code=404, detail="Engagement not found")
+        raise NotFoundError("engagement")
 
     safe_name = _safe_name(eng["organization_name"])
     stored_sp_url = eng.get("sharepoint_workspace_url")
@@ -469,7 +479,7 @@ def get_inquiry(inquiry_id: str):
     row = cur.fetchone()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Inquiry not found")
+        raise NotFoundError("inquiry")
     d = dict(row)
     d['id'] = str(d['id'])
     if d.get('created_at'):
@@ -620,12 +630,12 @@ def update_inquiry_status(
 ):
     """Update inquiry status and notes. Fires Scoping Agent when status -> 'scoping'."""
     if update.status not in VALID_STATUSES:
-        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of {VALID_STATUSES}")
+        raise ValidationFailure(f"Invalid status. Must be one of {VALID_STATUSES}")
 
     # Fetch current to detect transition
     current = _fetch_inquiry(inquiry_id)
     if not current:
-        raise HTTPException(status_code=404, detail="Inquiry not found")
+        raise NotFoundError("inquiry")
     prev_status = current.get("status")
 
     conn = get_conn()
@@ -640,7 +650,7 @@ def update_inquiry_status(
     conn.commit()
     conn.close()
     if not result:
-        raise HTTPException(status_code=404, detail="Inquiry not found")
+        raise NotFoundError("inquiry")
 
     scoping_triggered = False
     if update.status == "scoping" and prev_status != "scoping":
@@ -690,7 +700,7 @@ def delete_inquiry(inquiry_id: str):
     conn.commit()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Inquiry not found")
+        raise NotFoundError("inquiry")
     return {
         "success": True,
         "id": inquiry_id,
@@ -746,7 +756,7 @@ def convert_inquiry(inquiry_id: str):
     inquiry = cur.fetchone()
     if not inquiry:
         conn.close()
-        raise HTTPException(status_code=404, detail="Inquiry not found")
+        raise NotFoundError("inquiry")
     inquiry = dict(inquiry)
 
     # Generate slug-based engagement id
@@ -936,7 +946,7 @@ def post_engagement_update(engagement_id: str, update: NewUpdate):
     eng = cur.fetchone()
     if not eng:
         conn.close()
-        raise HTTPException(status_code=404, detail="Engagement not found")
+        raise NotFoundError("engagement")
 
     eng_id, org_name, contact_email, client_token = eng
 

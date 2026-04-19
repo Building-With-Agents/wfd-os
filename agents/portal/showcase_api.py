@@ -16,15 +16,22 @@ from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 import psycopg2.extras
 
+from wfdos_common.errors import NotFoundError, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware
+
 
 app = FastAPI(title="Waifinder Talent Showcase API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3003", "http://localhost:3000", "http://127.0.0.1:3003"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
 
 
 def get_conn():
@@ -307,7 +314,7 @@ def get_candidate_detail(student_id: str):
 
     if not student:
         conn.close()
-        raise HTTPException(status_code=404, detail="Candidate not found")
+        raise NotFoundError("candidate")
 
     student = dict(student)
 
