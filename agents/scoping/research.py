@@ -2,11 +2,19 @@
 
 Claude's built-in web_search tool handles all web research directly,
 eliminating the need for a separate Bing API key.
+
+NOTE (#20): the primary path uses Anthropic's provider-specific
+`web_search_20250305` tool, which the wfdos_common.llm text-completion
+adapter does not expose. That call stays on the Anthropic SDK directly
+until agent/tool orchestration lands in #26. The no-web-search fallback
+path, however, IS migrated to the adapter so it picks up Azure OpenAI /
+Gemini if Anthropic is unavailable.
 """
 
 import httpx
 from wfdos_common.graph import config
 from anthropic import Anthropic
+from wfdos_common.llm import complete as llm_complete
 from wfdos_common.models.scoping import ScopingRequest, ResearchResult
 
 
@@ -90,14 +98,14 @@ Format each section clearly with the section name as a header. Be specific and a
 
     except Exception as e:
         print(f"[RESEARCH] Claude web search failed: {e}")
-        # Fallback: use Claude without web search
-        print("[RESEARCH] Falling back to synthesis without web search")
-        response = client.messages.create(
-            model=config.CLAUDE_MODEL,
-            max_tokens=2000,
+        # Fallback: synthesis without web search via the provider adapter.
+        # Picks up Azure OpenAI / Gemini if Anthropic is unavailable.
+        print("[RESEARCH] Falling back to synthesis without web search (via wfdos_common.llm)")
+        synthesis = llm_complete(
             messages=[{"role": "user", "content": prompt}],
+            tier="synthesis",
+            max_tokens=2000,
         )
-        synthesis = response.content[0].text
 
     result = _parse_research_response(synthesis)
     return result
