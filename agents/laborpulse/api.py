@@ -1,6 +1,9 @@
 """LaborPulse — FastAPI service (port 8012).
 
-  POST /api/laborpulse/query     — streaming SSE proxy to JIE
+  POST /api/laborpulse/query     — workforce-development Q&A, request/
+                                    response JSON. Proxies to JIE
+                                    `POST /analytics/query` and returns
+                                    the assembled answer.
   POST /api/laborpulse/feedback  — thumbs-up/down write to qa_feedback
   GET  /api/health               — liveness
 
@@ -9,11 +12,15 @@ Tiering (#25):
     + staff + admin.
   - /health is @public.
 
-The query route returns a FastAPI StreamingResponse. wfd-os never parses
-JIE's SSE frames — they're forwarded byte-for-byte so the frontend sees
-exactly what JIE produced. The feedback route writes a row to
-qa_feedback in the wfd-os Postgres (system-of-record) tagged with the
-resolved tenant_id + user_email + user_role.
+Mock mode:
+  When `settings.jie.base_url` is empty, `/api/laborpulse/query` returns
+  a canned Borderplex-flavored answer after an 8-12s simulated synthesis
+  delay. This is the dev + demo-rehearsal path — it keeps the frontend
+  rendering realistically without requiring a live JIE. The mock runs
+  only when `JIE_BASE_URL` is unset; setting it (even to an unreachable
+  host) switches to the real-proxy path, which then 503s if JIE is down.
+  Each mock invocation logs `laborpulse.query.mock` at INFO so a
+  production deploy accidentally running in mock mode is greppable.
 
 Run:
   uvicorn agents.laborpulse.api:app --port 8012
@@ -21,16 +28,18 @@ Run:
 
 from __future__ import annotations
 
-from typing import Optional
+import asyncio
+import random
+import uuid
+from typing import Any, Optional
 
 import psycopg2
 import psycopg2.extras
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from agents.laborpulse.client import stream_query
+from agents.laborpulse.client import query as jie_query
 from wfdos_common.auth import (
     Session,
     SessionMiddleware,
@@ -100,6 +109,16 @@ class QueryBody(BaseModel):
     conversation_id: Optional[str] = Field(default=None, max_length=128)
 
 
+class QueryResponse(BaseModel):
+    conversation_id: Optional[str] = None
+    answer: str
+    evidence: list[dict[str, Any]] = Field(default_factory=list)
+    confidence: Optional[str] = None
+    follow_up_questions: list[str] = Field(default_factory=list)
+    cost_usd: Optional[float] = None
+    sql_generated: Optional[str] = None
+
+
 class FeedbackBody(BaseModel):
     conversation_id: str = Field(min_length=1, max_length=128)
     question: str = Field(min_length=1, max_length=4000)
@@ -114,19 +133,101 @@ class FeedbackBody(BaseModel):
     )
 
 
+class FeedbackResponse(BaseModel):
+    ok: bool
+    id: Optional[int] = None
+
+
+class HealthResponse(BaseModel):
+    status: str
+    service: str
+    port: int
+    jie_configured: bool
+
+
+# ---------------------------------------------------------------------------
+# Mock answer — used when JIE_BASE_URL is unset
+# ---------------------------------------------------------------------------
+
+
+def _mock_answer_for(question: str) -> dict[str, Any]:
+    """Return a Borderplex-flavored canned answer shaped like QueryResponse.
+
+    The answer text echoes the question so a demo feels conversational;
+    confidence is deliberately the literal string "mock" so consumers +
+    grep can distinguish mock from real responses. The `answer` body also
+    contains the marker `[MOCK]` for the same reason.
+    """
+    return {
+        "conversation_id": f"mock-{uuid.uuid4()}",
+        "answer": (
+            f"[MOCK] Here's a simulated answer to: {question}\n\n"
+            "Across the Borderplex region in Q1 2026 the strongest job-posting "
+            "growth was in Manufacturing (+18% YoY, driven by nearshoring to "
+            "Ciudad Juárez) and Healthcare Support (+12%). Digital roles — "
+            "particularly in Customer Service, Data Analysis, and IT Support "
+            "— grew 9% as logistics and healthcare employers modernized "
+            "back-office workflows. El Paso remains the posting volume "
+            "leader, but Doña Ana County saw the fastest percentage growth "
+            "in healthcare. Training pipelines are tightest for bilingual "
+            "medical-support roles."
+        ),
+        "evidence": [
+            {
+                "source": "lightcast_postings_2026Q1",
+                "text": "Borderplex region: 12,840 active postings, +14% vs Q4 2025.",
+            },
+            {
+                "source": "bls_oes_nm_doña_ana",
+                "text": "Healthcare Support occupations in Doña Ana grew 11.8% YoY.",
+            },
+            {
+                "source": "cfa_skills_registry",
+                "text": "Bilingual + medical-terminology combo scarce in supply pool.",
+            },
+        ],
+        "confidence": "mock",
+        "follow_up_questions": [
+            "Which employers drove the Q1 manufacturing growth?",
+            "What are the median wages for bilingual medical-support roles?",
+            "How does Doña Ana's healthcare growth compare to El Paso's?",
+        ],
+        "cost_usd": 0.0,
+        "sql_generated": (
+            "-- [MOCK] representative query\n"
+            "SELECT industry, COUNT(*) AS postings, ... "
+            "FROM jobs_2026q1 WHERE region IN ('el_paso','dona_ana','cd_juarez') "
+            "GROUP BY industry ORDER BY postings DESC;"
+        ),
+    }
+
+
+async def _mock_query(question: str) -> dict[str, Any]:
+    """Sleep for a realistic JIE synthesis time (8-12s) then return the
+    canned mock. Log so accidental prod-mode-mock deploys are findable."""
+    delay = random.uniform(8.0, 12.0)
+    log.info("laborpulse.query.mock", delay_seconds=round(delay, 2))
+    await asyncio.sleep(delay)
+    return _mock_answer_for(question)
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
 
-@app.post("/api/laborpulse/query")
+@app.post("/api/laborpulse/query", response_model=QueryResponse)
 @llm_gated(roles=_ALLOWED_ROLES)
 async def query_endpoint(
     request: Request,
     body: QueryBody,
     user: Session = Depends(require_role(*_ALLOWED_ROLES)),
-):
-    """Proxy the question to JIE and stream SSE back to the client."""
+) -> QueryResponse:
+    """Post the director's question to JIE, assemble the SSE body into a
+    single response dict, return it. If JIE is not configured on this
+    host, return a Borderplex-flavored mock answer after a simulated
+    synthesis delay. All errors flow through the #29 envelope handler.
+    """
     tenant_id = getattr(request.state, "tenant_id", settings.tenancy.default_tenant_id)
     request_id = current_context().get("request_id")
 
@@ -136,51 +237,42 @@ async def query_endpoint(
         user_email=user.email,
         user_role=user.role,
         question_preview=body.question[:120],
+        mode="mock" if not settings.jie.base_url else "live",
     )
 
-    # Peek the first chunk synchronously so any startup failure (missing
-    # base_url, JIE unreachable, JIE 5xx, JIE 4xx) surfaces BEFORE we
-    # hand control to StreamingResponse. After headers are flushed, it
-    # is too late to route an exception through the envelope handler —
-    # the client just sees a truncated body or a bare 500. This peek is
-    # the minimum ceremony that lets the #29 envelope still catch
-    # upstream errors cleanly.
-    gen = stream_query(
-        base_url=settings.jie.base_url,
-        api_key=settings.jie.api_key,
-        question=body.question,
+    if not settings.jie.base_url:
+        result = await _mock_query(body.question)
+    else:
+        result = await jie_query(
+            base_url=settings.jie.base_url,
+            api_key=settings.jie.api_key,
+            question=body.question,
+            tenant_id=tenant_id,
+            user_email=user.email,
+            request_id=request_id,
+            conversation_id=body.conversation_id,
+            timeout_seconds=float(settings.jie.streaming_read_timeout_seconds),
+        )
+
+    log.info(
+        "laborpulse.query.complete",
         tenant_id=tenant_id,
         user_email=user.email,
-        request_id=request_id,
-        conversation_id=body.conversation_id,
-        timeout_seconds=float(settings.jie.streaming_read_timeout_seconds),
+        conversation_id=result.get("conversation_id"),
+        answer_length=len(result.get("answer") or ""),
+        evidence_count=len(result.get("evidence") or []),
+        cost_usd=result.get("cost_usd"),
     )
-    first_chunk = await gen.__anext__()
-
-    async def _relay():
-        yield first_chunk
-        async for chunk in gen:
-            yield chunk
-
-    return StreamingResponse(
-        _relay(),
-        media_type="text/event-stream",
-        headers={
-            # Disable nginx buffering explicitly so the edge can't
-            # accidentally hold chunks even if proxy_buffering isn't off.
-            "X-Accel-Buffering": "no",
-            "Cache-Control": "no-cache",
-        },
-    )
+    return QueryResponse(**result)
 
 
-@app.post("/api/laborpulse/feedback")
+@app.post("/api/laborpulse/feedback", response_model=FeedbackResponse)
 @llm_gated(roles=_ALLOWED_ROLES)
 def feedback_endpoint(
     request: Request,
     body: FeedbackBody,
     user: Session = Depends(require_role(*_ALLOWED_ROLES)),
-):
+) -> FeedbackResponse:
     """Write one qa_feedback row. Always 200 on success; validation
     errors on bad rating flow through the envelope handler."""
     if body.rating not in (-1, 1):
@@ -232,15 +324,14 @@ def feedback_endpoint(
         rating=body.rating,
         conversation_id=body.conversation_id,
     )
-    return {"ok": True, "id": feedback_id}
+    return FeedbackResponse(ok=True, id=feedback_id)
 
 
-@app.get("/api/health")
-def health():
-    jie_configured = bool(settings.jie.base_url)
-    return {
-        "status": "ok",
-        "service": "laborpulse",
-        "port": 8012,
-        "jie_configured": jie_configured,
-    }
+@app.get("/api/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    return HealthResponse(
+        status="ok",
+        service="laborpulse",
+        port=8012,
+        jie_configured=bool(settings.jie.base_url),
+    )

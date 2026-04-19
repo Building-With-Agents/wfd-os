@@ -179,14 +179,14 @@ def test_login_endpoint_applies_login_zone(conf_text: str):
 
 
 # ---------------------------------------------------------------------------
-# LaborPulse SSE location-specific invariants
+# LaborPulse location-specific invariants
 # ---------------------------------------------------------------------------
 
 
-def test_laborpulse_location_disables_buffering(conf_text: str):
-    """SSE requires proxy_buffering off — otherwise the edge holds the
-    first chunk until the whole response assembles, breaking progressive
-    rendering."""
+def test_laborpulse_location_bumps_read_timeout(conf_text: str):
+    """JIE synthesis can take 15-45s; the LaborPulse location must bump
+    proxy_read_timeout above the default so the connection doesn't
+    close mid-query. Everything else matches the other API locations."""
     block = re.search(
         r"location\s+/api/laborpulse/\s*\{[^}]*\}",
         conf_text,
@@ -194,9 +194,6 @@ def test_laborpulse_location_disables_buffering(conf_text: str):
     )
     assert block is not None
     body = block.group(0)
-    assert "proxy_buffering off" in body
-    assert "proxy_cache off" in body
-    # Long-lived streaming needs bumped read timeout.
     assert re.search(r"proxy_read_timeout\s+3\d{2}s", body) or "proxy_read_timeout 300s" in body
 
 

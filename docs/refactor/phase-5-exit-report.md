@@ -374,11 +374,111 @@ mentioning `password authentication failed`.
 
 ---
 
-## 13. PR cleanup after the morning pass
+## 13. LaborPulse (PR #61 stacked on role-addition PR #60)
 
-Once sections 1–12 pass:
+LaborPulse is the workforce-development director Q&A. It's a JSON
+endpoint that either (a) proxies a live JIE or (b) returns a canned
+mock answer after an 8-12s simulated synthesis delay when
+`JIE_BASE_URL` is empty. Full architecture in `docs/laborpulse.md`.
 
-1. Comment on each of the 24 stacked PRs with ✅ / ❌ against the
+### 13a. Environment
+
+```bash
+# For the mock-mode walkthrough (no JIE required) — leave JIE_BASE_URL
+# unset and set the allowlist:
+grep -q WFDOS_AUTH_WORKFORCE_DEVELOPMENT_ALLOWLIST .env || \
+  echo 'WFDOS_AUTH_WORKFORCE_DEVELOPMENT_ALLOWLIST=gary.larson@computingforall.org' >> .env
+
+honcho start laborpulse-api portal
+```
+
+### 13b. Service liveness
+
+```bash
+curl -s localhost:8012/api/health | jq .
+# → {"status":"ok","service":"laborpulse","port":8012,"jie_configured":false}
+```
+
+### 13c. Unauth rejection
+
+```bash
+curl -s -i localhost:8012/api/laborpulse/query -X POST \
+     -H 'Content-Type: application/json' \
+     -d '{"question":"top growth sectors in El Paso"}'
+# → 401 envelope with code "unauthorized"
+```
+
+### 13d. Mock-mode end-to-end
+
+Sign in as a director via `/auth/login` + click the magic-link email,
+grab the `wfdos_session` cookie, then:
+
+```bash
+time curl -s localhost:8012/api/laborpulse/query \
+     -H 'Cookie: wfdos_session=<paste>' \
+     -H 'Host: talent.borderplexwfs.org' \
+     -X POST -H 'Content-Type: application/json' \
+     -d '{"question":"which sectors gained the most postings in Doña Ana in Q1?"}' \
+     | jq .
+```
+
+**Expect** (after 8-12s):
+- Single JSON body with keys:
+  `conversation_id, answer, evidence, confidence, follow_up_questions, cost_usd, sql_generated`
+- `conversation_id` starts with `mock-`
+- `answer` begins with `[MOCK]` and echoes the question
+- `confidence` is `"mock"`
+- `evidence` has ≥1 item, `follow_up_questions` has ≥1 item
+
+### 13e. Feedback write
+
+```bash
+curl -s localhost:8012/api/laborpulse/feedback \
+     -H 'Cookie: wfdos_session=<paste>' \
+     -X POST -H 'Content-Type: application/json' \
+     -d '{"conversation_id":"<from 13d>","question":"<same>","rating":1,"confidence":"mock"}'
+# → {"ok":true,"id":<int>}
+```
+
+Verify the row:
+```bash
+psql -U wfdos -d wfdos -c \
+  "SELECT tenant_id,user_email,user_role,rating,confidence
+   FROM qa_feedback ORDER BY id DESC LIMIT 1;"
+# → borderplex | gary.larson@computingforall.org | workforce-development | 1 | mock
+```
+
+### 13f. Real-JIE 503 path
+
+```bash
+# Unreachable JIE:
+JIE_BASE_URL=http://127.0.0.1:1 honcho start laborpulse-api
+curl -s -i localhost:8012/api/laborpulse/query \
+     -H 'Cookie: wfdos_session=<paste>' \
+     -X POST -H 'Content-Type: application/json' \
+     -d '{"question":"anything"}'
+# → 503 envelope with error.details.upstream == "jie"
+```
+
+### 13g. Browser walkthrough
+
+1. Visit `https://platform.thewaifinder.com/laborpulse` (or
+   `talent.borderplexwfs.org/laborpulse` for the Borderplex brand).
+2. Type a question, click Ask.
+3. **Expect:** loading skeleton rotates through
+   "Analyzing…" / "Running…" / "Synthesizing…" / "Citing…" every ~4.5s.
+4. After ~10s the full answer renders with evidence cards, confidence
+   badge, follow-up chips, and thumbs-up/down buttons.
+5. Click a follow-up chip → new request fires, same flow.
+6. Thumbs-up — confirm the feedback row lands.
+
+---
+
+## 14. PR cleanup after the morning pass
+
+Once sections 1–13 pass:
+
+1. Comment on each of the stacked PRs with ✅ / ❌ against the
    section that covers it.
 2. Decide the merge-to-master strategy: squash each PR in stack order,
    or a single "refactor epic" merge commit. My recommendation is

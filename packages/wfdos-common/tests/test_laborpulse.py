@@ -1,16 +1,14 @@
-"""Tests for agents/laborpulse/ — the LaborPulse SSE proxy + qa_feedback writer.
+"""Tests for agents/laborpulse/ — JIE proxy + mock mode + qa_feedback writer.
 
-These tests live in the wfdos-common test tree so the CI suite picks
-them up automatically (per-service tests would need a separate pytest
-invocation). We mock the httpx client so no real JIE traffic goes out,
-and swap psycopg2 for a SQLite-in-memory connection for the feedback
-writer.
+All tests mock the JIE HTTP client so no real JIE traffic goes out; the
+feedback writer uses a SQLite-in-memory connection standing in for
+psycopg2.
 """
 
 from __future__ import annotations
 
 import sqlite3
-from typing import AsyncIterator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -42,13 +40,11 @@ def test_jie_settings_env_round_trip(monkeypatch):
 
 
 def test_jie_settings_default_empty_base_url():
-    """Safe-empty default — stack boots without JIE creds; proxy raises
-    ServiceUnavailableError at call time."""
+    """Safe-empty default — stack boots without JIE creds; the endpoint
+    switches to mock mode instead of 503."""
     from wfdos_common.config.settings import JieSettings
 
     s = JieSettings()
-    # Under test env the real .env may set this; just assert the type
-    # is a string so the proxy can safely test its truthiness.
     assert isinstance(s.base_url, str)
 
 
@@ -58,9 +54,8 @@ def test_jie_settings_default_empty_base_url():
 
 
 def test_qa_feedback_schema_has_required_columns():
-    """The committed schema file must declare the columns the LaborPulse
-    feedback writer inserts into. A regression here (someone renaming a
-    column, dropping the CHECK constraint) breaks feedback capture."""
+    """The committed schema must declare the columns the LaborPulse
+    feedback writer inserts into."""
     from pathlib import Path
 
     repo_root = Path(__file__).resolve().parents[3]
@@ -82,44 +77,130 @@ def test_qa_feedback_schema_has_required_columns():
         "created_at",
     ):
         assert col in sql_text, f"qa_feedback column missing: {col}"
-    # CHECK constraint guards the rating domain.
     assert "CHECK (rating IN (-1, 1))" in sql_text
     assert "ix_qa_feedback_tenant_created" in sql_text
 
 
 # ---------------------------------------------------------------------------
-# Proxy: SSE streaming
+# JIE client event folding — unit tests on _fold_frame_into
 # ---------------------------------------------------------------------------
 
 
-class _FakeJieChunks:
-    """Replaces agents.laborpulse.client.stream_query with a canned async
-    iterator so the FastAPI StreamingResponse can be exercised end-to-end
-    without httpx or a live JIE."""
+def _fresh_acc() -> dict[str, Any]:
+    from agents.laborpulse.client import _new_result
 
-    def __init__(self, chunks: list[bytes] = None, raises: Exception | None = None):
-        self.chunks = chunks or [
-            b'event: answer\ndata: {"text": "Manufacturing "}\n\n',
-            b'event: answer\ndata: {"text": "and healthcare."}\n\n',
-            b'event: evidence\ndata: {"source": "jobs_2024"}\n\n',
-            b'event: done\ndata: {"conversation_id": "abc-123"}\n\n',
-        ]
+    return _new_result()
+
+
+def test_fold_frame_appends_answer_chunks():
+    from agents.laborpulse.client import _fold_frame_into
+
+    acc = _fresh_acc()
+    _fold_frame_into(acc, 'event: answer\ndata: {"text": "Manufacturing "}')
+    _fold_frame_into(acc, 'event: answer\ndata: {"text": "and healthcare."}')
+    assert acc["answer"] == "Manufacturing and healthcare."
+
+
+def test_fold_frame_handles_plain_text_answer_chunks():
+    """JIE sometimes emits bare tokens without JSON wrapping."""
+    from agents.laborpulse.client import _fold_frame_into
+
+    acc = _fresh_acc()
+    _fold_frame_into(acc, "event: answer\ndata: raw text tokens")
+    assert "raw text tokens" in acc["answer"]
+
+
+def test_fold_frame_collects_evidence_items():
+    from agents.laborpulse.client import _fold_frame_into
+
+    acc = _fresh_acc()
+    _fold_frame_into(acc, 'event: evidence\ndata: {"source": "jobs_2024", "text": "..."}')
+    _fold_frame_into(acc, 'event: evidence\ndata: {"items": [{"source": "b"}, {"source": "c"}]}')
+    assert len(acc["evidence"]) == 3
+    assert acc["evidence"][0]["source"] == "jobs_2024"
+    assert acc["evidence"][2]["source"] == "c"
+
+
+def test_fold_frame_sets_confidence_and_followups():
+    from agents.laborpulse.client import _fold_frame_into
+
+    acc = _fresh_acc()
+    _fold_frame_into(acc, 'event: confidence\ndata: {"level": "high"}')
+    _fold_frame_into(acc, 'event: followup\ndata: {"question": "What about wages?"}')
+    _fold_frame_into(
+        acc, 'event: follow_up\ndata: {"questions": ["Which employers?", "What sectors?"]}'
+    )
+    assert acc["confidence"] == "high"
+    assert acc["follow_up_questions"] == [
+        "What about wages?",
+        "Which employers?",
+        "What sectors?",
+    ]
+
+
+def test_fold_frame_captures_conversation_id_and_cost_on_done():
+    from agents.laborpulse.client import _fold_frame_into
+
+    acc = _fresh_acc()
+    _fold_frame_into(
+        acc,
+        'event: done\ndata: {"conversation_id": "conv-abc", "cost_usd": 0.0042}',
+    )
+    assert acc["conversation_id"] == "conv-abc"
+    assert acc["cost_usd"] == 0.0042
+
+
+def test_fold_frame_ignores_unknown_event_types():
+    """Keeps wfd-os decoupled from JIE's event vocabulary evolution."""
+    from agents.laborpulse.client import _fold_frame_into
+
+    acc = _fresh_acc()
+    _fold_frame_into(acc, 'event: brand_new_event\ndata: {"text": "surprise"}')
+    assert acc["answer"] == ""
+    assert acc["evidence"] == []
+
+
+# ---------------------------------------------------------------------------
+# API endpoint tests — mock the jie_query callable
+# ---------------------------------------------------------------------------
+
+
+class _FakeJieQuery:
+    """Drop-in replacement for agents.laborpulse.api.jie_query. Captures
+    the kwargs each call was made with; either returns a canned dict or
+    raises a preset exception."""
+
+    def __init__(
+        self,
+        *,
+        result: dict[str, Any] | None = None,
+        raises: Exception | None = None,
+    ) -> None:
+        self.result = result or {
+            "conversation_id": "conv-1",
+            "answer": "Manufacturing and healthcare led postings growth in Q1.",
+            "evidence": [{"source": "jobs_2024"}],
+            "confidence": "high",
+            "follow_up_questions": ["Which employers drove that?"],
+            "cost_usd": 0.012,
+            "sql_generated": "SELECT ... FROM jobs_2024 WHERE ...",
+        }
         self.raises = raises
-        self.calls: list[dict] = []
+        self.calls: list[dict[str, Any]] = []
 
-    async def __call__(self, **kwargs) -> AsyncIterator[bytes]:
+    async def __call__(self, **kwargs: Any) -> dict[str, Any]:
         self.calls.append(kwargs)
         if self.raises is not None:
             raise self.raises
-        for c in self.chunks:
-            yield c
+        return self.result
 
 
 @pytest.fixture
 def labor_app(monkeypatch):
     """Build the LaborPulse app with env + settings patched to a known
-    state and stream_query replaced by _FakeJieChunks. Returns (app,
-    fake_streamer, staff_token_cookie)."""
+    state and `jie_query` replaced by _FakeJieQuery. The JIE base_url is
+    populated so the endpoint runs the real-JIE branch (mock-mode tests
+    unset it explicitly via their own monkeypatch)."""
     from wfdos_common.config import settings
 
     monkeypatch.setattr(settings.auth, "secret_key", _KEY)
@@ -134,18 +215,16 @@ def labor_app(monkeypatch):
     monkeypatch.setattr(settings.auth, "cookie_secure", False)
     monkeypatch.setattr(settings.jie, "base_url", "https://jie.test.example.com")
     monkeypatch.setattr(settings.jie, "api_key", "")
-    # Force llm_gated to pass — it checks Azure/Anthropic/Gemini creds;
-    # we pretend Anthropic is configured so the tier gate doesn't 503
-    # on us (the intended 503 test below toggles this back to empty).
+    # Force llm_gated to pass — treat Anthropic as configured.
     monkeypatch.setattr(settings.llm, "anthropic_api_key", "fake")
     monkeypatch.setattr(settings.azure_openai, "key", "")
     monkeypatch.setattr(settings.azure_openai, "endpoint", "")
     monkeypatch.setattr(settings.llm, "gemini_api_key", "")
 
-    fake = _FakeJieChunks()
+    fake = _FakeJieQuery()
     import agents.laborpulse.api as api_mod
 
-    monkeypatch.setattr(api_mod, "stream_query", fake)
+    monkeypatch.setattr(api_mod, "jie_query", fake)
 
     director_cookie = issue_session(
         Session(email="director@borderplex.example.com", role="workforce-development"),
@@ -167,7 +246,7 @@ def test_query_requires_auth(labor_app):
     assert r.json()["error"]["code"] == "unauthorized"
 
 
-def test_query_rejects_student_role(labor_app, monkeypatch):
+def test_query_rejects_student_role(labor_app):
     app, _fake, _ = labor_app
     student = issue_session(
         Session(email="s@example.com", role="student"), secret_key=_KEY
@@ -188,22 +267,31 @@ def test_query_allows_workforce_development_role(labor_app):
         json={"question": "which sectors gained the most postings in Doña Ana?"},
     )
     assert r.status_code == 200
-    assert r.headers["content-type"].startswith("text/event-stream")
+    body = r.json()
+    assert body["conversation_id"] == "conv-1"
+    assert "Manufacturing" in body["answer"]
+    assert body["confidence"] == "high"
+    assert body["follow_up_questions"] == ["Which employers drove that?"]
+    assert body["cost_usd"] == 0.012
 
 
-def test_query_streams_jie_chunks_unchanged(labor_app):
-    app, fake, cookie = labor_app
+def test_query_response_matches_pydantic_shape(labor_app):
+    """Response model declares explicit keys; make sure none are dropped
+    or renamed."""
+    app, _fake, cookie = labor_app
     client = _client(app)
     client.cookies.set("wfdos_session", cookie)
-    r = client.post(
-        "/api/laborpulse/query", json={"question": "manufacturing trends"}
-    )
-    assert r.status_code == 200
-    body = r.content
-    # Every canned JIE chunk must appear byte-for-byte in the response
-    # body — wfd-os does not re-frame the stream.
-    for expected in fake.chunks:
-        assert expected in body
+    r = client.post("/api/laborpulse/query", json={"question": "q"})
+    body = r.json()
+    assert set(body.keys()) == {
+        "conversation_id",
+        "answer",
+        "evidence",
+        "confidence",
+        "follow_up_questions",
+        "cost_usd",
+        "sql_generated",
+    }
 
 
 def test_query_forwards_tenant_id_from_host(labor_app):
@@ -215,7 +303,7 @@ def test_query_forwards_tenant_id_from_host(labor_app):
         json={"question": "test"},
         headers={"Host": "talent.borderplexwfs.org"},
     )
-    assert fake.calls, "stream_query was not invoked"
+    assert fake.calls, "jie_query was not invoked"
     assert fake.calls[0]["tenant_id"] == "borderplex"
 
 
@@ -240,14 +328,15 @@ def test_query_forwards_conversation_id_when_provided(labor_app):
 
 def test_query_503_when_jie_unreachable(labor_app, monkeypatch):
     app, _fake, cookie = labor_app
-    boom = _FakeJieChunks(
+    boom = _FakeJieQuery(
         raises=ServiceUnavailableError(
-            "JIE unreachable", details={"upstream": "jie", "reason": "connect_error"}
+            "JIE unreachable",
+            details={"upstream": "jie", "reason": "connect_error"},
         )
     )
     import agents.laborpulse.api as api_mod
 
-    monkeypatch.setattr(api_mod, "stream_query", boom)
+    monkeypatch.setattr(api_mod, "jie_query", boom)
     client = _client(app)
     client.cookies.set("wfdos_session", cookie)
     r = client.post("/api/laborpulse/query", json={"question": "x"})
@@ -259,7 +348,7 @@ def test_query_503_when_jie_unreachable(labor_app, monkeypatch):
 
 def test_query_422_when_jie_rejects_question(labor_app, monkeypatch):
     app, _fake, cookie = labor_app
-    bad = _FakeJieChunks(
+    bad = _FakeJieQuery(
         raises=ValidationFailure(
             "JIE rejected the question",
             details={"upstream": "jie", "status": 422},
@@ -267,7 +356,7 @@ def test_query_422_when_jie_rejects_question(labor_app, monkeypatch):
     )
     import agents.laborpulse.api as api_mod
 
-    monkeypatch.setattr(api_mod, "stream_query", bad)
+    monkeypatch.setattr(api_mod, "jie_query", bad)
     client = _client(app)
     client.cookies.set("wfdos_session", cookie)
     r = client.post("/api/laborpulse/query", json={"question": "x"})
@@ -285,6 +374,82 @@ def test_query_rejects_empty_question(labor_app):
 
 
 # ---------------------------------------------------------------------------
+# Mock-mode tests — when settings.jie.base_url == ""
+# ---------------------------------------------------------------------------
+
+
+def test_query_returns_mock_when_jie_base_url_empty(labor_app, monkeypatch):
+    """With JIE_BASE_URL empty, the endpoint returns a canned
+    Borderplex-flavored answer tagged as mock."""
+    app, fake, cookie = labor_app
+    from wfdos_common.config import settings
+    import agents.laborpulse.api as api_mod
+
+    monkeypatch.setattr(settings.jie, "base_url", "")
+
+    # Patch asyncio.sleep in the api module to a no-op so the test is fast.
+    async def _no_sleep(_seconds):
+        return None
+
+    monkeypatch.setattr(api_mod.asyncio, "sleep", _no_sleep)
+
+    client = _client(app)
+    client.cookies.set("wfdos_session", cookie)
+    r = client.post("/api/laborpulse/query", json={"question": "top sectors?"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["conversation_id"].startswith("mock-")
+    assert body["confidence"] == "mock"
+    assert "[MOCK]" in body["answer"]
+    assert len(body["evidence"]) >= 1
+    assert len(body["follow_up_questions"]) >= 1
+    # The user's question gets echoed into the mock answer so a demo feels
+    # responsive rather than canned.
+    assert "top sectors?" in body["answer"]
+    # The real jie_query must NOT have been invoked.
+    assert fake.calls == []
+
+
+def test_query_mock_sleeps_between_8_and_12_seconds(labor_app, monkeypatch):
+    """The mock path must feel like JIE synthesis — 8-12s latency."""
+    app, _fake, cookie = labor_app
+    from wfdos_common.config import settings
+    import agents.laborpulse.api as api_mod
+
+    monkeypatch.setattr(settings.jie, "base_url", "")
+
+    captured: list[float] = []
+
+    async def _recording_sleep(seconds):
+        captured.append(seconds)
+
+    monkeypatch.setattr(api_mod.asyncio, "sleep", _recording_sleep)
+
+    client = _client(app)
+    client.cookies.set("wfdos_session", cookie)
+    r = client.post("/api/laborpulse/query", json={"question": "x"})
+    assert r.status_code == 200
+    assert len(captured) == 1
+    # Inclusive on 8.0, exclusive on 12.0 per random.uniform semantics,
+    # but we check a loose range so an off-by-epsilon isn't flaky.
+    assert 8.0 <= captured[0] <= 12.0, (
+        f"mock sleep out of range [8, 12]: {captured[0]}"
+    )
+
+
+def test_health_reports_jie_not_configured_when_base_url_empty(labor_app, monkeypatch):
+    """/api/health is the production deploy-check signal for mock mode."""
+    app, _fake, _cookie = labor_app
+    from wfdos_common.config import settings
+
+    monkeypatch.setattr(settings.jie, "base_url", "")
+
+    r = _client(app).get("/api/health")
+    assert r.status_code == 200
+    assert r.json()["jie_configured"] is False
+
+
+# ---------------------------------------------------------------------------
 # Feedback writer
 # ---------------------------------------------------------------------------
 
@@ -293,7 +458,7 @@ def test_query_rejects_empty_question(labor_app):
 def feedback_app(labor_app, monkeypatch):
     """Same as labor_app but swaps psycopg2.connect for sqlite3 so the
     INSERT actually lands in an in-process DB we can query."""
-    app, fake, cookie = labor_app
+    app, _fake, cookie = labor_app
 
     sqlite_conn = sqlite3.connect(":memory:", check_same_thread=False)
     sqlite_conn.execute(
@@ -313,7 +478,6 @@ def feedback_app(labor_app, monkeypatch):
             self._conn = conn
 
         def cursor(self):
-            # Rewrite psycopg2's %s placeholders to sqlite's ?.
             outer = self
 
             class _Cur:
@@ -329,16 +493,11 @@ def feedback_app(labor_app, monkeypatch):
                 def execute(self_, sql, params=()):
                     sql = sql.replace("%s", "?")
                     inner = outer._conn.execute(sql, params)
-                    # Drain immediately so commit can proceed without
-                    # "SQL statements in progress" errors.
                     self_._last_rowid = inner.lastrowid
                     inner.close()
                     return self_
 
                 def fetchone(self_):
-                    # api.py uses INSERT ... RETURNING id. sqlite's
-                    # RETURNING support varies; use last_insert_rowid()
-                    # via the drained cursor state.
                     return (self_._last_rowid,)
 
             return _Cur()
@@ -347,7 +506,7 @@ def feedback_app(labor_app, monkeypatch):
             self_._conn.commit()
 
         def close(self_):
-            pass  # keep the shared conn open across calls
+            pass
 
     import agents.laborpulse.api as api_mod
 
@@ -389,17 +548,37 @@ def test_feedback_writes_row(feedback_app):
     assert confidence == "high"
 
 
+def test_feedback_accepts_mock_conversation_id(feedback_app):
+    """Thumbs-up/down on a mock-mode answer must write normally. The
+    `conversation_id` starts with `mock-` but is otherwise treated like
+    any other id."""
+    app, cookie, conn = feedback_app
+    client = _client(app)
+    client.cookies.set("wfdos_session", cookie)
+    r = client.post(
+        "/api/laborpulse/feedback",
+        json={
+            "conversation_id": "mock-11111111-2222-3333-4444-555555555555",
+            "question": "mock answer — is it useful?",
+            "rating": 1,
+            "confidence": "mock",
+        },
+    )
+    assert r.status_code == 200
+    rows = conn.execute(
+        "SELECT conversation_id, confidence FROM qa_feedback"
+    ).fetchall()
+    assert rows[-1][0].startswith("mock-")
+    assert rows[-1][1] == "mock"
+
+
 def test_feedback_rejects_out_of_range_rating(feedback_app):
     app, cookie, _conn = feedback_app
     client = _client(app)
     client.cookies.set("wfdos_session", cookie)
     r = client.post(
         "/api/laborpulse/feedback",
-        json={
-            "conversation_id": "conv-2",
-            "question": "x",
-            "rating": 5,  # out of domain
-        },
+        json={"conversation_id": "conv-2", "question": "x", "rating": 5},
     )
     assert r.status_code == 422
     assert r.json()["error"]["code"] == "validation_error"

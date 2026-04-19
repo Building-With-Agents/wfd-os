@@ -6,17 +6,15 @@ the `agents/laborpulse/` service, or the May 7 Borderplex demo.
 ## One-paragraph summary
 
 LaborPulse is the marketing name for the workforce-development director
-Q&A. It's a **thin wfd-os surface** around the Job Intelligence Engine's
-(`job-intelligence-engine` repo) streaming `POST /analytics/query`
-endpoint. The director types a question at
-`https://talent.borderplexwfs.org/laborpulse`, wfd-os authenticates the
-session + resolves the tenant, proxies the SSE chunk-by-chunk from JIE,
-and captures thumbs-up/down feedback into the wfd-os `qa_feedback`
-table.
+Q&A. It's a **thin JSON API** on wfd-os that calls the Job Intelligence
+Engine's (`job-intelligence-engine` repo) `POST /analytics/query`
+endpoint, waits for the full answer, and returns a single response
+dict. Authentication + tenant resolution + feedback capture all live on
+the wfd-os side; JIE stays stateless about who's asking.
 
 The first deployment is Borderplex (El Paso + Ciudad Juárez + Las
-Cruces + Doña Ana) because that's where our JIE data and the May 7 demo
-audience live.
+Cruces + Doña Ana) because that's where our JIE data and the May 7
+demo audience live.
 
 ## Architecture
 
@@ -25,14 +23,13 @@ audience live.
 │  Browser — director session  │
 │  GET https://talent.borderplexwfs.org/laborpulse
 └──────────────┬───────────────┘
-               │  fetch POST /api/laborpulse/query
+               │  POST /api/laborpulse/query
                │  cookie: wfdos_session (role=workforce-development)
                ▼
 ┌──────────────────────────────────────────────────┐
 │  nginx edge (infra/edge/nginx/wfdos-platform.conf)│
 │  Host → X-Tenant-Id: borderplex                   │
-│  proxy_buffering off (SSE)                        │
-│  proxy_read_timeout 300s                          │
+│  proxy_read_timeout 300s (JIE synthesis 15-45s)   │
 │  limit_req zone=platform_laborpulse               │
 └──────────────┬───────────────────────────────────┘
                ▼
@@ -43,41 +40,90 @@ audience live.
 │  SessionMiddleware → request.state.user          │
 │  @llm_gated(roles=("staff","admin",              │
 │                    "workforce-development"))     │
-│  peek first SSE chunk to surface startup errors  │
-│  return StreamingResponse(text/event-stream)     │
+│                                                   │
+│  If settings.jie.base_url is set:                │
+│     await jie_query(...)         (real pathway)  │
+│  Else:                                            │
+│     await _mock_query(question)  (mock pathway)  │
 └──────────────┬───────────────────────────────────┘
                ▼
 ┌──────────────────────────────────────────────────┐
-│  job-intelligence-engine                          │
-│  POST {JIE_BASE_URL}/analytics/query              │
-│  receives X-Tenant-Id + X-User-Email              │
-│  pipeline: Intent → Route → SQL → Synthesize      │
-│           → Cite → Follow-up                      │
-│  yields SSE events: answer / evidence /           │
-│           confidence / followup / done            │
-└──────────────────────────────────────────────────┘
-               ▲
-               │ (same stream, byte-for-byte)
+│  (real)   job-intelligence-engine                 │
+│           POST {JIE_BASE_URL}/analytics/query     │
+│           receives X-Tenant-Id + X-User-Email     │
+│                                                   │
+│  (mock)   asyncio.sleep(8-12s) + canned answer    │
+└──────────────┬───────────────────────────────────┘
+               ▼
+  Returns QueryResponse JSON:
+    { conversation_id, answer, evidence, confidence,
+      follow_up_questions, cost_usd, sql_generated }
                ▼
 ┌──────────────────────────────────────────────────┐
-│  Browser — progressive render in                  │
-│  portal/student/app/laborpulse/LaborPulseClient   │
-│  → thumbs-up/down → POST /api/laborpulse/feedback │
+│  Browser — renders the complete answer           │
+│  portal/student/app/laborpulse/LaborPulseClient  │
+│  Loading skeleton rotates stage text every 4.5s  │
+│  while waiting.                                   │
+│  Thumbs-up/down → POST /api/laborpulse/feedback  │
 └──────────────────────────────────────────────────┘
 ```
 
+## Response assembly
+
+JIE's `/analytics/query` emits a series of framed events during its
+pipeline (Intent → Route → SQL → Synthesize → Cite → Follow-up). The
+LaborPulse client (`agents/laborpulse/client.py`) consumes the full
+response body, folds each event into one accumulator dict, and returns
+the assembled result. The folding rules:
+
+| Event    | Behavior on accumulator |
+|----------|-----------------------------|
+| `answer` | Append `text` / `delta` to `answer` string |
+| `evidence` | Append to `evidence` list (flattens `items: [...]` payloads) |
+| `confidence` | Set `confidence` to `level` or `text` |
+| `followup` / `follow_up` | Append `question` / extend with `questions` list |
+| `sql` | Set `sql_generated` to `sql` / `query` / `text` |
+| `done` | Set `conversation_id` + `cost_usd` |
+| _unknown_ | Silently ignored — keeps wfd-os decoupled from JIE event-vocabulary changes |
+
+Malformed data payloads are tolerated: if JIE emits a bare text token
+without JSON wrapping (common for streamed answer tokens), the client
+treats the raw string as `{"text": ...}` and appends to `answer`.
+
+## Mock mode
+
+When `settings.jie.base_url` is empty the endpoint switches to a mock
+pathway — an 8-12s `asyncio.sleep` followed by a canned
+Borderplex-flavored response shaped like the real `QueryResponse`. The
+mock exists so the frontend renders realistically in dev + demo
+rehearsal without needing a live JIE.
+
+Invariants:
+
+- **Always visibly mock.** `confidence: "mock"` + the string `[MOCK]`
+  at the start of `answer`. `conversation_id` starts with `mock-`.
+- **Logged.** Each invocation emits `laborpulse.query.mock` at INFO
+  with the chosen delay, so accidental prod-mode-mock deploys are
+  greppable.
+- **`/api/health` signals it.** `{jie_configured: false}` when
+  `JIE_BASE_URL` is empty; production deploy checks include this field.
+- **Feedback works.** Thumbs-up/down on a mock answer writes
+  `qa_feedback` rows with `confidence = "mock"` and
+  `conversation_id` starting `mock-`, so mock-era feedback can be
+  filtered out later.
+
 ## Roles + auth
 
-- **`workforce-development`** — the new fourth role from #59. Env var
+- **`workforce-development`** — the fourth role (issue #59). Env var
   `WFDOS_AUTH_WORKFORCE_DEVELOPMENT_ALLOWLIST` comma-separated emails.
 - `staff` and `admin` also have access (useful during demos when Gary
   or Ritu is driving).
 - `student` is explicitly rejected with 403 so an allowlist collision
   can't silently promote a student into LaborPulse tier.
 
-Unauthenticated → 401 envelope; wrong role → 403 envelope; missing JIE
-config → 503 envelope with `error.details.upstream = "jie"` — all
-through the #29 envelope handler.
+Unauthenticated → 401 envelope; wrong role → 403; JIE unreachable /
+timeout / 5xx → 503 envelope with `error.details.upstream = "jie"`;
+JIE 4xx (bad question) → 422 envelope. All via the #29 envelope handler.
 
 ## qa_feedback table
 
@@ -88,13 +134,13 @@ id              BIGSERIAL PK
 tenant_id       TEXT NOT NULL     -- from request.state.tenant_id (#16)
 user_email      TEXT NOT NULL     -- from request.state.user.email (#24)
 user_role       TEXT NOT NULL     -- 'workforce-development' | 'staff' | 'admin'
-conversation_id TEXT NOT NULL     -- JIE-assigned turn id
+conversation_id TEXT NOT NULL     -- JIE-assigned turn id (or 'mock-...' in mock mode)
 question        TEXT NOT NULL
-answer_snapshot TEXT              -- assembled final answer
+answer_snapshot TEXT              -- assembled final answer, for re-review
 rating          SMALLINT CHECK IN (-1, 1)
 comment         TEXT
-cost_usd        NUMERIC(10,6)     -- JIE-reported
-confidence      TEXT              -- JIE-reported 'low'|'medium'|'high'
+cost_usd        NUMERIC(10,6)     -- JIE-reported; 0.0 in mock mode
+confidence      TEXT              -- 'low' | 'medium' | 'high' | 'mock'
 created_at      TIMESTAMPTZ DEFAULT NOW()
 ```
 
@@ -110,39 +156,36 @@ Borderplex leaks rows cross-tenant. Open a paired JIE ticket before
 any second-tenant rollout; Borderplex-only deploy is safe until then
 (there's only one tenant's data in the mirror).
 
-## Streaming invariants
-
-- **No buffering at the edge.** `proxy_buffering off` in nginx. If this
-  flips back on, the director sees the answer arrive in one chunk after
-  the whole thing synthesizes — demo-ending.
-- **`X-Accel-Buffering: no`** also set on the FastAPI response to pin
-  it even if a future nginx change flips the default back.
-- **First-chunk peek.** `api.py` reads one chunk from JIE synchronously
-  before handing control to FastAPI's StreamingResponse. This is how
-  ServiceUnavailableError / ValidationFailure from JIE get routed
-  through the #29 envelope; once the StreamingResponse is returned,
-  exceptions reach the client as a truncated body, not an envelope.
-- **Byte-for-byte passthrough.** wfd-os never parses or reframes JIE's
-  SSE wire format. If JIE changes its `event:` names tomorrow, the
-  frontend (LaborPulseClient.tsx) picks up whatever JIE emits.
-
 ## Running it locally
 
+### Mock mode (no JIE required)
+
 ```bash
-# 1. Set the env.
-echo 'JIE_BASE_URL=http://localhost:8080' >> .env
+# 1. Leave JIE_BASE_URL unset in .env; set the allowlist:
 echo 'WFDOS_AUTH_WORKFORCE_DEVELOPMENT_ALLOWLIST=gary.larson@computingforall.org' >> .env
 
-# 2. Boot JIE locally (separate repo) on 8080, then boot wfd-os:
+# 2. Boot just the LaborPulse service + portal:
 honcho start laborpulse-api portal
 
-# 3. Log in as the director via /auth/login, click the email link, land
-#    on / with a wfdos_session cookie. Navigate to /laborpulse and ask
-#    a Borderplex question.
+# 3. Visit http://localhost:3000/laborpulse, log in via /auth/login +
+#    the magic-link email, ask a question. Expect ~10s wait, then a
+#    Borderplex-flavored answer with [MOCK] prefix.
+```
 
-# 4. Inspect the feedback row:
+### Real JIE mode
+
+```bash
+echo 'JIE_BASE_URL=http://localhost:8080' >> .env
+# Boot JIE locally on 8080 per that repo's README, then:
+honcho start laborpulse-api portal
+```
+
+### Inspect feedback
+
+```bash
 psql -U wfdos -d wfdos -c \
-  "SELECT tenant_id, user_email, user_role, rating, confidence FROM qa_feedback ORDER BY id DESC LIMIT 5;"
+  "SELECT tenant_id, user_email, user_role, rating, confidence
+   FROM qa_feedback ORDER BY id DESC LIMIT 5;"
 ```
 
 ## Follow-up issues after smoke
@@ -156,3 +199,6 @@ psql -U wfdos -d wfdos -c \
 - Golden-question eval harness that replays a canned set of director
   questions against a test JIE and asserts answer shape + cost ceiling
   — calibration work for Week 9 of the curriculum.
+- Remove the mock pathway (or gate it behind `WFDOS_ENV=dev`) once
+  JIE is live end-to-end and `confidence == "mock"` feedback rows stop
+  appearing in production.
