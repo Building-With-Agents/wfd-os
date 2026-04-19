@@ -138,6 +138,20 @@ The Azure Postgres flexible server admin password.
    password via `ALTER ROLE cfa_readonly WITH PASSWORD '...';` rather
    than the server admin.
 
+### 8b. Allowlists (`WFDOS_AUTH_*_ALLOWLIST`)
+
+Four comma-separated lists control who can get a magic link: `ADMIN`,
+`STAFF`, `WORKFORCE_DEVELOPMENT` (new in #59 — external customer users
+of a Waifinder deployment like the Borderplex WFD director), and
+`STUDENT`. First match wins admin > staff > workforce-development >
+student.
+
+Rotation = removing an email from the list. No signing-key churn needed.
+Live session cookies for the removed email stay valid until their TTL
+expires (7 days by default); for immediate revocation, rotate
+`WFDOS_AUTH_SECRET_KEY` (section 9) to invalidate every outstanding
+cookie.
+
 ### 9. `WFDOS_AUTH_SECRET_KEY` (the magic-link + session signing key)
 
 Rotating this invalidates **every active magic link + every live

@@ -121,6 +121,81 @@ def test_resolve_role_returns_none_for_unknown():
     ) is None
 
 
+# ---------------------------------------------------------------------------
+# workforce-development role (#59)
+# ---------------------------------------------------------------------------
+
+
+def test_workforce_development_role_resolves():
+    role = resolve_role(
+        "director@borderplex.example.com",
+        admin_csv="",
+        staff_csv="",
+        student_csv="",
+        workforce_development_csv="director@borderplex.example.com",
+    )
+    assert role == "workforce-development"
+
+
+def test_resolve_role_precedence_admin_staff_workforce_student():
+    """Directors outrank students; admin + staff still outrank directors."""
+    email = "dup@example.com"
+    # admin wins over all
+    assert resolve_role(
+        email,
+        admin_csv=email,
+        staff_csv=email,
+        student_csv=email,
+        workforce_development_csv=email,
+    ) == "admin"
+    # staff wins over workforce-development + student
+    assert resolve_role(
+        email,
+        admin_csv="",
+        staff_csv=email,
+        student_csv=email,
+        workforce_development_csv=email,
+    ) == "staff"
+    # workforce-development wins over student
+    assert resolve_role(
+        email,
+        admin_csv="",
+        staff_csv="",
+        student_csv=email,
+        workforce_development_csv=email,
+    ) == "workforce-development"
+
+
+def test_workforce_development_allowlist_setting_round_trip(monkeypatch):
+    """Env → AuthSettings.workforce_development_allowlist round trip."""
+    monkeypatch.setenv(
+        "WFDOS_AUTH_WORKFORCE_DEVELOPMENT_ALLOWLIST",
+        "alma@borderplex.workforce,dir@example.com",
+    )
+    from wfdos_common.config.settings import AuthSettings
+
+    # Construct fresh to avoid the cached module-level proxy.
+    s = AuthSettings()
+    assert (
+        "alma@borderplex.workforce" in s.workforce_development_allowlist
+    )
+    assert "dir@example.com" in s.workforce_development_allowlist
+
+
+def test_workforce_development_rate_limit_setting_default():
+    from wfdos_common.config.settings import AuthSettings
+
+    s = AuthSettings()
+    # Default matches staff (500/hr) per #59.
+    assert s.rate_limit_workforce_development_per_hour == 500
+
+
+def test_allowed_roles_contains_workforce_development():
+    from wfdos_common.auth import ALLOWED_ROLES
+
+    assert "workforce-development" in ALLOWED_ROLES
+
+
 def test_resolve_role_rejects_empty_email():
     assert resolve_role("", admin_csv="", staff_csv="", student_csv="") is None
 
