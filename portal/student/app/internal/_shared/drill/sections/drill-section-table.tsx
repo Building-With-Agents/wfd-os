@@ -1,6 +1,21 @@
 import type { TableSection } from "../../types"
 
-export function DrillSectionTable({ section }: { section: TableSection }) {
+type RowValue = string | number | boolean
+
+/** Props: the polymorphic section; and an optional onRowClick hook
+ *  used only when the section declares `row_click_key`. Recruiting's
+ *  Workday drill uses this path to open a student drill when a matched
+ *  student is clicked; other section renderers (Finance) ignore it. */
+export function DrillSectionTable({
+  section,
+  onRowClick,
+}: {
+  section: TableSection
+  onRowClick?: (key: string, value: RowValue) => void
+}) {
+  const clickKey = section.row_click_key
+  const clickable = Boolean(clickKey && onRowClick)
+
   return (
     <div className="cockpit-drill-section">
       <h3 className="cockpit-drill-section-title">{section.title}</h3>
@@ -20,8 +35,24 @@ export function DrillSectionTable({ section }: { section: TableSection }) {
         <tbody>
           {section.rows.map((row, i) => {
             const isTotal = !!row.total
+            const handleClick = clickable && clickKey
+              ? () => onRowClick!(clickKey, row[clickKey])
+              : undefined
             return (
-              <tr key={i} data-total={isTotal ? "true" : undefined}>
+              <tr
+                key={i}
+                data-total={isTotal ? "true" : undefined}
+                data-clickable={clickable ? "true" : undefined}
+                onClick={handleClick}
+                onKeyDown={handleClick ? (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    handleClick()
+                  }
+                } : undefined}
+                role={clickable ? "button" : undefined}
+                tabIndex={clickable ? 0 : undefined}
+              >
                 {section.columns.map((c) => {
                   const v = row[c.key]
                   return (

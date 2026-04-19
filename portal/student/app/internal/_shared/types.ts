@@ -26,6 +26,10 @@ export interface RowsSection {
     label: string
     value: string | number
     emphasize?: boolean
+    /** When set, the value renders as an external link. Used by the
+     *  student drill for LinkedIn / GitHub / portfolio URLs so the
+     *  recruiter can click through without leaving keyboard focus. */
+    href?: string
   }>
   note?: string
 }
@@ -43,6 +47,11 @@ export interface TableSection {
   columns: TableColumn[]
   rows: Array<Record<string, string | number | boolean>>
   note?: string
+  /** When set, table rows become clickable. The renderer reads this
+   *  key off each row and emits it to the optional onRowClick handler
+   *  wired from the page level (Recruiting Workday uses this to open
+   *  the student drill when a matched student is clicked). */
+  row_click_key?: string
 }
 
 export interface AxisDef {

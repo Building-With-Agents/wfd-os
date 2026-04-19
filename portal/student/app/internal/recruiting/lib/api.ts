@@ -14,6 +14,8 @@ import type {
   ApplicationRow,
   CreateApplicationBody,
   WorkdayFilters,
+  StudentDetailPayload,
+  StudentApplicationPayload,
 } from "./types"
 
 const SERVER_BASE = process.env.RECRUITING_API_URL ?? "http://127.0.0.1:8012"
@@ -56,6 +58,17 @@ export function fetchJob(jobId: number): Promise<JobRow> {
 
 export function fetchJobMatches(jobId: number, limit = 10): Promise<JobMatchesPayload> {
   return getJSON(`/jobs/${jobId}/matches?limit=${limit}`)
+}
+
+export function fetchStudent(studentId: string): Promise<StudentDetailPayload> {
+  return getJSON(`/students/${studentId}`)
+}
+
+export function fetchStudentApplication(
+  studentId: string,
+  jobId: number,
+): Promise<StudentApplicationPayload> {
+  return getJSON(`/students/${studentId}/applications/${jobId}`)
 }
 
 export async function postApplication(body: CreateApplicationBody): Promise<ApplicationRow> {

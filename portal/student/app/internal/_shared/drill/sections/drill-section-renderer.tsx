@@ -11,13 +11,23 @@ import { DrillSectionActionItems } from "./drill-section-action-items"
 // section type = add a renderer + a case here. Defaults to rows on
 // unknown types since validate_registry() rejects unknown types at
 // build time on the Python side.
+//
+// onTableRowClick is an optional hook propagated from the page level
+// (Recruiting Workday) to enable click-through on table rows that
+// declare a `row_click_key`. Other section types ignore it.
 
-export function DrillSectionRenderer({ section }: { section: DrillSection }) {
+export function DrillSectionRenderer({
+  section,
+  onTableRowClick,
+}: {
+  section: DrillSection
+  onTableRowClick?: (key: string, value: string | number | boolean) => void
+}) {
   switch (section.type) {
     case "rows":
       return <DrillSectionRows section={section} />
     case "table":
-      return <DrillSectionTable section={section} />
+      return <DrillSectionTable section={section} onRowClick={onTableRowClick} />
     case "chart":
       return <DrillSectionChart section={section} />
     case "prose":

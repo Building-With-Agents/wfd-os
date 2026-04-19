@@ -104,6 +104,61 @@ export interface ApplicationRow {
   last_status_change_at: string
 }
 
+// ---------- /students/{id} (Phase 2E student drill) ----------
+
+export interface StudentSkill {
+  name: string
+  source: string | null
+}
+
+export interface StudentWorkExperience {
+  company: string | null
+  title: string | null
+  responsibilities: string | null
+  start_date: string | null
+  end_date: string | null
+  is_current: boolean | null
+}
+
+export interface StudentEducation {
+  institution: string | null
+  degree: string | null
+  field_of_study: string | null
+  graduation_year: number | null
+}
+
+export interface StudentDetail {
+  id: string
+  full_name: string
+  email: string | null
+  phone: string | null
+  city: string | null
+  state: string | null
+  institution: string | null
+  degree: string | null
+  field_of_study: string | null
+  graduation_year: number | null
+  linkedin_url: string | null
+  github_url: string | null
+  portfolio_url: string | null
+  career_objective: string | null
+  pipeline_status: string | null
+  pipeline_stage: string | null
+  cohort_id: string | null
+  track: string | null
+  skills: StudentSkill[]
+  work_experience: StudentWorkExperience[]
+  education: StudentEducation[]
+}
+
+export interface StudentDetailPayload {
+  student: StudentDetail
+}
+
+export interface StudentApplicationPayload {
+  application: ApplicationRow | null
+}
+
 // ---------- filter state (client-only) ----------
 
 export interface WorkdayFilters {

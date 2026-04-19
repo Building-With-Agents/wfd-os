@@ -80,10 +80,16 @@ class DataSource(ABC):
     def list_students(self, filters: dict, limit: int = 50, offset: int = 0) -> dict: ...
 
     @abstractmethod
+    def get_student(self, student_id: str) -> Optional[dict]: ...
+
+    @abstractmethod
     def student_matches(self, student_id: str, limit: int = 10) -> dict: ...
 
     @abstractmethod
     def create_application(self, student_id: str, job_id: int, initiated_by: str) -> dict: ...
+
+    @abstractmethod
+    def get_student_application_for_job(self, student_id: str, job_id: int) -> Optional[dict]: ...
 
     @abstractmethod
     def workday_stats(self) -> dict: ...
@@ -320,6 +326,103 @@ class PostgresDataSource(DataSource):
             "matching_status": "ready",
             "embeddings_status": emb,
         }
+
+    # ---- student detail (Phase 2E) ----------------------------------------
+
+    def get_student(self, student_id: str) -> Optional[dict]:
+        """Full student record for the student drill: profile core +
+        skills (with source) + work experience + a 1-element education
+        array derived from the top-level students columns. The
+        `student_education` table is empty in practice so we surface
+        the top-level columns as one education entry.
+        """
+        with _conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                  id, full_name, email, phone,
+                  city, state,
+                  institution, degree, field_of_study, graduation_year,
+                  linkedin_url, github_url, portfolio_url,
+                  pipeline_status, pipeline_stage,
+                  cohort_id, track,
+                  legacy_data->>'career_objective' AS career_objective
+                FROM students
+                WHERE id = %s::uuid
+                """,
+                (student_id,),
+            )
+            rows = _dictfetchall(cur)
+            if not rows:
+                return None
+            student = _serialize(rows[0])
+
+            # Skills with source (e.g. 'resume_parse', 'manual_entry').
+            cur.execute(
+                """
+                SELECT sk.skill_name AS name, ss.source
+                FROM student_skills ss
+                JOIN skills sk ON sk.skill_id = ss.skill_id
+                WHERE ss.student_id = %s::uuid
+                ORDER BY sk.skill_name
+                """,
+                (student_id,),
+            )
+            student["skills"] = _dictfetchall(cur)
+
+            # Work experience ordered newest-first (is_current ahead of
+            # closed rows; then by end_date desc, falling back to start_date).
+            cur.execute(
+                """
+                SELECT company, title, description AS responsibilities,
+                       start_date, end_date, is_current
+                FROM student_work_experience
+                WHERE student_id = %s::uuid
+                ORDER BY is_current DESC NULLS LAST,
+                         end_date DESC NULLS FIRST,
+                         start_date DESC NULLS LAST
+                """,
+                (student_id,),
+            )
+            student["work_experience"] = [_serialize(r) for r in _dictfetchall(cur)]
+
+        # Education is sourced from the students table top-level columns
+        # today (the student_education join-table is empty). Surface as a
+        # 1-element array so the frontend can render a uniform list even
+        # when we eventually hydrate from student_education.
+        if student.get("institution"):
+            student["education"] = [{
+                "institution": student.get("institution"),
+                "degree": student.get("degree"),
+                "field_of_study": student.get("field_of_study"),
+                "graduation_year": student.get("graduation_year"),
+            }]
+        else:
+            student["education"] = []
+        return student
+
+    def get_student_application_for_job(
+        self, student_id: str, job_id: int
+    ) -> Optional[dict]:
+        """Return the application row if student has already applied to
+        this job; None otherwise. Used by the student drill to swap the
+        Initiate Application button into a read-only 'Already applied'
+        state instead of letting the user create a duplicate.
+        """
+        with _conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, student_id, job_id, status, initiated_by,
+                       created_at, last_status_change_at
+                FROM applications
+                WHERE student_id = %s::uuid AND job_id = %s
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (student_id, job_id),
+            )
+            rows = _dictfetchall(cur)
+        return _serialize(rows[0]) if rows else None
 
     # ---- applications -----------------------------------------------------
 

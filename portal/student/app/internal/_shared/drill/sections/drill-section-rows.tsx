@@ -12,7 +12,18 @@ export function DrillSectionRows({ section }: { section: RowsSection }) {
               className="cockpit-drill-kv-value cockpit-num"
               data-emphasize={r.emphasize ? "true" : undefined}
             >
-              {r.value}
+              {r.href ? (
+                <a
+                  href={r.href}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="cockpit-drill-kv-link"
+                >
+                  {r.value}
+                </a>
+              ) : (
+                r.value
+              )}
             </div>
           </div>
         ))}

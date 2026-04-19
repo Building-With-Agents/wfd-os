@@ -174,9 +174,27 @@ def list_students(
     )
 
 
+@app.get("/students/{student_id}")
+def get_student(student_id: str):
+    row = _SOURCE.get_student(student_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"Student {student_id} not found")
+    return {"student": row}
+
+
 @app.get("/students/{student_id}/matches")
 def student_matches(student_id: str, limit: int = Query(10, le=50)):
     return _SOURCE.student_matches(student_id, limit=limit)
+
+
+@app.get("/students/{student_id}/applications/{job_id}")
+def get_student_application_for_job(student_id: str, job_id: int):
+    """Duplicate-check endpoint for the student-drill 'Initiate
+    Application' button. Returns { application: row } when present,
+    { application: null } when not — never 404 (absence is meaningful).
+    """
+    row = _SOURCE.get_student_application_for_job(student_id, job_id)
+    return {"application": row}
 
 
 @app.post("/applications", status_code=201)
