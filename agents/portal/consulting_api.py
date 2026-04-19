@@ -40,6 +40,16 @@ app.add_middleware(
 )
 
 
+def get_conn():
+    """Raw DBAPI connection from the wfdos_common.db engine pool (#22c).
+
+    Returns a psycopg2-compatible connection; conn.close() returns it
+    to the shared pool instead of actually closing the socket.
+    """
+    from wfdos_common.db import get_engine
+    return get_engine().raw_connection()
+
+
 class ProjectInquiry(BaseModel):
     organization_name: str
     contact_name: str
@@ -58,7 +68,7 @@ class ProjectInquiry(BaseModel):
 @app.post("/api/consulting/inquire")
 def submit_inquiry(inquiry: ProjectInquiry):
     """Submit a new consulting project inquiry."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
 
     # Generate a human-friendly reference number: INQ-<year>-<0001, 0002, ...>
@@ -159,7 +169,7 @@ def submit_inquiry(inquiry: ProjectInquiry):
                 apollo_sequence_suggested = "TX Professional Services Sequence"
 
             # Save Apollo data to the inquiry row
-            conn3 = psycopg2.connect(**PG_CONFIG)
+            conn3 = get_conn()
             cur3 = conn3.cursor()
             cur3.execute(
                 "UPDATE project_inquiries SET apollo_contact_id = %s, apollo_sequence_suggested = %s WHERE id = %s",
@@ -198,7 +208,7 @@ def get_client_engagement(client_id: str):
 
     Accepts either the engagement id (legacy) OR the random client_access_token.
     """
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Look up by client_access_token first (new flow), then by id (legacy / WSB)
@@ -321,7 +331,7 @@ def get_client_documents(client_id: str):
     Accepts either the random access token or the engagement id. Returns files
     grouped by top-level folder (Scoping, Proposal, Delivery, Financials).
     """
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute(
         "SELECT id, organization_name, sharepoint_workspace_url FROM consulting_engagements "
@@ -368,7 +378,7 @@ def get_client_documents(client_id: str):
 @app.get("/api/consulting/pipeline")
 def get_pipeline():
     """Full consulting pipeline: inquiries + active engagements."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # All inquiries
@@ -456,7 +466,7 @@ def get_pipeline():
 @app.get("/api/consulting/inquiry/{inquiry_id}")
 def get_inquiry(inquiry_id: str):
     """Full inquiry details."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("SELECT * FROM project_inquiries WHERE id = %s", (inquiry_id,))
     row = cur.fetchone()
@@ -481,7 +491,7 @@ VALID_STATUSES = {"new", "contacted", "scoping", "scoped", "active", "closed"}
 
 
 def _fetch_inquiry(inquiry_id: str) -> dict | None:
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("SELECT * FROM project_inquiries WHERE id = %s", (inquiry_id,))
     row = cur.fetchone()
@@ -490,7 +500,7 @@ def _fetch_inquiry(inquiry_id: str) -> dict | None:
 
 
 def _set_inquiry_status(inquiry_id: str, status: str, note_append: str | None = None) -> None:
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     if note_append:
         cur.execute("""
@@ -612,7 +622,7 @@ def update_inquiry_status(
         raise HTTPException(status_code=404, detail="Inquiry not found")
     prev_status = current.get("status")
 
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         UPDATE project_inquiries
@@ -659,7 +669,7 @@ def _public_portal_base() -> str:
 def delete_inquiry(inquiry_id: str):
     """Hard-delete a single inquiry. Returns the deleted row's organization
     name so the client can show a friendly toast."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute(
         "DELETE FROM project_inquiries WHERE id = %s RETURNING organization_name, reference_number",
@@ -686,7 +696,7 @@ def delete_test_inquiries():
     string 'test' (case-insensitive). Returns the list of deleted rows
     so the UI can show exactly what was removed.
     """
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("""
         DELETE FROM project_inquiries
@@ -717,7 +727,7 @@ def convert_inquiry(inquiry_id: str):
     """
     import re, secrets
 
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Get inquiry
@@ -854,7 +864,7 @@ def convert_inquiry(inquiry_id: str):
     # Persist timestamp if welcome email actually went out
     if welcome_sent.get("sent"):
         try:
-            conn2 = psycopg2.connect(**PG_CONFIG)
+            conn2 = get_conn()
             cur2 = conn2.cursor()
             cur2.execute(
                 "UPDATE consulting_engagements SET welcome_email_sent_at = NOW() WHERE id = %s",
@@ -908,7 +918,7 @@ def post_engagement_update(engagement_id: str, update: NewUpdate):
     If post_to_teams=true, also posts an Adaptive Card to the Teams channel
     via Power Automate webhook. Teams failure never blocks the DB save.
     """
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     # Verify engagement exists
     cur.execute("SELECT id, organization_name, contact_email, client_access_token FROM consulting_engagements WHERE id = %s", (engagement_id,))
