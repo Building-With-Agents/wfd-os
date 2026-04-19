@@ -1,17 +1,8 @@
-import os
 import json
-from anthropic import Anthropic
+
 from database.db import get_session
 from database.models import MonthlySnapshot, Transaction, ProviderPayment, Anomaly, BaselineData
-
-client = None
-
-
-def get_client():
-    global client
-    if client is None:
-        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    return client
+from wfdos_common.llm import complete as llm_complete  # noqa: F401  (exposed for tests)
 
 
 SYSTEM_PROMPT = """You are a grant financial analyst for Computing For All (CFA), managing the WJI grant from ESD Washington. Use the data context provided. Be precise with numbers and flag concerns.
@@ -155,14 +146,13 @@ async def answer_query(user_message: str, conversation_history: list) -> str:
 Question: {user_message}"""
     })
 
-    response = get_client().messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=1500,
-        system=SYSTEM_PROMPT,
+    # Grant Q&A is reasoning-heavy + financial — use the synthesis tier.
+    answer = llm_complete(
         messages=messages,
+        tier="synthesis",
+        system=SYSTEM_PROMPT,
+        max_tokens=1500,
     )
-
-    answer = response.content[0].text
 
     # Return updated history (keep last 10 exchanges to manage context)
     updated_history = conversation_history + [
