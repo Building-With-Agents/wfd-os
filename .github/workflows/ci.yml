@@ -25,26 +25,26 @@ jobs:
         continue-on-error: true
 
   test:
-    name: Pytest (wfdos-common)
+    name: Pytest + coverage (wfdos-common)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install wfdos-common
+      - name: Install wfdos-common + test deps
         run: |
-          if [ -f packages/wfdos-common/pyproject.toml ]; then
-            pip install -e packages/wfdos-common
-          fi
-          pip install pytest
-      - name: Run pytest
+          pip install -e packages/wfdos-common
+          pip install pytest pytest-cov 'fastapi>=0.110' 'httpx>=0.27'
+      - name: Run pytest with coverage floor
+        # Coverage floor raised per phase — Phase 3 target is 50%.
+        # Plan raises to 60% after #29 (endpoint validation) lands,
+        # 70% at Phase 5 exit.
         run: |
-          if [ -d packages/wfdos-common/tests ]; then
-            pytest packages/wfdos-common/tests
-          else
-            echo "No tests yet — empty pass."
-          fi
+          pytest packages/wfdos-common/tests \
+            --cov=wfdos_common \
+            --cov-report=term \
+            --cov-fail-under=50
 
   secrets:
     name: Secret scan (detect-secrets)
