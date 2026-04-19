@@ -1,7 +1,7 @@
 """Teams operations — channels, messages, meeting scheduling."""
 
 from datetime import datetime, timedelta
-from agents.scoping.models import ScopingRequest, ScopingAnalysis
+from wfdos_common.models.scoping import ScopingRequest, ScopingAnalysis
 from wfdos_common.graph.auth import get_graph_client, graph_post
 from wfdos_common.graph import config
 

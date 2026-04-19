@@ -512,7 +512,7 @@ def _set_inquiry_status(inquiry_id: str, status: str, note_append: str | None = 
 
 def _inquiry_to_scoping_request(inq: dict):
     """Build a ScopingRequest from a project_inquiries row."""
-    from agents.scoping.models import ScopingRequest, Contact, Organization
+    from wfdos_common.models.scoping import ScopingRequest, Contact, Organization
 
     # Split contact_name into first / last (best-effort)
     full = (inq.get("contact_name") or "").strip()
