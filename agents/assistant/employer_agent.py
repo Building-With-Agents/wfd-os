@@ -82,9 +82,8 @@ def _search_candidates(skills: str = "", role_type: str = "", location: str = ""
     """Search candidates — tries real PostgreSQL first, falls back to hardcoded Cohort 1 profiles."""
     # Try real DB first
     try:
-        import psycopg2, psycopg2.extras, os, sys
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-        from pgconfig import PG_CONFIG
+        import psycopg2, psycopg2.extras
+        from wfdos_common.config import PG_CONFIG
         conn = psycopg2.connect(**PG_CONFIG)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 

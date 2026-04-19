@@ -11,15 +11,13 @@ Endpoints:
 
 Run: uvicorn api:app --reload --port 8000
 """
-import sys, os, json
 from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 import psycopg2.extras
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG
+from wfdos_common.config import PG_CONFIG
 
 app = FastAPI(title="Waifinder Reporting API", version="0.1.0")
 

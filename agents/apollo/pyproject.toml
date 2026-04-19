@@ -1,0 +1,37 @@
+# agents/apollo — Apollo CRM integration service.
+#
+# Purpose: declare runtime deps for deployment isolation. Source imports
+# (`agents.apollo.*`) resolve via the monorepo install at `/pyproject.toml` —
+# pre-#27 these required `sys.path.insert` hacks, which are now gone.
+#
+# To build a per-service Docker image:
+#   pip install -e packages/wfdos-common
+#   pip install -e .   (from agents/apollo/)
+# Then copy the service source and run:
+#   uvicorn agents.apollo.api:app --port 8010
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-apollo"
+version = "0.0.1"
+description = "Apollo CRM integration — outbound contact creation + inbound webhook handling."
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "wfdos-common",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.5",
+    "psycopg2-binary>=2.9",
+    "requests>=2.31",
+    "python-dotenv>=1.0",
+]
+
+[tool.setuptools]
+# Dep declaration only; code lives at agents/apollo/ and is exposed via the
+# monorepo `agents.*` namespace package from the root pyproject.
+py-modules = []
+packages = []

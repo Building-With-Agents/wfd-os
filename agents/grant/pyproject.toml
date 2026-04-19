@@ -1,0 +1,33 @@
+# agents/grant — Grant reporting + reconciliation (powers /wji dashboard).
+#
+# Purpose: declare runtime deps for deployment isolation. Source imports
+# (`agents.grant.*`) resolve via the monorepo install at `/pyproject.toml`.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-grant"
+version = "0.0.1"
+description = "Grant agent — SharePoint ingestion + WJI reconciliation + Teams bot."
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "wfdos-common",
+    "aiohttp>=3.9",
+    "botbuilder-core>=4.15",
+    "botbuilder-schema>=4.15",
+    "SQLAlchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    "pandas>=2.0",
+    "openpyxl>=3.1",
+    "pdfplumber>=0.10",
+    "azure-identity>=1.15",
+    "httpx>=0.27",
+    "python-dotenv>=1.0",
+]
+
+[tool.setuptools]
+py-modules = []
+packages = []

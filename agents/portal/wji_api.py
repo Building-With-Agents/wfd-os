@@ -13,8 +13,6 @@ Run: uvicorn wji_api:app --reload --port 8007
 """
 import io
 import json
-import os
-import sys
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
 
@@ -23,8 +21,6 @@ from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 import psycopg2.extras
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG  # noqa: E402
 
 app = FastAPI(title="WJI Grant Closeout API", version="0.1.0")
 

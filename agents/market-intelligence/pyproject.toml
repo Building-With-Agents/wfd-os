@@ -1,0 +1,35 @@
+# agents/market-intelligence — labor market ingestion + Teams bot.
+#
+# Note: the directory name contains a dash, which is not a valid Python
+# identifier. This service therefore is NOT importable as
+# `agents.market_intelligence.*` — its modules are invoked as scripts
+# (`python agent.py`, `python app.py`) with the service directory on
+# `sys.path`. A future commit will rename `market-intelligence/` to
+# `market_intelligence/` to unify the package namespace; for now the three
+# `sys.path.insert(0, os.path.dirname(__file__))` calls in agent.py / app.py /
+# bot/market_bot.py are preserved as the documented escape hatch.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-market-intelligence"
+version = "0.0.1"
+description = "Labor market intelligence — USAJobs/Arbeitnow/JSearch ingestion, skills semantics, Teams bot."
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "wfdos-common",
+    "aiohttp>=3.9",
+    "botbuilder-core>=4.15",
+    "botbuilder-schema>=4.15",
+    "psycopg2-binary>=2.9",
+    "requests>=2.31",
+    "anthropic>=0.31",
+    "python-dotenv>=1.0",
+]
+
+[tool.setuptools]
+py-modules = []
+packages = []

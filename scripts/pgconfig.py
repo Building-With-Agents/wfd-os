@@ -1,17 +1,11 @@
-# PostgreSQL connection config — imported by migration scripts.
+# Deprecated — this file exists only for one-off migration scripts that
+# import it by direct file path. All services use:
 #
-# Historical note (#19): this file used to hardcode a password literal. It now
-# sources values from wfdos_common.config.settings, which reads from .env /
-# environment. Scripts that `from pgconfig import PG_CONFIG` continue to work
-# unchanged — only the source of the values has moved.
+#     from wfdos_common.config import PG_CONFIG
 #
-# The hardcoded literal was rotated in Azure Postgres as part of #19 rotation.
-from wfdos_common.config import settings
-
-PG_CONFIG = {
-    "host": settings.pg.host,
-    "database": settings.pg.database,
-    "user": settings.pg.user,
-    "password": settings.pg.password or "",
-    "port": settings.pg.port,
-}
+# Pre-#27, every service did `sys.path.insert(0, "../scripts")` to find
+# this module. #27 eliminated all those sys.path.insert calls by moving
+# the `PG_CONFIG` dict into wfdos_common.config. Remaining file-path
+# callers in scripts/ keep working because this re-exports the canonical
+# dict.
+from wfdos_common.config import PG_CONFIG  # noqa: F401

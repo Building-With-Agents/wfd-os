@@ -19,10 +19,9 @@ Skill name normalization:
 
 Stores results in gap_analyses table.
 """
-import sys, os, json, re, psycopg2
+import json, re, psycopg2
 import numpy as np
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG
+from wfdos_common.config import PG_CONFIG
 
 # Job titles to exclude from matching
 TITLE_BLOCKLIST = {"unclassified", "not specified", "various", "multiple positions"}

@@ -1,0 +1,27 @@
+# agents/profile — resume parser + student-profile linker.
+#
+# Purpose: declare runtime deps for deployment isolation. Source imports
+# (`agents.profile.*`) resolve via the monorepo install at `/pyproject.toml`.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-profile"
+version = "0.0.1"
+description = "Profile agent — resume parsing + Azure Blob to Postgres linking."
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "wfdos-common",
+    "psycopg2-binary>=2.9",
+    "google-generativeai>=0.8",
+    "anthropic>=0.31",
+    "azure-storage-blob>=12.19",
+    "python-dotenv>=1.0",
+]
+
+[tool.setuptools]
+py-modules = []
+packages = []

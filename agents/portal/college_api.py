@@ -4,16 +4,11 @@ Serves institution-specific pipeline and demand data.
 
 Run: uvicorn college_api:app --reload --port 8004
 """
-import sys, os, json
-import numpy as np
-from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 import psycopg2.extras
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG
 
 app = FastAPI(title="Waifinder College Partner API", version="0.1.0")
 

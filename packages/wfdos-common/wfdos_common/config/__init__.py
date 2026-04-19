@@ -10,6 +10,7 @@ Public surface:
     get_secret_backend()  — returns the active backend (selected by WFDOS_SECRET_BACKEND)
 """
 
+from wfdos_common.config.pg_config import PG_CONFIG
 from wfdos_common.config.secrets import (
     EnvBackend,
     SecretBackend,
@@ -32,4 +33,5 @@ __all__ = [
     "SecretBackend",
     "EnvBackend",
     "get_secret_backend",
+    "PG_CONFIG",
 ]
