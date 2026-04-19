@@ -3,15 +3,15 @@ import os, sys, json, base64
 import psycopg2
 import anthropic
 from azure.storage.blob import BlobServiceClient
-from dotenv import load_dotenv
 
-sys.path.insert(0, "C:/Users/ritub/projects/wfd-os/scripts")
-from pgconfig import PG_CONFIG
+from wfdos_common.config import settings
 
-load_dotenv("C:/Users/ritub/projects/wfd-os/.env", override=True)
+sys.path.insert(0, str(settings.profile.resume_storage_path))
+from pgconfig import PG_CONFIG  # noqa: E402
 
-BLOB_CONN_STR = os.getenv("BLOB_CONNECTION_STRING")
-ANTHROPIC_KEY = os.getenv("ANTHROPIC_API_KEY")
+BLOB_CONN_STR = settings.blob.connection_string
+ANTHROPIC_KEY = settings.llm.anthropic_api_key
+# TODO(#20): model ID will be routed through wfdos_common.llm tier mapping.
 MODEL = "claude-sonnet-4-20250514"
 
 EXTRACTION_PROMPT = """Extract the following structured information from this resume PDF.

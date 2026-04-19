@@ -22,19 +22,22 @@ import os, sys, json, time, base64, io, traceback
 import psycopg2
 import google.generativeai as genai
 from azure.storage.blob import BlobServiceClient
-from dotenv import load_dotenv
 
-sys.path.insert(0, "C:/Users/ritub/projects/wfd-os/scripts")
-from pgconfig import PG_CONFIG
+from wfdos_common.config import settings
 
-load_dotenv("C:/Users/ritub/projects/wfd-os/.env", override=True)
+# wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv —
+# no hardcoded path needed. The repo-relative default in settings.profile lets
+# this script run from any machine, not just Ritu's.
+sys.path.insert(0, str(settings.profile.resume_storage_path))
+from pgconfig import PG_CONFIG  # noqa: E402
 
-BLOB_CONN_STR = os.getenv("BLOB_CONNECTION_STRING")
+BLOB_CONN_STR = settings.blob.connection_string
 CONTAINER = "resume-storage"
 
-# Configure Gemini
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+# Configure Gemini (the LLM adapter in #20 will replace this with a provider
+# router; for #18 we just route the env reads through settings).
+genai.configure(api_key=settings.llm.gemini_api_key)
+GEMINI_MODEL = settings.llm.gemini_model
 
 EXTRACTION_PROMPT = """Extract the following structured information from this resume PDF.
 Return ONLY valid JSON with these fields (use null for missing fields):
