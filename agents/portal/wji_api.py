@@ -36,6 +36,16 @@ app.add_middleware(
 )
 
 
+def get_conn():
+    """Raw DBAPI connection from the wfdos_common.db engine pool (#22c).
+
+    Returns a psycopg2-compatible connection; conn.close() returns it
+    to the shared pool instead of actually closing the socket.
+    """
+    from wfdos_common.db import get_engine
+    return get_engine().raw_connection()
+
+
 # ---------------------------------------------------------------------------
 # Helpers: column name normalization + value coercion
 # ---------------------------------------------------------------------------
@@ -188,7 +198,7 @@ async def upload_placements(
             col_map[canonical] = matched
 
     # Create batch
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO wji_upload_batches (upload_type, filename, uploaded_by, status)
@@ -312,7 +322,7 @@ async def upload_payments(
         if matched:
             col_map[canonical] = matched
 
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO wji_upload_batches (upload_type, filename, uploaded_by, status)
@@ -388,7 +398,7 @@ async def upload_payments(
 @app.get("/api/wji/dashboard")
 def get_dashboard():
     """Aggregate WJI grant close-out stats + recent uploads."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Placement totals
@@ -482,7 +492,7 @@ def get_dashboard():
 
 @app.get("/api/wji/placements")
 def list_placements(limit: int = Query(50, le=500), offset: int = 0, batch_id: int | None = None):
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     where = "WHERE batch_id = %s" if batch_id else ""
     params = (batch_id,) if batch_id else ()
@@ -511,7 +521,7 @@ def list_placements(limit: int = Query(50, le=500), offset: int = 0, batch_id: i
 
 @app.get("/api/wji/payments")
 def list_payments(limit: int = Query(50, le=500), offset: int = 0, batch_id: int | None = None):
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     where = "WHERE batch_id = %s" if batch_id else ""
     params = (batch_id,) if batch_id else ()
@@ -540,7 +550,7 @@ def list_payments(limit: int = Query(50, le=500), offset: int = 0, batch_id: int
 @app.delete("/api/wji/batches/{batch_id}")
 def delete_batch(batch_id: int):
     """Undo an upload — deletes the batch and all its rows (cascade)."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM wji_upload_batches WHERE id = %s RETURNING upload_type, filename", (batch_id,))
     row = cur.fetchone()
