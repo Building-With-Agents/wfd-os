@@ -242,6 +242,49 @@ class PlatformSettings(BaseSettings):
     model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
 
 
+class AuthSettings(BaseSettings):
+    """Magic-link auth (#24) + role-based access settings.
+
+    The `secret_key` signs session cookies + magic-link tokens; rotating
+    it invalidates every active session, which is the intended emergency
+    response to a secret compromise.
+
+    The two allowlists are environment-driven for now; they'll migrate to
+    a `users` table in the shared-infra DB once #22 tenant registry is
+    enlarged. Items are comma-separated email addresses.
+    """
+
+    # Required — must be set in production. Dev default is safe-looking but
+    # clearly-synthetic so it's obvious in logs if it leaks.
+    secret_key: str = Field(
+        default="dev-only-secret-replace-in-production-do-not-ship",
+        alias="WFDOS_AUTH_SECRET_KEY",
+    )
+    # Token / session TTLs.
+    magic_link_ttl_seconds: int = Field(
+        default=15 * 60,  # 15 minutes
+        alias="WFDOS_AUTH_MAGIC_LINK_TTL",
+    )
+    session_ttl_seconds: int = Field(
+        default=7 * 24 * 60 * 60,  # 7 days
+        alias="WFDOS_AUTH_SESSION_TTL",
+    )
+    # Cookie config.
+    cookie_name: str = Field(default="wfdos_session", alias="WFDOS_AUTH_COOKIE_NAME")
+    cookie_secure: bool = Field(default=True, alias="WFDOS_AUTH_COOKIE_SECURE")
+    cookie_samesite: str = Field(default="lax", alias="WFDOS_AUTH_COOKIE_SAMESITE")
+    # Allowlists — comma-separated emails. Empty = no one (deny-all by default).
+    staff_allowlist: str = Field(default="", alias="WFDOS_AUTH_STAFF_ALLOWLIST")
+    student_allowlist: str = Field(default="", alias="WFDOS_AUTH_STUDENT_ALLOWLIST")
+    admin_allowlist: str = Field(default="", alias="WFDOS_AUTH_ADMIN_ALLOWLIST")
+    # Rate limits (requests per hour per role).
+    rate_limit_student_per_hour: int = Field(default=100, alias="WFDOS_AUTH_RATE_STUDENT")
+    rate_limit_staff_per_hour: int = Field(default=500, alias="WFDOS_AUTH_RATE_STAFF")
+    rate_limit_admin_per_hour: int = Field(default=2000, alias="WFDOS_AUTH_RATE_ADMIN")
+
+    model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
+
+
 class BotFrameworkSettings(BaseSettings):
     """Microsoft Bot Framework auth (grant bot, market-intelligence bot).
 
@@ -287,6 +330,7 @@ class Settings(BaseSettings):
     profile: ProfileSettings = Field(default_factory=ProfileSettings)
     tenancy: TenancySettings = Field(default_factory=TenancySettings)
     platform: PlatformSettings = Field(default_factory=PlatformSettings)
+    auth: AuthSettings = Field(default_factory=AuthSettings)
 
     model_config = SettingsConfigDict(extra="ignore")
 
