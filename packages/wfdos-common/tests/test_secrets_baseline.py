@@ -25,12 +25,16 @@ def test_no_hardcoded_shivani_password():
     # git grep returns 1 when nothing matches (clean); 0 when a match exists (dirty).
     # Allowed matches: docstrings / comments referencing #19 history by literal name.
     matches = [line for line in proc.stdout.splitlines() if line]
-    # Filter out the handful of documentary references (e.g. this test file, issue archive)
+    # Filter out the handful of documentary references (this test file, the
+    # issue archive, the rotation runbook, Phase 4 exit report — none of these
+    # reintroduce the live password; they document the historical leak).
     offending = [
         m for m in matches
         if "test_secrets_baseline" not in m
         and "archive/" not in m
         and "packages/wfdos-common/README" not in m
+        and "docs/ops/credential-rotation.md" not in m
+        and "docs/refactor/phase-4-exit-report.md" not in m
     ]
     assert not offending, (
         f"Hardcoded 'SuperShivani' literal still in code: {offending}"
