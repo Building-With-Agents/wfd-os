@@ -85,12 +85,12 @@ def fetch_jobs(keyword=None, location_name="El Paso, Texas",
         if pub_date:
             try:
                 posted_date = datetime.fromisoformat(pub_date.replace("Z", "+00:00")).strftime("%Y-%m-%d")
-            except:
+            except Exception:
                 pass
         if close_date:
             try:
                 expires_date = datetime.fromisoformat(close_date.replace("Z", "+00:00")).strftime("%Y-%m-%d")
-            except:
+            except Exception:
                 pass
 
         # Employment type

@@ -279,7 +279,7 @@ def main():
             for source, total, digital, ambig in cur.fetchall():
                 print(f"    {source}: {total} total, {digital} digital, {ambig} ambiguous")
             conn.close()
-        except:
+        except Exception:
             pass
 
 

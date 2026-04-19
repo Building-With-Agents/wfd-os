@@ -129,7 +129,7 @@ def map_programs_batch(conn, all_skills, source=None, limit=None, use_api=True):
                         VALUES (%s, %s, %s)
                     """, (prog_id, sid, "embedding_match" if prog_embedding is not None else "keyword_match"))
                     total_linked += 1
-                except:
+                except Exception:
                     conn.rollback()
                     continue
             total_programs_mapped += 1

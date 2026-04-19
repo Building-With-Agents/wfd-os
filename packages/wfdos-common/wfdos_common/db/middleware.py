@@ -55,7 +55,17 @@ class TenantResolver(BaseHTTPMiddleware):
         self._default_tenant_id = default_tenant_id
 
     async def dispatch(self, request: Request, call_next):
-        request.state.tenant_id = self._resolve(request)
+        tenant_id = self._resolve(request)
+        request.state.tenant_id = tenant_id
+
+        # Mirror into the wfdos_common.logging ContextVar so structured
+        # log entries from this request carry tenant_id automatically
+        # — even when RequestContextMiddleware isn't wired (e.g. aiohttp
+        # services, CLI scripts bound via logging.bind_context).
+        # Late-import to avoid a circular wfdos_common.db ↔ logging dep.
+        from wfdos_common.logging import set_tenant_id as _set_tenant_id_cv
+
+        _set_tenant_id_cv(tenant_id)
         return await call_next(request)
 
     def _resolve(self, request: Request) -> str:

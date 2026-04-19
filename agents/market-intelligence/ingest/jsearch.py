@@ -86,7 +86,7 @@ def fetch_jobs(query="tech jobs", location="El Paso, TX",
             if posted_ts:
                 try:
                     posted_date = datetime.fromisoformat(posted_ts.replace("Z", "+00:00")).strftime("%Y-%m-%d")
-                except:
+                except Exception:
                     pass
 
             # SOC/ONET code
