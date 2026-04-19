@@ -30,6 +30,8 @@ dependencies = [
     # fallback providers lazy-import their SDKs from requirements-dev.txt
     # so services choosing a narrow install footprint can skip them.
     "openai>=1.30",
+    # wfdos_common.logging (#23) — structured logging + request context
+    "structlog>=24.1",
 ]
 
 [project.optional-dependencies]

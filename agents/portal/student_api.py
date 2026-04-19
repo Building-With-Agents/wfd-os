@@ -24,6 +24,11 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
 from pgconfig import PG_CONFIG
 
+from wfdos_common.logging import configure as configure_logging, get_logger
+
+configure_logging(service_name="student-api")
+log = get_logger(__name__)
+
 app = FastAPI(title="Waifinder Student Portal API", version="0.1.0")
 
 app.add_middleware(
@@ -460,7 +465,7 @@ def chat(student_id: str, msg: ChatMessage):
                 "status": "ok",
             }
     except Exception as e:
-        print(f"[CHAT] Student agent call failed: {type(e).__name__}: {e}")
+        log.error("chat.student_agent.failed", error_type=type(e).__name__, error=str(e), exc_info=True)
 
     return {
         "response": "I'm having trouble connecting right now. Try again in a moment, or explore your dashboard for insights.",

@@ -211,13 +211,13 @@ def update_student(conn, student_id, parsed, confidence):
                 if start:
                     from datetime import date
                     date.fromisoformat(str(start))
-            except:
+            except Exception:
                 start = None
             try:
                 if end:
                     from datetime import date
                     date.fromisoformat(str(end))
-            except:
+            except Exception:
                 end = None
             cur.execute("""
                 INSERT INTO student_work_experience

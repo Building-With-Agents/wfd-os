@@ -26,6 +26,11 @@ from pgconfig import PG_CONFIG
 # doesn't shadow Python's stdlib `email` package.
 from wfdos_common.config import settings
 from wfdos_common.email import notify_internal, send_email
+from wfdos_common.logging import configure as configure_logging, get_logger
+
+# Configure structured logging at module import (idempotent).
+configure_logging(service_name="consulting-api")
+log = get_logger(__name__)
 
 # Scoping Agent pipeline (lazy-imported inside the trigger to avoid blocking module load
 # if Graph creds or Anthropic SDK aren't available on startup).
@@ -128,7 +133,7 @@ def submit_inquiry(inquiry: ProjectInquiry):
         subject, html_body = render_submitter_confirmation(inquiry, reference_number)
         send_email(inquiry.email, subject, html_body, html=True)
     except Exception as e:
-        print(f"[WARN] submitter confirmation email raised: {type(e).__name__}: {e}")
+        log.warning("email.submitter_confirmation.failed", error_type=type(e).__name__, error=str(e))
 
     # 2. Internal notification email to Ritu
     try:
@@ -136,7 +141,7 @@ def submit_inquiry(inquiry: ProjectInquiry):
         notify_email = settings.email.notify
         send_email(notify_email, subject, html_body, html=True)
     except Exception as e:
-        print(f"[WARN] internal notification email raised: {type(e).__name__}: {e}")
+        log.warning("email.internal_notification.failed", error_type=type(e).__name__, error=str(e))
 
     # --- Create Apollo contact (best-effort, never blocks the response) ---
     apollo_contact_id = None
@@ -157,7 +162,7 @@ def submit_inquiry(inquiry: ProjectInquiry):
         )
         if apollo_result.get("ok"):
             apollo_contact_id = apollo_result.get("contact_id")
-            print(f"[APOLLO] Contact created for {inquiry.email} -> {apollo_contact_id}")
+            log.info("apollo.contact.created", email=inquiry.email, contact_id=apollo_contact_id)
 
             # Determine suggested sequence based on project type / org name
             project_lower = (inquiry.project_area or "").lower() + " " + (inquiry.organization_name or "").lower()
@@ -177,11 +182,11 @@ def submit_inquiry(inquiry: ProjectInquiry):
             )
             conn3.commit()
             conn3.close()
-            print(f"[APOLLO] Sequence suggested: {apollo_sequence_suggested} (not auto-enrolled — Jason approves)")
+            log.info("apollo.sequence.suggested", sequence=apollo_sequence_suggested, auto_enrolled=False)
         else:
-            print(f"[APOLLO] Contact creation failed: {apollo_result.get('error')}")
+            log.warning("apollo.contact.create_failed", error=apollo_result.get("error"))
     except Exception as e:
-        print(f"[WARN] Apollo integration raised: {type(e).__name__}: {e}")
+        log.warning("apollo.integration.exception", error_type=type(e).__name__, error=str(e), exc_info=True)
 
     return {
         "success": True,
@@ -350,7 +355,7 @@ def get_client_documents(client_id: str):
         from wfdos_common.graph.sharepoint import list_client_documents_sync
         files = list_client_documents_sync(safe_name, recursive=True)
     except Exception as e:
-        print(f"[DOCUMENTS] list failed: {type(e).__name__}: {e}")
+        log.error("sharepoint.list_documents.failed", error_type=type(e).__name__, error=str(e), exc_info=True)
         files = []
 
     # Group by top-level section folder (Scoping / Proposal / Delivery / Financials)
@@ -554,19 +559,22 @@ def _run_scoping_pipeline_sync(inquiry_id: str) -> None:
     FastAPI. On success, transitions status to 'scoped' and appends a note.
     On failure, leaves status at 'scoping' and records the error in notes.
     """
-    print("=" * 60)
-    print(f"[SCOPING TRIGGER] Starting background pipeline for inquiry {inquiry_id}")
-    print("=" * 60)
+    log.info("scoping.pipeline.start", inquiry_id=inquiry_id)
     try:
         inq = _fetch_inquiry(inquiry_id)
         if not inq:
-            print(f"[SCOPING TRIGGER] Inquiry {inquiry_id} not found - aborting")
+            log.warning("scoping.pipeline.inquiry_not_found", inquiry_id=inquiry_id)
             return
 
         from agents.scoping.pipeline import run_precall_pipeline
         req = _inquiry_to_scoping_request(inq)
-        print(f"[SCOPING TRIGGER] Built request: {req.organization.name} / {req.contact.full_name} <{req.contact.email}>")
-        print(f"[SCOPING TRIGGER] safe_name = {req.organization.safe_name}")
+        log.info(
+            "scoping.pipeline.request_built",
+            organization=req.organization.name,
+            contact=req.contact.full_name,
+            contact_email=req.contact.email,
+            safe_name=req.organization.safe_name,
+        )
 
         asyncio.run(run_precall_pipeline(req))
 
@@ -576,7 +584,7 @@ def _run_scoping_pipeline_sync(inquiry_id: str) -> None:
             f"SharePoint workspace at /sites/wAIFinder/Clients/{req.organization.safe_name}/"
         )
         _set_inquiry_status(inquiry_id, "scoped", note_append=success_note)
-        print(f"[SCOPING TRIGGER] Pipeline complete - status -> scoped")
+        log.info("scoping.pipeline.complete", inquiry_id=inquiry_id, status="scoped")
 
         # Internal notification (console fallback if SMTP not configured)
         try:
@@ -594,8 +602,14 @@ def _run_scoping_pipeline_sync(inquiry_id: str) -> None:
 
     except Exception as e:
         tb = traceback.format_exc()
-        print(f"[SCOPING TRIGGER] Pipeline FAILED: {type(e).__name__}: {e}")
-        print(tb)
+        log.error(
+            "scoping.pipeline.failed",
+            inquiry_id=inquiry_id,
+            error_type=type(e).__name__,
+            error=str(e),
+            traceback=tb,
+            exc_info=True,
+        )
         err_note = (
             f"[{datetime.now(timezone.utc).isoformat(timespec='seconds')}] "
             f"Scoping Agent pipeline FAILED: {type(e).__name__}: {e}"
@@ -641,7 +655,12 @@ def update_inquiry_status(
         # Fire pipeline as a background task — returns immediately.
         background_tasks.add_task(_run_scoping_pipeline_sync, inquiry_id)
         scoping_triggered = True
-        print(f"[SCOPING TRIGGER] Queued background pipeline for inquiry {inquiry_id} ({prev_status} -> scoping)")
+        log.info(
+            "scoping.pipeline.queued",
+            inquiry_id=inquiry_id,
+            prev_status=prev_status,
+            new_status="scoping",
+        )
 
     return {
         "success": True,
@@ -809,7 +828,7 @@ def convert_inquiry(inquiry_id: str):
             ),
         )
     except Exception as e:
-        print(f"[CONVERT] SharePoint invite exception: {type(e).__name__}: {e}")
+        log.warning("convert.sharepoint_invite.failed", error_type=type(e).__name__, error=str(e))
         sharepoint_invite = {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
     # --- Send welcome email with portal link (mailer has console fallback) ---
@@ -859,7 +878,7 @@ def convert_inquiry(inquiry_id: str):
             ),
         )
     except Exception as e:
-        print(f"[CONVERT] Welcome email exception: {type(e).__name__}: {e}")
+        log.warning("convert.welcome_email.failed", error_type=type(e).__name__, error=str(e))
 
     # Persist timestamp if welcome email actually went out
     if welcome_sent.get("sent"):
@@ -963,7 +982,7 @@ def post_engagement_update(engagement_id: str, update: NewUpdate):
                 portal_url=portal_url,
             )
         except Exception as e:
-            print(f"[WARN] Teams post failed: {type(e).__name__}: {e}")
+            log.warning("teams.post.failed", error_type=type(e).__name__, error=str(e))
             teams_result = {"ok": False, "error": str(e)}
 
     return {
