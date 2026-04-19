@@ -7,7 +7,7 @@ eliminating the need for a separate Bing API key.
 import httpx
 from wfdos_common.graph import config
 from anthropic import Anthropic
-from agents.scoping.models import ScopingRequest, ResearchResult
+from wfdos_common.models.scoping import ScopingRequest, ResearchResult
 
 
 async def fetch_page_text(url: str, max_chars: int = 5000) -> str:

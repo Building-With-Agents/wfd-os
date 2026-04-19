@@ -8,7 +8,7 @@ v1.3+ architecture:
 
 import httpx
 from azure.identity import ClientSecretCredential
-from agents.scoping.models import ScopingRequest
+from wfdos_common.models.scoping import ScopingRequest
 from wfdos_common.graph import config
 
 GRAPH = "https://graph.microsoft.com/v1.0"

@@ -9,7 +9,7 @@ import asyncio
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
-from agents.scoping.models import ScopingRequest
+from wfdos_common.models.scoping import ScopingRequest
 from agents.scoping.pipeline import run_precall_pipeline
 
 

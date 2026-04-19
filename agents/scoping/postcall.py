@@ -8,7 +8,7 @@ import asyncio
 import traceback
 from aiohttp import web
 
-from agents.scoping.models import ScopingRequest
+from wfdos_common.models.scoping import ScopingRequest
 from agents.scoping.pipeline import run_postcall_pipeline
 
 
