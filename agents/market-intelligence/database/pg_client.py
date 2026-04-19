@@ -3,12 +3,11 @@ PostgreSQL client for Market Intelligence Agent.
 Password is never stored — prompted at runtime or passed via PG_PASSWORD env var.
 Gary's rule: don't put the password in .env or pass it to an LLM.
 """
-import os
 import getpass
 import psycopg2
-from dotenv import load_dotenv
 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "../../../.env"), override=True)
+# wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv.
+from wfdos_common.config import settings
 
 _conn = None
 
@@ -16,32 +15,33 @@ _conn = None
 def get_connection():
     """
     Returns a live PostgreSQL connection.
-    Password is read from PG_PASSWORD env var if set,
+    Password is read from PG_PASSWORD env var (via settings) if set,
     otherwise prompts the user at the terminal.
+
+    TODO(#22): this per-service connection management goes away when
+    wfdos_common.db.engine.get_engine() lands — market-intelligence will
+    use the shared pooled engine like every other service.
     """
     global _conn
     if _conn and not _conn.closed:
         return _conn
 
-    host = os.getenv("PG_HOST")
-    database = os.getenv("PG_DATABASE")
-    user = os.getenv("PG_USER")
-    port = int(os.getenv("PG_PORT", 5432))
-
-    # Get password — env var first, then prompt
-    password = os.getenv("PG_PASSWORD")
+    # Settings fall back to .env / env vars via EnvBackend by default.
+    password = settings.pg.password
     if not password:
-        password = getpass.getpass(f"PostgreSQL password for {user}@{host}: ")
+        password = getpass.getpass(
+            f"PostgreSQL password for {settings.pg.user}@{settings.pg.host}: "
+        )
 
     _conn = psycopg2.connect(
-        host=host,
-        database=database,
-        user=user,
+        host=settings.pg.host,
+        database=settings.pg.database,
+        user=settings.pg.user,
         password=password,
-        port=port,
+        port=settings.pg.port,
         sslmode="require",
     )
-    print(f"Connected to PostgreSQL: {database}@{host}")
+    print(f"Connected to PostgreSQL: {settings.pg.database}@{settings.pg.host}")
     return _conn
 
 

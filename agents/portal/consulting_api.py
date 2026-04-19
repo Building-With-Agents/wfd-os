@@ -24,6 +24,7 @@ from pgconfig import PG_CONFIG
 
 # Email helper — Microsoft Graph backend. Import via full package path so it
 # doesn't shadow Python's stdlib `email` package.
+from wfdos_common.config import settings
 from wfdos_common.email import notify_internal, send_email
 
 # Scoping Agent pipeline (lazy-imported inside the trigger to avoid blocking module load
@@ -122,7 +123,7 @@ def submit_inquiry(inquiry: ProjectInquiry):
     # 2. Internal notification email to Ritu
     try:
         subject, html_body = render_internal_notification(inquiry, reference_number)
-        notify_email = os.getenv("NOTIFY_EMAIL", "ritu@computingforall.org")
+        notify_email = settings.email.notify
         send_email(notify_email, subject, html_body, html=True)
     except Exception as e:
         print(f"[WARN] internal notification email raised: {type(e).__name__}: {e}")
@@ -651,7 +652,7 @@ def _safe_name(org_name: str) -> str:
 
 def _public_portal_base() -> str:
     """Base URL the client will use to reach their portal (configurable via env)."""
-    return os.getenv("CLIENT_PORTAL_BASE_URL", "http://localhost:3000").rstrip("/")
+    return settings.platform.portal_base_url.rstrip("/")
 
 
 @app.delete("/api/consulting/inquiry/{inquiry_id}")
