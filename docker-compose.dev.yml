@@ -1,0 +1,46 @@
+# Local development containers for wfd-os.
+#
+# Not for production. Spins up a dedicated wfd-os Postgres on port 5434
+# (avoids conflicts with JIE's postgres-server on 5432 and langfuse-db on
+# 5433 — both likely already running if Gary is working on JIE too).
+#
+# Usage:
+#     docker compose -f docker-compose.dev.yml up -d        # start
+#     docker compose -f docker-compose.dev.yml down         # stop (keeps data)
+#     docker compose -f docker-compose.dev.yml down -v      # stop + wipe data
+#     docker compose -f docker-compose.dev.yml logs -f postgres
+#
+# Then point your wfd-os .env at it:
+#     PG_HOST=localhost
+#     PG_PORT=5434
+#     PG_USER=wfdos
+#     PG_PASSWORD=wfdos_local_dev
+#     PG_DATABASE=wfdos
+#     DATABASE_URL=postgresql://wfdos:wfdos_local_dev@localhost:5434/wfdos
+#
+# The password is a local-dev literal, not a secret. It's gitignored via .env
+# but committed literally in this compose file so any developer can reproduce.
+# Any deployment (Azure VM, prod) reads PG_PASSWORD from its own env / secret
+# backend — see wfdos_common.config.
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: wfdos-postgres
+    environment:
+      POSTGRES_USER: wfdos
+      POSTGRES_PASSWORD: wfdos_local_dev
+      POSTGRES_DB: wfdos
+    ports:
+      - "5434:5432"
+    volumes:
+      - wfdos-postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wfdos -d wfdos"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  wfdos-postgres-data:
