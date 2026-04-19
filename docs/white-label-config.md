@@ -21,6 +21,15 @@ logs (via `wfdos_common.logging`) pick up the tenant_id into every log
 record. The DB engine factory from #22 uses it to pick the right
 per-tenant DB connection pool.
 
+## Workforce-development role (#59)
+
+Directors on a Waifinder deployment (e.g. the Borderplex WFD director
+hitting LaborPulse) use the `workforce-development` role — a fourth
+tier added alongside `admin` / `staff` / `student` so audit logs +
+`qa_feedback` rows can distinguish "the external director" from "CFA
+staff". Set `WFDOS_AUTH_WORKFORCE_DEVELOPMENT_ALLOWLIST` on the tenant's
+deploy to enroll director emails.
+
 ## The current tenants
 
 Two tenants are registered at import time (see
