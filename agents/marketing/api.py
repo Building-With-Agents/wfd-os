@@ -26,15 +26,21 @@ import psycopg2.extras
 # monorepo root pyproject.toml (#27) now exposes `agents.*` as a namespace
 # package, so direct imports resolve without them.
 from wfdos_common.config import PG_CONFIG
+from wfdos_common.errors import NotFoundError, ValidationFailure, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware
 
 app = FastAPI(title="WFD OS Marketing Content API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
 
 
 def _slugify(title: str) -> str:
@@ -136,7 +142,7 @@ def get_content(content_id: str):
     row = cur.fetchone()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Content not found")
+        raise NotFoundError("content")
     return _serialize(row)
 
 
@@ -144,7 +150,7 @@ def get_content(content_id: str):
 def update_status(content_id: str, update: StatusUpdate):
     valid = {"draft", "in_review", "approved", "published", "active", "archived"}
     if update.status not in valid:
-        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of {valid}")
+        raise ValidationFailure(f"Invalid status. Must be one of {valid}")
 
     conn = psycopg2.connect(**PG_CONFIG)
     cur = conn.cursor()
@@ -165,7 +171,7 @@ def update_status(content_id: str, update: StatusUpdate):
     conn.commit()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Content not found")
+        raise NotFoundError("content")
     return {"success": True, "id": row[0], "title": row[1], "status": update.status}
 
 
@@ -183,7 +189,7 @@ def mark_loaded(content_id: str):
     conn.commit()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Email sequence not found")
+        raise NotFoundError("email sequence")
     return {"success": True, "id": row[0], "title": row[1], "status": "active"}
 
 

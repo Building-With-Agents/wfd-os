@@ -22,19 +22,24 @@ import psycopg2.extras
 import numpy as np
 
 
-from wfdos_common.logging import configure as configure_logging, get_logger
+from wfdos_common.errors import NotFoundError, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware, configure as configure_logging, get_logger
 
 configure_logging(service_name="student-api")
 log = get_logger(__name__)
 
 app = FastAPI(title="Waifinder Student Portal API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
 
 
 def get_conn():
@@ -89,7 +94,7 @@ def get_profile(student_id: str):
     """, (student_id,))
 
     if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+        raise NotFoundError("student")
 
     # Get skill count — shared query lives in wfdos_common.db.queries (#22c)
     # so the identical lookup in showcase_api.py:322 can use the same impl.
@@ -286,7 +291,7 @@ def get_journey(student_id: str):
     """, (student_id,))
 
     if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+        raise NotFoundError("student")
 
     # Get journey records
     journeys = query("""
@@ -376,7 +381,7 @@ def get_showcase(student_id: str):
     """, (student_id,))
 
     if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+        raise NotFoundError("student")
 
     # Get skill count
     skill_count = query_one(

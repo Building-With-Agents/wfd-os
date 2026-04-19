@@ -28,7 +28,12 @@ from agents.assistant.staff_agent import staff_agent
 from agents.assistant.college_agent import college_agent
 from agents.assistant.youth_agent import youth_agent
 
+from wfdos_common.errors import NotFoundError, ValidationFailure, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware
+
 app = FastAPI(title="WFD OS Conversational Agent API", version="0.1.0")
+app.add_middleware(RequestContextMiddleware)
+install_error_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -110,10 +115,10 @@ def _get_agent(agent_type: str) -> BaseAgent:
 
     prompt = _DEFAULT_PROMPTS.get(agent_type)
     if not prompt:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown agent_type '{agent_type}'. "
-                   f"Valid types: {', '.join(sorted(set(list(_REGISTERED_AGENTS.keys()) + list(_DEFAULT_PROMPTS.keys()))))}",
+        valid = sorted(set(list(_REGISTERED_AGENTS.keys()) + list(_DEFAULT_PROMPTS.keys())))
+        raise ValidationFailure(
+            f"Unknown agent_type '{agent_type}'.",
+            details={"valid_agent_types": valid},
         )
     return BaseAgent(agent_type=agent_type, system_prompt=prompt)
 
@@ -173,7 +178,7 @@ def get_session(session_id: str):
     """Retrieve full conversation history for a session."""
     session = _load_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise NotFoundError("session")
 
     # Serialize dates
     for key in ("created_at", "updated_at"):

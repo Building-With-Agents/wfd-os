@@ -9,15 +9,22 @@ from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 import psycopg2.extras
 
+from wfdos_common.errors import NotFoundError, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware
+
 
 app = FastAPI(title="Waifinder College Partner API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3004", "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
 
 
 def get_conn():
@@ -45,7 +52,7 @@ def get_college_dashboard(token: str):
     # Get partner info
     partner = query_one("SELECT * FROM college_partners WHERE id = %s", (token,))
     if not partner:
-        raise HTTPException(status_code=404, detail="College partner not found")
+        raise NotFoundError("college partner")
 
     pattern = partner['search_pattern']
     institution_name = partner['institution_name']

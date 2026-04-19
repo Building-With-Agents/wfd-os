@@ -28,6 +28,13 @@ import psycopg2.extras
 # monorepo root pyproject.toml (#27) now exposes `agents.*` as a namespace
 # package, so direct imports resolve without them.
 from wfdos_common.config import PG_CONFIG
+from wfdos_common.errors import (
+    ServiceUnavailableError,
+    UnauthorizedError,
+    ValidationFailure,
+    install_error_handlers,
+)
+from wfdos_common.logging import RequestContextMiddleware
 
 from agents.apollo.client import (
     create_contact,
@@ -39,12 +46,16 @@ from agents.apollo.client import (
 
 app = FastAPI(title="WFD OS Apollo Integration API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
 
 
 # ---------------------------------------------------------------------------
@@ -103,7 +114,7 @@ def api_create_contact(req: CreateContactRequest):
 def api_get_contact(email: str):
     result = get_contact_by_email(email)
     if not result.get("ok"):
-        raise HTTPException(status_code=502, detail=result.get("error", "Apollo lookup failed"))
+        raise ServiceUnavailableError(result.get("error", "Apollo lookup failed"))
     return result
 
 
@@ -124,12 +135,12 @@ async def apollo_webhook(request: Request):
     if webhook_secret:
         header_secret = request.headers.get("X-Apollo-Webhook-Secret", "")
         if header_secret != webhook_secret:
-            raise HTTPException(status_code=401, detail="Invalid webhook secret")
+            raise UnauthorizedError("Invalid webhook secret")
 
     try:
         payload = await request.json()
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+        raise ValidationFailure("Invalid JSON payload")
 
     event_type = payload.get("event_type", payload.get("type", "unknown"))
     contact = payload.get("contact", payload.get("data", {}).get("contact", {}))
