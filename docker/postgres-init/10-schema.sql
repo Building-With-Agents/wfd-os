@@ -751,3 +751,28 @@ CREATE TABLE IF NOT EXISTS pipeline_metrics (
     attributes    JSONB
 );
 CREATE INDEX IF NOT EXISTS ix_pipeline_metrics_run ON pipeline_metrics(pipeline, run_id, observed_at);
+
+-- ---------------------------------------------------------------------------
+-- qa_feedback (#59 / LaborPulse) — thumbs-up/down from directors on the
+-- LaborPulse Q&A endpoint. One row per rating action. JIE stays stateless;
+-- wfd-os owns the feedback store per CLAUDE.md ("WFD OS is the system of
+-- record") and so rows are joinable with tenant + session context.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS qa_feedback (
+    id                 BIGSERIAL PRIMARY KEY,
+    tenant_id          TEXT NOT NULL,         -- from request.state.tenant_id (#16)
+    user_email         TEXT NOT NULL,         -- from request.state.user.email (#24)
+    user_role          TEXT NOT NULL,         -- 'workforce-development' | 'staff' | 'admin'
+    conversation_id    TEXT NOT NULL,         -- JIE-assigned turn id (from SSE)
+    question           TEXT NOT NULL,
+    answer_snapshot    TEXT,                  -- final assembled answer, for re-review
+    rating             SMALLINT NOT NULL CHECK (rating IN (-1, 1)),
+    comment            TEXT,
+    cost_usd           NUMERIC(10, 6),        -- JIE-reported; nullable if unavailable
+    confidence         TEXT,                  -- JIE-reported: 'low' | 'medium' | 'high'
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS ix_qa_feedback_tenant_created ON qa_feedback(tenant_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS ix_qa_feedback_rating ON qa_feedback(rating);
+CREATE INDEX IF NOT EXISTS ix_qa_feedback_conversation ON qa_feedback(conversation_id);

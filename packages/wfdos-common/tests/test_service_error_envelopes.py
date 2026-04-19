@@ -32,6 +32,7 @@ from fastapi.testclient import TestClient
     "agents.marketing.api",
     "agents.reporting.api",
     "agents.assistant.api",
+    "agents.laborpulse.api",
 ])
 def service_app(request):
     """Yield the FastAPI app instance for each service under test."""

@@ -81,6 +81,7 @@ _PORTAL_SERVICE_MODULES = [
     "agents.portal.college_api",
     "agents.portal.wji_api",
     "agents.reporting.api",
+    "agents.laborpulse.api",
 ]
 
 
