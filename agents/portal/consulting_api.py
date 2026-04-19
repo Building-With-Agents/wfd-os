@@ -1,26 +1,19 @@
 """
 Consulting Intake API — Handles project inquiry form submissions.
-Run: uvicorn consulting_api:app --reload --port 8003
+Run: uvicorn agents.portal.consulting_api:app --reload --port 8003
 """
-import sys, os, json, asyncio, traceback
+import asyncio, traceback
 from datetime import datetime, timezone
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
-
-# Make wfd-os repo root importable so `agents.scoping.*` and `agents.graph.*` resolve
-_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
+from pydantic import BaseModel
 import psycopg2
 import psycopg2.extras
-from dotenv import load_dotenv
 
-# Load .env from wfd-os root so SMTP_* vars are picked up
-load_dotenv(os.path.join(os.path.dirname(__file__), "../../.env"), override=False)
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG
+# wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv —
+# no hardcoded path needed. Pre-#27 this file had sys.path.insert hacks; the
+# monorepo root pyproject.toml (#27) now exposes `agents.*` as a namespace
+# package, so direct imports resolve without them.
 
 # Email helper — Microsoft Graph backend. Import via full package path so it
 # doesn't shadow Python's stdlib `email` package.
@@ -281,7 +274,6 @@ def get_client_engagement(client_id: str):
     progress_pct = round(completed_milestones / total_milestones * 100) if total_milestones else 0
 
     # Days remaining
-    import math
     from datetime import date
     days_remaining = None
     if engagement.get('expected_completion'):

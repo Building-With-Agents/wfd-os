@@ -18,18 +18,12 @@ CLAUDE.md rules:
 - WRITE only to PostgreSQL
 - No modifications to any legacy system
 """
-import os, sys, json, time, base64, io, traceback
+import json, sys, time, base64
 import psycopg2
 import google.generativeai as genai
 from azure.storage.blob import BlobServiceClient
 
-from wfdos_common.config import settings
-
-# wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv —
-# no hardcoded path needed. The repo-relative default in settings.profile lets
-# this script run from any machine, not just Ritu's.
-sys.path.insert(0, str(settings.profile.resume_storage_path))
-from pgconfig import PG_CONFIG  # noqa: E402
+from wfdos_common.config import PG_CONFIG, settings
 
 BLOB_CONN_STR = settings.blob.connection_string
 CONTAINER = "resume-storage"

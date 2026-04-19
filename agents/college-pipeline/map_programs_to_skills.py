@@ -11,10 +11,9 @@ Strategy:
 - Store top 10 matching skills per program in program_skills
 - Uses Azure OpenAI text-embedding-3-small (same model as skills)
 """
-import sys, os, json, psycopg2, time
+import os, psycopg2, time
 import numpy as np
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG
+from wfdos_common.config import PG_CONFIG
 from dotenv import load_dotenv
 import requests
 

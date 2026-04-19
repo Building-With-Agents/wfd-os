@@ -12,11 +12,7 @@ Endpoints:
 
 Run: uvicorn agents.marketing.api:app --port 8008
 """
-import os
 import re
-import sys
-import json
-from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
@@ -25,15 +21,11 @@ from pydantic import BaseModel
 import psycopg2
 import psycopg2.extras
 
-_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-
-from dotenv import load_dotenv
-load_dotenv(os.path.join(_REPO_ROOT, ".env"), override=False)
-
-sys.path.insert(0, os.path.join(_REPO_ROOT, "scripts"))
-from pgconfig import PG_CONFIG
+# wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv —
+# no hardcoded path needed. Pre-#27 this file had sys.path.insert hacks; the
+# monorepo root pyproject.toml (#27) now exposes `agents.*` as a namespace
+# package, so direct imports resolve without them.
+from wfdos_common.config import PG_CONFIG
 
 app = FastAPI(title="WFD OS Marketing Content API", version="0.1.0")
 
