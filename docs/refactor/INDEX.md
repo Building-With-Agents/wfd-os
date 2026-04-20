@@ -68,7 +68,7 @@ Cross-platform Python smoke scripts referenced from every §N in
 
 | Subdir          | Scripts                                                      | Exit-report § |
 |-----------------|---------------------------------------------------------------|---------------|
-| `bootstrap/`    | `imports.py`, `pytest.py`                                     | §0, §1        |
+| `bootstrap/`    | `imports.py`, `pytest.py`, `healthchecks.py`                  | §0, §1, §2    |
 | `errors/`       | `validation_envelope.py`, `not_found_envelope.py`             | §3            |
 | `auth/`         | `login.py`, `me.py`, `tier_readonly_rejects_unauth.py`, `stripped_env_503.py` | §4–§6 |
 | `tenancy/`      | `host_tenant.py`                                              | §7            |

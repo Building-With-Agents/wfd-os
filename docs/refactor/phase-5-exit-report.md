@@ -136,16 +136,15 @@ python scripts/smoke/bootstrap/pytest.py
 honcho start
 ```
 
-**Expect:** all 12 services start without crashes. Hit `/api/health` on
-each to confirm:
+In a second shell, once the services have had a few seconds to come up:
 
 ```bash
-for p in 8000 8001 8002 8003 8004 8006 8008 8009 8010; do
-  curl -s localhost:$p/api/health | jq .
-done
+python scripts/smoke/bootstrap/healthchecks.py
 ```
 
-Expected shape on each: `{"status": "ok", "service": "<name>", "port": <N>}`.
+**Expect:** each of the 10 service ports prints `OK`, then a final
+`OK: every /api/health responded (n=10)`. A failure line shows the
+service name + port + reason (connection refused, 5xx, wrong body).
 
 ---
 
@@ -232,17 +231,25 @@ script will return the default tenant — track as a follow-up.
 
 ## 8. Structured logs flowing (#23)
 
+Reuse the envelope-smoke script with a known request id, then eyeball
+the consulting-api's log stream for the matching line:
+
 ```bash
-# Make a few requests while watching service output.
-honcho start | grep -i 'consulting-api'
-# In another shell:
-curl -s -X POST localhost:8003/api/consulting/inquire -d '{}' \
-     -H 'Content-Type: application/json' \
-     -H 'X-Request-Id: log-smoke-001'
+python scripts/smoke/errors/validation_envelope.py --request-id log-smoke-001
 ```
 
-**Expect:** a JSON log line from consulting-api containing
-`"request_id": "log-smoke-001"` and `"api.validation_error"` event.
+**Expect:** the script prints `OK: validation envelope with
+request_id echo (X-Request-Id=log-smoke-001)`, AND the
+`consulting-api` log window (from `honcho start`) contains a
+structured JSON line with:
+
+- `"event": "api.validation_error"`
+- `"request_id": "log-smoke-001"`
+- `"service_name": "consulting-api"`
+
+This is the only section where the assertion is a visual log
+inspection — the script fires the trigger; you confirm it reached
+the logger with context propagated.
 
 ---
 
