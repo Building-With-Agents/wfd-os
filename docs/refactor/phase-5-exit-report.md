@@ -274,7 +274,13 @@ python scripts/smoke/edge/nginx_t.py
 script creates mock TLS cert paths under `/tmp/` so the certbot
 references parse even if you're not on the VM.
 
-Then deploy per the embedded runbook in
+**⚠ Production VM mutation — run manually, NOT scripted.** The
+commands below scp the committed config to the live VM and reload
+nginx. Roll-back path: the previous `/etc/nginx/sites-available/wfd-os`
+(hyphenated, pre-rename) stays in place; `systemctl reload nginx`
+with the old symlink restores.
+
+Deploy per the embedded runbook in
 `infra/edge/nginx/wfdos-platform.conf`:
 
 ```bash
