@@ -61,6 +61,25 @@ introduced it.
 | `edge/nginx/wfdos-platform.conf` | 5 | `phase-5-exit-report.md` |
 | `nginx/wfd-os.conf` (legacy single-tenant) | pre-refactor | `infra/nginx/README.md` |
 
+### `scripts/smoke/`
+
+Cross-platform Python smoke scripts referenced from every §N in
+`phase-5-exit-report.md`. Organized by phase/feature:
+
+| Subdir          | Scripts                                                      | Exit-report § |
+|-----------------|---------------------------------------------------------------|---------------|
+| `bootstrap/`    | `imports.py`, `pytest.py`, `healthchecks.py`                  | §0, §1, §2    |
+| `errors/`       | `validation_envelope.py`, `not_found_envelope.py`             | §3            |
+| `auth/`         | `login.py`, `me.py`, `tier_readonly_rejects_unauth.py`, `stripped_env_503.py` | §4–§6 |
+| `tenancy/`      | `host_tenant.py`                                              | §7            |
+| `agent/`        | `echo.py`                                                     | §9            |
+| `edge/`         | `nginx_t.py`                                                  | §10           |
+| `cta/`          | `contract_urls.py`                                            | §11           |
+| `laborpulse/`   | `health.py`, `mock_query.py`, `feedback.py`, `jie_503.py`     | §13           |
+
+Conventions: `scripts/smoke/README.md`.
+Shared helpers: `scripts/smoke/_common.py` (`ok`/`fail`/`skip`/`build_parser`).
+
 ### `portal/student/`
 
 | Artifact | Phase | Doc |
@@ -85,6 +104,7 @@ introduced it.
 | `docs/config/identity-migration.md` | CFA → Waifinder identity override inventory | 1 |
 | `docs/database/wfdos-schema-inventory.md` | 35-table canonical schema + per-table status | 2 |
 | `docs/refactor/issue-29-migration.md` | Structured error envelope migration pattern | 3 |
+| `scripts/smoke/README.md` | Conventions for the 16 Python smoke scripts (cross-platform, argparse, OK:/FAIL:/SKIP: exit semantics) | cross-cutting (used by every phase exit report) |
 
 ## Bug-trace shortcuts
 
