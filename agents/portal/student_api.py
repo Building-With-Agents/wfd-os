@@ -22,6 +22,8 @@ import psycopg2.extras
 import numpy as np
 
 
+from wfdos_common.auth import SessionMiddleware
+from wfdos_common.config import settings
 from wfdos_common.errors import NotFoundError, install_error_handlers
 from wfdos_common.logging import RequestContextMiddleware, configure as configure_logging, get_logger
 
@@ -32,8 +34,15 @@ app = FastAPI(title="Waifinder Student Portal API", version="0.1.0")
 
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.auth.secret_key,
+    cookie_name=settings.auth.cookie_name,
+    max_age_seconds=settings.auth.session_ttl_seconds,
+)
+app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

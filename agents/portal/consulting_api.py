@@ -17,6 +17,7 @@ import psycopg2.extras
 
 # Email helper — Microsoft Graph backend. Import via full package path so it
 # doesn't shadow Python's stdlib `email` package.
+from wfdos_common.auth import SessionMiddleware, build_auth_router
 from wfdos_common.config import settings
 from wfdos_common.email import notify_internal, send_email
 from wfdos_common.errors import (
@@ -38,14 +39,25 @@ app = FastAPI(title="Waifinder Consulting API", version="0.1.0")
 
 app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.auth.secret_key,
+    cookie_name=settings.auth.cookie_name,
+    max_age_seconds=settings.auth.session_ttl_seconds,
+)
+app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3003", "http://127.0.0.1:3000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # #29 — structured error envelope on every 4xx/5xx.
 install_error_handlers(app)
+
+# #24 — magic-link auth routes live on this service; other services
+# just parse the cookie via SessionMiddleware.
+app.include_router(build_auth_router())
 
 
 def get_conn():
