@@ -23,6 +23,7 @@ may redirect elsewhere).
 from __future__ import annotations
 
 from typing import Callable, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, EmailStr
@@ -104,7 +105,9 @@ def build_auth_router(
 
         token = issue_magic_link(email, secret_key=settings.auth.secret_key)
         base_url = settings.platform.portal_base_url.rstrip("/")
-        link = f"{base_url}{prefix}/verify?token={token}"
+        # Token contains a JSON payload + '.' separators + HMAC; raw chars like
+        # '{', '"', ',' break `<a href="...?token=...">` in the email HTML.
+        link = f"{base_url}{prefix}/verify?token={quote(token, safe='')}"
 
         try:
             sender(email, link)
