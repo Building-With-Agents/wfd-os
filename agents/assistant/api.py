@@ -28,16 +28,25 @@ from agents.assistant.staff_agent import staff_agent
 from agents.assistant.college_agent import college_agent
 from agents.assistant.youth_agent import youth_agent
 
+from wfdos_common.auth import SessionMiddleware
+from wfdos_common.config import settings
 from wfdos_common.errors import NotFoundError, ValidationFailure, install_error_handlers
 from wfdos_common.logging import RequestContextMiddleware
 
 app = FastAPI(title="WFD OS Conversational Agent API", version="0.1.0")
 app.add_middleware(RequestContextMiddleware)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.auth.secret_key,
+    cookie_name=settings.auth.cookie_name,
+    max_age_seconds=settings.auth.session_ttl_seconds,
+)
 install_error_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
