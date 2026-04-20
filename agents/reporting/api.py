@@ -49,6 +49,11 @@ def query_one(sql, params=None):
     return rows[0] if rows else {}
 
 
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "service": "reporting-api", "port": 8000}
+
+
 @app.get("/api/overview")
 def overview():
     """Summary metrics for dashboard header."""
