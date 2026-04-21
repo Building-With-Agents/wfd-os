@@ -100,6 +100,8 @@ Shared helpers: `scripts/smoke/_common.py` (`ok`/`fail`/`skip`/`build_parser`).
 | `docs/ops/credential-rotation.md` | 13-credential rotation runbook + 1Password store decision | 4 |
 | `docs/white-label-config.md` | Onboarding a new tenant + BrandConfig schema + role ladder | 5 |
 | `docs/laborpulse.md` | LaborPulse architecture + mock mode + role model + qa_feedback schema | LaborPulse |
+| `docs/laborpulse-backend-handoff.md` | JIE backend-team contract (short-term) + chat-widget evolution + entitlement/billing layer (long-term) | LaborPulse |
+| `docs/database/jie-wfdos-schema-reconciliation.md` | Shared-Postgres plan + port-3000 conflict fix + flatten `dbo.*` → `public.*` recommendation | LaborPulse (deferred) |
 | `docs/public-url-contract.md` | Stable URLs marketing CTAs depend on + 90-day deprecation policy | 5 |
 | `docs/config/identity-migration.md` | CFA → Waifinder identity override inventory | 1 |
 | `docs/database/wfdos-schema-inventory.md` | 35-table canonical schema + per-table status | 2 |
