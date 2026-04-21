@@ -60,3 +60,7 @@ recovered-code/bacpac/
 
 # Local finance cockpit fixtures (mock spreadsheet data, not for commit)
 agents/finance/design/fixtures/
+
+# Phase A — Cohort 1 apprentice data (contains PII: names, emails, phones)
+data/cohort1_resumes/
+data/cohort1_ingestion_digest.json
