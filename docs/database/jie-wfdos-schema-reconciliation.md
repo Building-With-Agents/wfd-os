@@ -55,8 +55,8 @@ ports:
   - "${LANGFUSE_PORT:-3000}:3000"
 ```
 
-Action: set `LANGFUSE_PORT=3030` (or any unused port — `3030` matches the
-existing internal `langfuse-worker` health port) in JIE's `.env`, then:
+Action: set `LANGFUSE_PORT=3001` (or any unused port — Gary picked
+`3001` during the 2026-04-20 phase-5 smoke) in JIE's `.env`, then:
 
 ```bash
 cd ../job-intelligence-engine
