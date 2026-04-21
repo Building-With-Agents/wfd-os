@@ -1,0 +1,60 @@
+# Consolidated dev dependencies to run the full wfd-os stack locally.
+#
+# Usage (from repo root):
+#     python -m pip install -r requirements-dev.txt
+#     python -m pip install -e packages/wfdos-common
+#     honcho start
+#
+# Per-service pinned dependencies with proper pyproject.toml packaging is
+# tracked in issue #27. Until that lands, this file is the single source of
+# truth for "what do I need installed to run the stack."
+#
+# When #27 ships, this file stays as a convenience wrapper that installs
+# every service's pyproject.toml as a dev install. Nothing here is
+# unnecessary today.
+
+# --- Web servers ---
+fastapi>=0.110
+uvicorn>=0.27
+aiohttp>=3.9
+python-multipart>=0.0.9
+
+# --- Database ---
+psycopg2-binary>=2.9
+SQLAlchemy>=2.0
+
+# --- Pydantic / data ---
+pydantic>=2.5
+pydantic-settings>=2.1
+
+# --- Azure / Microsoft Graph ---
+azure-identity>=1.15
+azure-storage-blob>=12.19
+msgraph-sdk>=1.0
+
+# --- LLM SDKs ---
+# Azure OpenAI is the default per CLAUDE.md llm-provider.mdc;
+# Anthropic + Gemini are fallback providers used by existing code today
+# (wfdos_common.llm adapter lands in #20).
+openai>=1.30
+anthropic>=0.31
+google-generativeai>=0.8
+
+# --- Microsoft Bot Framework (grant + market-intelligence bots) ---
+botbuilder-core>=4.15
+botbuilder-schema>=4.15
+
+# --- HTTP / utilities ---
+httpx>=0.27
+requests>=2.31
+python-dotenv>=1.0
+
+# --- Dev tooling ---
+pytest>=8
+ruff>=0.5
+detect-secrets>=1.5
+pre-commit>=3.7
+honcho>=2.0
+
+# --- Optional: DocuSign (consulting proposals) ---
+docusign-esign>=6.0

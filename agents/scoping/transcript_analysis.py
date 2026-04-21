@@ -1,6 +1,6 @@
 """Transcript analysis — extract answers to the 5 scoping questions."""
 
-from agents.graph import config
+from wfdos_common.graph import config
 from anthropic import Anthropic
 from agents.scoping.models import ScopingRequest, ScopingAnalysis, ScopingAnswer
 

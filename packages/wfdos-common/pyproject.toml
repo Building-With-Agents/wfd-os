@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-common"
+version = "0.0.1"
+description = "Shared primitives for wfd-os services: config, models, DB, LLM adapter, auth, logging, Microsoft Graph client, email."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [
+    { name = "Computing for All" }
+]
+# Runtime deps grow as modules graduate from stubs to implementations.
+dependencies = [
+    "pydantic>=2.5",
+    "pydantic-settings>=2.1",
+    "python-dotenv>=1.0",
+    # wfdos_common.graph (#17) — Microsoft Graph client for SharePoint / Teams / mail
+    "azure-identity>=1.15",
+    "msgraph-sdk>=1.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+# Secret-backend plugins — lazy-imported. Install only the ones you need.
+# Declared here (#18) but the implementations land in the issues that flesh
+# out wfdos_common.config.secrets.
+keyvault = ["azure-identity>=1.15", "azure-keyvault-secrets>=4.7"]
+onepassword = ["onepasswordconnectsdk>=1.5"]
+doppler = ["doppler-sdk>=1.0"]
+infisical = ["infisical-python>=2.0"]
+hashivault = ["hvac>=2.0"]
+
+# Per-module deps that will be added as modules graduate from stubs:
+#   graph: msgraph-sdk, azure-identity, httpx  (populated in #17)
+#   email: (uses graph module)  (populated in #17)
+#   db: sqlalchemy>=2.0, psycopg2-binary  (#22)
+#   llm: openai, anthropic, google-generativeai  (#20)
+#   logging: structlog>=24  (#23)
+#   auth: itsdangerous, slowapi  (#24)
+#   testing: pytest>=8, pytest-asyncio  (#28)
+
+[project.urls]
+Repository = "https://github.com/Building-With-Agents/wfd-os"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wfdos_common*"]
+
+[tool.setuptools.package-data]
+wfdos_common = ["py.typed"]

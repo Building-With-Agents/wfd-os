@@ -24,7 +24,7 @@ from pgconfig import PG_CONFIG
 
 # Email helper — Microsoft Graph backend. Import via full package path so it
 # doesn't shadow Python's stdlib `email` package.
-from agents.portal.email import notify_internal, send_email
+from wfdos_common.email import notify_internal, send_email
 
 # Scoping Agent pipeline (lazy-imported inside the trigger to avoid blocking module load
 # if Graph creds or Anthropic SDK aren't available on startup).
@@ -336,7 +336,7 @@ def get_client_documents(client_id: str):
     stored_sp_url = eng.get("sharepoint_workspace_url")
 
     try:
-        from agents.graph.sharepoint import list_client_documents_sync
+        from wfdos_common.graph.sharepoint import list_client_documents_sync
         files = list_client_documents_sync(safe_name, recursive=True)
     except Exception as e:
         print(f"[DOCUMENTS] list failed: {type(e).__name__}: {e}")
@@ -785,7 +785,7 @@ def convert_inquiry(inquiry_id: str):
     # --- Grant SharePoint access (best-effort; never blocks the response) ---
     sharepoint_invite: dict = {"ok": False, "error": "not attempted"}
     try:
-        from agents.graph.invitations import invite_to_client_folder
+        from wfdos_common.graph.invitations import invite_to_client_folder
         sharepoint_invite = invite_to_client_folder(
             company_safe_name=safe_name,
             email=inquiry['email'],
@@ -942,7 +942,7 @@ def post_engagement_update(engagement_id: str, update: NewUpdate):
     teams_result = None
     if update.post_to_teams:
         try:
-            from agents.graph.teams import post_engagement_update_to_teams
+            from wfdos_common.graph.teams import post_engagement_update_to_teams
             portal_url = f"http://localhost:3000/coalition/client?token={client_token or engagement_id}"
             teams_result = post_engagement_update_to_teams(
                 title=update.title,

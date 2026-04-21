@@ -1,0 +1,29 @@
+# Root-level tool config for the wfd-os monorepo.
+#
+# This file does NOT describe the repo as a pip-installable package — per-service
+# packaging lands in issue #27. This file currently just centralizes tool config
+# (ruff, pytest) so every service inherits the same style.
+#
+# The installable package scaffolding lives under packages/wfdos-common/.
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [
+    "archive",
+    "recovered-code",
+    "portal/student/node_modules",
+    "portal/student/.next",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+# E501 handled by line-length above; other deliberate relaxations during migration:
+ignore = [
+    "E501",  # line too long
+    "E402",  # module level import not at top of file (many services use sys.path.insert hacks today — #27 fixes)
+]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/wfdos-common/tests"]
+addopts = "-v --tb=short"
