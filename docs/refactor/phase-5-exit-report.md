@@ -85,6 +85,61 @@ all populated.
 
 ---
 
+# Live-run state — 2026-04-21
+
+The full stack merged to `development` via PR #64 on 2026-04-20. Live
+smoke covered §0–§4 end-to-end and §13 via browser demo; remaining
+sections are queued for a follow-up pass. **Defer-tagged items are
+blocked on external work** (schema reconciliation, Azure PG password
+rotation, VM deploy) — they are NOT regressions.
+
+| § | Topic                                  | State        | Notes |
+|---|----------------------------------------|--------------|-------|
+| 0 | Environment bring-up                   | ✅ PASS      | `imports.py` green. |
+| 1 | Full pytest suite                      | ✅ PASS      | 312 passed, 68.26% coverage. |
+| 2 | Boot full stack + healthchecks         | ✅ PASS      | 10/10 after fix: added `/api/health` to reporting-api (commit `6f3c7f0`). |
+| 3 | Structured error envelope              | ⚠ PARTIAL   | §3a validation envelope PASS. §3b not-found **DEFERRED** — needs wfd-os schema in JIE Postgres (see `docs/database/jie-wfdos-schema-reconciliation.md`). |
+| 4 | Magic-link auth end-to-end             | ⚠ PARTIAL   | Login endpoint PASS; email dispatched 202 Accepted from `ritu@computingforall.org`. `/auth/me` cookie test not run in the live pass (synthesized a cookie directly for the §13d browser demo). Bugs found + fixed: SessionMiddleware+router install (`f32170a`), URL-encoded magic-link token (`35b51ef`), Next.js `/auth/*` rewrite (`35b51ef`), `WFDOS_AUTH_COOKIE_SECURE=false` for http://localhost. |
+| 5 | Tier decorator `@read_only`            | ⏸ NOT RUN   | Script exists (`tier_readonly_rejects_unauth.py`), un-executed this pass. |
+| 6 | Stripped-env 503 path                  | ⏸ NOT RUN   | Needs cookie + env strip. |
+| 7 | White-label tenant resolution          | ⏸ NOT RUN   | Script exists. |
+| 8 | Structured logs flowing                | ⏸ NOT RUN   | Visual log inspection step. |
+| 9 | Agent ABC reference run                | ⏸ NOT RUN   | Pure Python, no services needed. |
+| 10| nginx `-t` locally                     | ⏸ NOT RUN   | **VM deploy DEFERRED** — Gary's separate infra session. |
+| 11| CTA contract URL probes                | ⏸ NOT RUN   | Needs portal on :3000 (now stable after `b65efc0` Procfile `--port` fix). |
+| 12| Credential rotation                    | ⏸ DEFERRED  | Gary's separate ops session. |
+| 13a | LaborPulse env                       | ✅ PASS      | Mock-mode allowlist + Procfile wired. |
+| 13b | LaborPulse `/api/health`             | ✅ PASS      | `jie_configured=false` (mock mode). |
+| 13c | Unauth rejection (via §3)            | ⏸ NOT RUN   | Generic envelope; covered by §3 smoke. |
+| 13d | Mock-mode end-to-end                 | ✅ PASS      | Browser demo: `[MOCK]` answer + 3 evidence cards + 3 follow-ups in ~10s, confidence=`mock`, conversation_id starts `mock-`. Portal rewrite fix required (`9f2ff2f`). |
+| 13e | Feedback row write to `qa_feedback`  | ⏸ DEFERRED  | Needs wfd-os schema in JIE Postgres (same blocker as §3b). |
+| 13f | Real-JIE 503 path                    | ⏸ NOT RUN   | Needs cookie + disposable laborpulse restart with unreachable `JIE_BASE_URL`. |
+| 13g | Browser walkthrough                  | ✅ PASS      | Demoed via Claude-in-Chrome; `/laborpulse` form renders, question fires, mock response + feedback buttons render correctly. |
+
+### Post-smoke PRs (all merged to `development`)
+
+| PR | What |
+|---|---|
+| #64 | Phases 1–5 + LaborPulse + smoke scripts (30 commits, rebase-merged) |
+| #67 | `fix(laborpulse): JIE client reads JSON, drop SSE parser` (the short-term half of `docs/laborpulse-backend-handoff.md` Part 2) |
+| #69 | `fix(ci): install monorepo root + detect-secrets + genai` — unblocks CI so required-checks branch protection can land |
+| #70 | `fix(config): env_prefix="PG_" on PgSettings — stop USER env shadowing` |
+
+Branch protection on `development` now requires the 3 CI checks to
+pass before merge. Admin bypass retained for hotfixes.
+
+### Next live-pass checklist
+
+Pick up from here by running §5 → §9, §11, §13c, §13f in order —
+they're all cookie-free except §13f. Get a cookie via a fresh
+magic-link click (§4) or synthesize one as shown in the local-dev
+runbook (`docs/ops/local-dev-startup.md`), then run §13f.
+
+Sections §3b + §13e + §10-VM-deploy + §12 stay deferred until their
+upstream blockers clear.
+
+---
+
 # Live-test checklist (Gary's morning pass)
 
 Check out `phase-5-exit-gate` and walk through the sections below in
