@@ -55,6 +55,14 @@ class PgSettings(BaseSettings):
     code; we do not require it here so services importing this settings
     module do not fail-start if the password is still being fetched via
     the existing mechanism.
+
+    `env_prefix="PG_"` restricts env-var lookup to `PG_HOST` / `PG_USER`
+    / etc. Without it, pydantic-settings' default behaviour (combined
+    with `populate_by_name=True`) also reads the bare field name as a
+    fallback — e.g. `USER=runner` on GitHub Actions or `USER=www-data`
+    on a deploy target would silently shadow the `postgres` default.
+    Aliases are retained so existing dict-style construction
+    (`PgSettings(PG_USER="foo")`) still works.
     """
 
     host: str = Field(default="localhost", alias="PG_HOST")
@@ -63,7 +71,11 @@ class PgSettings(BaseSettings):
     database: str = Field(default="wfdos", alias="PG_DATABASE")
     password: Optional[str] = Field(default=None, alias="PG_PASSWORD")
 
-    model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
+    model_config = SettingsConfigDict(
+        populate_by_name=True,
+        extra="ignore",
+        env_prefix="PG_",
+    )
 
 
 class AzureSettings(BaseSettings):
