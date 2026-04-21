@@ -31,6 +31,13 @@ def test_settings_has_sensible_defaults(monkeypatch):
         "PG_HOST", "PG_PORT", "PG_USER", "PG_DATABASE",
         "AZURE_TENANT_ID", "SHAREPOINT_TENANT_URL", "LLM_PROVIDER",
         "WFDOS_DEFAULT_TENANT_ID",
+        # PgSettings has populate_by_name=True and a `user` field, so pydantic-
+        # settings also reads the bare `USER` env var — which is `runner` on
+        # GitHub Actions and `gary` on local dev. Delete it here so the
+        # defaults check isn't shadowed by the CI runner's identity.
+        # See also: docs/refactor/ — follow-up issue to prefix PgSettings
+        # fields with env_prefix="PG_" so field-name lookup can't collide.
+        "USER",
     ]:
         monkeypatch.delenv(var, raising=False)
     reset_settings()
