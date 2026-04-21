@@ -64,3 +64,8 @@ agents/finance/design/fixtures/
 # Phase A — Cohort 1 apprentice data (contains PII: names, emails, phones)
 data/cohort1_resumes/
 data/cohort1_ingestion_digest.json
+
+# Phase A — Cohort 1 jobs cache + digest (raw JSearch payload cache;
+# consistent with resume digest pattern so we don't track bulky API snapshots)
+data/cohort1_jobs_raw_cache/
+data/cohort1_jobs_ingestion_digest.json
