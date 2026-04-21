@@ -12,7 +12,6 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-
 from wfdos_common.auth import Session, issue_session
 from wfdos_common.errors import ServiceUnavailableError, ValidationFailure
 
@@ -82,82 +81,207 @@ def test_qa_feedback_schema_has_required_columns():
 
 
 # ---------------------------------------------------------------------------
-# JIE client event folding — unit tests on _fold_frame_into
+# JIE client — JSON request/response contract
+#
+# The client no longer parses SSE. JIE delivers the final JSON response
+# directly per the 2026-04-20 handoff contract (see
+# docs/laborpulse-backend-handoff.md Part 2). Async test coroutines are
+# driven via asyncio.run() so we don't depend on pytest-asyncio/anyio.
 # ---------------------------------------------------------------------------
 
 
-def _fresh_acc() -> dict[str, Any]:
-    from agents.laborpulse.client import _new_result
-
-    return _new_result()
-
-
-def test_fold_frame_appends_answer_chunks():
-    from agents.laborpulse.client import _fold_frame_into
-
-    acc = _fresh_acc()
-    _fold_frame_into(acc, 'event: answer\ndata: {"text": "Manufacturing "}')
-    _fold_frame_into(acc, 'event: answer\ndata: {"text": "and healthcare."}')
-    assert acc["answer"] == "Manufacturing and healthcare."
-
-
-def test_fold_frame_handles_plain_text_answer_chunks():
-    """JIE sometimes emits bare tokens without JSON wrapping."""
-    from agents.laborpulse.client import _fold_frame_into
-
-    acc = _fresh_acc()
-    _fold_frame_into(acc, "event: answer\ndata: raw text tokens")
-    assert "raw text tokens" in acc["answer"]
+def _sample_jie_response() -> dict[str, Any]:
+    return {
+        "conversation_id": "conv-abc",
+        "answer": "Manufacturing and healthcare led postings growth in Q1.",
+        "evidence": [
+            {"source": "jobs_2024", "text": "12,840 active postings"},
+            {"source": "bls_oes", "text": "Healthcare Support +11.8% YoY"},
+        ],
+        "confidence": "high",
+        "follow_up_questions": ["What about wages?", "Which employers?"],
+        "cost_usd": 0.0042,
+        "sql_generated": "SELECT industry, COUNT(*) FROM jobs_2024 ...",
+    }
 
 
-def test_fold_frame_collects_evidence_items():
-    from agents.laborpulse.client import _fold_frame_into
+def _run(coro):
+    import asyncio
 
-    acc = _fresh_acc()
-    _fold_frame_into(acc, 'event: evidence\ndata: {"source": "jobs_2024", "text": "..."}')
-    _fold_frame_into(acc, 'event: evidence\ndata: {"items": [{"source": "b"}, {"source": "c"}]}')
-    assert len(acc["evidence"]) == 3
-    assert acc["evidence"][0]["source"] == "jobs_2024"
-    assert acc["evidence"][2]["source"] == "c"
+    return asyncio.run(coro)
 
 
-def test_fold_frame_sets_confidence_and_followups():
-    from agents.laborpulse.client import _fold_frame_into
+def _install_mock_transport(monkeypatch, handler):
+    """Swap `httpx.AsyncClient` inside the client module for one backed by
+    a `MockTransport`, so the real network is never touched. We capture
+    the original class before monkey-patching so the constructor inside
+    the factory doesn't recurse into the patched symbol."""
+    import httpx
 
-    acc = _fresh_acc()
-    _fold_frame_into(acc, 'event: confidence\ndata: {"level": "high"}')
-    _fold_frame_into(acc, 'event: followup\ndata: {"question": "What about wages?"}')
-    _fold_frame_into(
-        acc, 'event: follow_up\ndata: {"questions": ["Which employers?", "What sectors?"]}'
+    from agents.laborpulse import client as client_mod
+
+    transport = httpx.MockTransport(handler)
+    original_cls = httpx.AsyncClient
+
+    def _factory(**kw):
+        kw.pop("transport", None)  # defensive: caller shouldn't pass it
+        return original_cls(transport=transport, **kw)
+
+    monkeypatch.setattr(client_mod.httpx, "AsyncClient", _factory)
+
+
+def test_client_posts_json_and_returns_parsed_dict(monkeypatch):
+    """Happy path: client POSTs JSON, parses the JSON response."""
+    import httpx
+
+    from agents.laborpulse import client as client_mod
+
+    captured: dict[str, Any] = {}
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        captured["url"] = str(request.url)
+        captured["headers"] = dict(request.headers)
+        captured["body"] = json.loads(request.content or b"{}")
+        return httpx.Response(200, json=_sample_jie_response())
+
+    _install_mock_transport(monkeypatch, _handler)
+
+    result = _run(
+        client_mod.query(
+            base_url="https://jie.example.com",
+            question="top sectors in Q1?",
+            tenant_id="borderplex",
+            user_email="dir@borderplex.example.com",
+            request_id="req-123",
+            api_key="k-1",
+            conversation_id="conv-xyz",
+        )
     )
-    assert acc["confidence"] == "high"
-    assert acc["follow_up_questions"] == [
-        "What about wages?",
-        "Which employers?",
-        "What sectors?",
-    ]
+    assert result["conversation_id"] == "conv-abc"
+    assert "Manufacturing" in result["answer"]
+    assert result["confidence"] == "high"
+    assert len(result["evidence"]) == 2
+    assert captured["url"].endswith("/analytics/query")
+    assert captured["headers"]["x-tenant-id"] == "borderplex"
+    assert captured["headers"]["x-user-email"] == "dir@borderplex.example.com"
+    assert captured["headers"]["x-request-id"] == "req-123"
+    assert captured["headers"]["x-api-key"] == "k-1"
+    assert captured["headers"]["content-type"] == "application/json"
+    assert captured["body"]["question"] == "top sectors in Q1?"
+    assert captured["body"]["conversation_id"] == "conv-xyz"
 
 
-def test_fold_frame_captures_conversation_id_and_cost_on_done():
-    from agents.laborpulse.client import _fold_frame_into
+def test_client_omits_conversation_id_when_absent(monkeypatch):
+    """First message in a conversation has no conversation_id — don't
+    send the key at all (not even `null`)."""
+    import httpx
 
-    acc = _fresh_acc()
-    _fold_frame_into(
-        acc,
-        'event: done\ndata: {"conversation_id": "conv-abc", "cost_usd": 0.0042}',
+    from agents.laborpulse import client as client_mod
+
+    captured: dict[str, Any] = {}
+
+    def _handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        captured["body"] = json.loads(request.content or b"{}")
+        return httpx.Response(200, json=_sample_jie_response())
+
+    _install_mock_transport(monkeypatch, _handler)
+
+    _run(
+        client_mod.query(
+            base_url="https://jie.example.com",
+            question="first turn",
+            tenant_id="borderplex",
+            user_email="dir@b.example.com",
+        )
     )
-    assert acc["conversation_id"] == "conv-abc"
-    assert acc["cost_usd"] == 0.0042
+    assert "conversation_id" not in captured["body"]
 
 
-def test_fold_frame_ignores_unknown_event_types():
-    """Keeps wfd-os decoupled from JIE's event vocabulary evolution."""
-    from agents.laborpulse.client import _fold_frame_into
+def test_client_raises_service_unavailable_on_5xx(monkeypatch):
+    import httpx
 
-    acc = _fresh_acc()
-    _fold_frame_into(acc, 'event: brand_new_event\ndata: {"text": "surprise"}')
-    assert acc["answer"] == ""
-    assert acc["evidence"] == []
+    from agents.laborpulse import client as client_mod
+
+    _install_mock_transport(
+        monkeypatch, lambda _r: httpx.Response(503, text="upstream boom")
+    )
+    with pytest.raises(ServiceUnavailableError) as exc:
+        _run(
+            client_mod.query(
+                base_url="https://jie.example.com",
+                question="x",
+                tenant_id="t",
+                user_email="e",
+            )
+        )
+    assert exc.value.details["upstream"] == "jie"
+    assert exc.value.details["status"] == 503
+
+
+def test_client_raises_validation_failure_on_4xx(monkeypatch):
+    import httpx
+
+    from agents.laborpulse import client as client_mod
+
+    _install_mock_transport(
+        monkeypatch,
+        lambda _r: httpx.Response(422, text='{"error": "unparseable question"}'),
+    )
+    with pytest.raises(ValidationFailure) as exc:
+        _run(
+            client_mod.query(
+                base_url="https://jie.example.com",
+                question="x",
+                tenant_id="t",
+                user_email="e",
+            )
+        )
+    assert exc.value.details["upstream"] == "jie"
+    assert exc.value.details["status"] == 422
+
+
+def test_client_raises_service_unavailable_on_non_json_body(monkeypatch):
+    """If JIE returns 200 with an HTML error page (e.g. misrouted to a
+    proxy), surface as a 503 — not a silent empty dict."""
+    import httpx
+
+    from agents.laborpulse import client as client_mod
+
+    _install_mock_transport(
+        monkeypatch, lambda _r: httpx.Response(200, text="<html>oops</html>")
+    )
+    with pytest.raises(ServiceUnavailableError) as exc:
+        _run(
+            client_mod.query(
+                base_url="https://jie.example.com",
+                question="x",
+                tenant_id="t",
+                user_email="e",
+            )
+        )
+    assert exc.value.details["upstream"] == "jie"
+    assert exc.value.details["reason"] == "invalid_json"
+
+
+def test_client_raises_when_base_url_empty():
+    """Empty base_url means LaborPulse isn't configured on this host;
+    caller should fall back to mock mode, not attempt a live call."""
+    from agents.laborpulse import client as client_mod
+
+    with pytest.raises(ServiceUnavailableError) as exc:
+        _run(
+            client_mod.query(
+                base_url="",
+                question="x",
+                tenant_id="t",
+                user_email="e",
+            )
+        )
+    assert exc.value.details["upstream"] == "jie"
 
 
 # ---------------------------------------------------------------------------
@@ -383,6 +507,7 @@ def test_query_returns_mock_when_jie_base_url_empty(labor_app, monkeypatch):
     Borderplex-flavored answer tagged as mock."""
     app, fake, cookie = labor_app
     from wfdos_common.config import settings
+
     import agents.laborpulse.api as api_mod
 
     monkeypatch.setattr(settings.jie, "base_url", "")
@@ -414,6 +539,7 @@ def test_query_mock_sleeps_between_8_and_12_seconds(labor_app, monkeypatch):
     """The mock path must feel like JIE synthesis — 8-12s latency."""
     app, _fake, cookie = labor_app
     from wfdos_common.config import settings
+
     import agents.laborpulse.api as api_mod
 
     monkeypatch.setattr(settings.jie, "base_url", "")
