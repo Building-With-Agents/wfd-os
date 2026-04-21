@@ -41,6 +41,14 @@ const nextConfig = {
         destination: "http://localhost:8002/api/showcase/:path*",
       },
       {
+        source: "/api/laborpulse/:path*",
+        destination: "http://localhost:8012/api/laborpulse/:path*",
+      },
+      {
+        source: "/api/student/:path*",
+        destination: "http://localhost:8001/api/student/:path*",
+      },
+      {
         source: "/api/stats",
         destination: "http://localhost:8005/api/stats",
       },
