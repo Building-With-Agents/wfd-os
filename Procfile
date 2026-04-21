@@ -24,7 +24,13 @@
 #   selectively via `honcho start <name> <name>`.
 
 # Next.js portal (port 3000). Proxies /api/* to Python services below.
-portal: cd portal/student && npm run dev
+# Pass --port explicitly because honcho auto-assigns PORT per
+# process-type (base 5000 + 100×index). Without the --port flag,
+# Next.js reads honcho's PORT and crashes on reserved ports like 6000
+# ("reserved for x11") when portal is later in the start list. Using
+# -- --port (not `PORT=3000 npm`) so the Windows cmd.exe shell parses
+# correctly.
+portal: cd portal/student && npm run dev -- --port 3000
 
 # FastAPI services (Python — via uvicorn module path)
 reporting-api: uvicorn agents.reporting.api:app --host 0.0.0.0 --port 8000
