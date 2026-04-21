@@ -98,6 +98,7 @@ Shared helpers: `scripts/smoke/_common.py` (`ok`/`fail`/`skip`/`build_parser`).
 |---|---|---|
 | `CLAUDE.md` (repo root) | Project rules — Azure OpenAI default, LLM tier map, DB protection | 1 (llm-provider.mdc rule added pre-refactor) |
 | `docs/ops/credential-rotation.md` | 13-credential rotation runbook + 1Password store decision | 4 |
+| `docs/ops/local-dev-startup.md` | Local-dev from fresh clone — honcho + port conflicts + LaborPulse walk-through + troubleshooting | post-phase-5 |
 | `docs/white-label-config.md` | Onboarding a new tenant + BrandConfig schema + role ladder | 5 |
 | `docs/laborpulse.md` | LaborPulse architecture + mock mode + role model + qa_feedback schema | LaborPulse |
 | `docs/laborpulse-backend-handoff.md` | JIE backend-team contract (short-term) + chat-widget evolution + entitlement/billing layer (long-term) | LaborPulse |
