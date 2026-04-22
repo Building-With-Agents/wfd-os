@@ -131,3 +131,20 @@ class QbClient:
         return self.query(
             f"SELECT * FROM JournalEntry WHERE TxnDate >= '{since_iso_date}' MAXRESULTS 1000"
         ).get("QueryResponse", {}).get("JournalEntry", [])
+
+    def list_attachables(self) -> list[dict]:
+        """Pull all Attachable entities (linked files: invoice PDFs, receipts, etc.).
+
+        Each Attachable has an AttachableRef[] pointing at the transactions or
+        other entities it's attached to. Used by sync_attachables to populate
+        Transaction.attachment_count.
+
+        Single-page fetch (MAXRESULTS 1000) consistent with the other list_*
+        methods above. If a tenant exceeds this, a paginated variant will be
+        needed — track as a follow-up when the first tenant crosses 1000.
+        """
+        return (
+            self.query("SELECT * FROM Attachable MAXRESULTS 1000")
+            .get("QueryResponse", {})
+            .get("Attachable", [])
+        )

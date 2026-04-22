@@ -36,7 +36,12 @@ from grant_compliance.db.models import QbAccount, QbClass, QbOAuthToken, Transac
 from grant_compliance.db.session import get_db
 from grant_compliance.quickbooks.client import QbClient
 from grant_compliance.quickbooks.oauth import build_authorize_url, exchange_code
-from grant_compliance.quickbooks.sync import sync_accounts, sync_classes, sync_transactions
+from grant_compliance.quickbooks.sync import (
+    sync_accounts,
+    sync_attachables,
+    sync_classes,
+    sync_transactions,
+)
 
 router = APIRouter(prefix="/qb", tags=["quickbooks"])
 
@@ -225,6 +230,7 @@ class SyncResponse(BaseModel):
     accounts_added: int
     classes_added: int
     transactions_added: int
+    attachables_processed: int
     since: str
 
 
@@ -294,6 +300,8 @@ def qb_sync(
     classes_added = sync_classes(db, client)
     db.flush()  # so QbClass rows exist before transactions reference them
     transactions_added = sync_transactions(db, client, since_date)
+    db.flush()  # so new transactions are visible to the attachable sync
+    attachables_processed = sync_attachables(db, client)
     db.commit()
 
     return SyncResponse(
@@ -301,5 +309,6 @@ def qb_sync(
         accounts_added=accounts_added,
         classes_added=classes_added,
         transactions_added=transactions_added,
+        attachables_processed=attachables_processed,
         since=since,
     )

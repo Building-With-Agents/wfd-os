@@ -219,6 +219,13 @@ class Transaction(Base):
     qb_class_id: Mapped[Optional[str]] = mapped_column(ForeignKey("qb_classes.id"))
     qb_account_id: Mapped[Optional[str]] = mapped_column(ForeignKey("qb_accounts.id"))
     raw: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Count of QB Attachable entities (invoice PDFs, receipts, etc.) that
+    # reference this transaction. Populated by quickbooks.sync.sync_attachables.
+    # Zero means no linked documentation. Powers the Audit Readiness tab's
+    # Documentation Gap stat via queries.transactions_without_documentation.
+    attachment_count: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )
 
     allocations: Mapped[list["Allocation"]] = relationship(back_populates="transaction")
     flags: Mapped[list["ComplianceFlag"]] = relationship(back_populates="transaction")

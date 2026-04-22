@@ -103,6 +103,69 @@ def sync_transactions(db: Session, client: QbClient, since: date) -> int:
     return new
 
 
+# QB transaction types we mirror in the Transaction table. Attachables
+# referencing other entity types (Customer, Vendor, Invoice, etc.) are
+# ignored for the purposes of documentation linkage since those aren't
+# transactions in our domain sense.
+_MIRRORED_QB_TYPES: frozenset[str] = frozenset({"Bill", "Purchase", "JournalEntry"})
+
+
+def sync_attachables(db: Session, client: QbClient) -> int:
+    """Pull all QB Attachables and set Transaction.attachment_count from them.
+
+    Each Attachable is a file uploaded to QB (invoice PDF, receipt scan, etc.)
+    with an AttachableRef[] pointing at the entities it's attached to. We
+    count references per transaction qb_id and update attachment_count.
+
+    Idempotency: every run resets attachment_count to 0 for the whole
+    transactions mirror before applying the freshly-counted values. This
+    means (a) running the sync twice produces the same result, and (b) an
+    attachment deleted in QB correctly decrements the count in our mirror
+    on the next sync.
+
+    Read-only: only issues a QB SELECT query. No writes to QB.
+
+    Returns the number of Attachable entities processed (not the number of
+    transactions updated, since one attachable can reference zero or many).
+    """
+    attachables = client.list_attachables()
+
+    counts: dict[str, int] = {}
+    for att in attachables:
+        for ref in att.get("AttachableRef") or []:
+            entity = ref.get("EntityRef") or {}
+            etype = entity.get("type")
+            evalue = entity.get("value")
+            if not etype or not evalue:
+                continue
+            if etype not in _MIRRORED_QB_TYPES:
+                continue
+            qb_id = f"{etype}:{evalue}"
+            counts[qb_id] = counts.get(qb_id, 0) + 1
+
+    # Reset all mirrored transactions to 0, then apply fresh counts. The
+    # reset is what makes a deletion in QB observable in our mirror.
+    db.query(Transaction).update(
+        {Transaction.attachment_count: 0}, synchronize_session=False
+    )
+    for qb_id, count in counts.items():
+        db.query(Transaction).filter(Transaction.qb_id == qb_id).update(
+            {Transaction.attachment_count: count}, synchronize_session=False
+        )
+
+    write_entry(
+        db,
+        actor="qb_sync",
+        actor_kind="agent",
+        action="qb.sync.attachables",
+        outputs={
+            "attachables_processed": len(attachables),
+            "transactions_with_attachments": len(counts),
+        },
+    )
+    return len(attachables)
+
+
 def _upsert_transaction(db: Session, qb_type: str, raw: dict[str, Any]) -> int:
     qb_id = f"{qb_type}:{raw['Id']}"
     existing = db.query(Transaction).filter(Transaction.qb_id == qb_id).first()
