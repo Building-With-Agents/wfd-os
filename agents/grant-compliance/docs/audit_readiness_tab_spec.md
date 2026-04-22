@@ -64,7 +64,7 @@ New behavior: computes values from real sources.
 
 **Stat 1 — Overall Readiness (`stats.overall`).** Weighted average of the six dimension readiness percentages. Weights to be defined; a defensible default is equal weighting. Whatever the formula is, it must be documented and stable. Never a literal.
 
-**Stat 2 — Documentation Gap (`stats.doc_gap`).** Count of transactions above the de minimis threshold (e.g., $2,500) that lack linked invoice documentation. Source: cockpit backend's transaction table filtered against whatever documentation-linkage signal exists. If no linkage field exists yet, that's a data-model addition required before this stat can go live.
+**Stat 2 — Documentation Gap (`stats.doc_gap`).** Count of transactions above the de minimis threshold ($2,500) that lack linked invoice documentation. Source: compliance engine's `transactions_without_documentation(threshold_cents=250_000)` method (added in step 1.5). Populated by the QB `Attachable` sync pathway. Per the diagnostic at `scripts/transaction_documentation_linkage.md`, no linkage field exists on the current `Transaction` model; step 1.5 adds it.
 
 **Stat 3 — T&E Certifications (`stats.te_certs`).** Ratio of completed quarterly certifications to expected certifications since grant start. Source: compliance engine's `/time-effort/certifications` endpoint. Expected count is (quarters since K8341 started) × (count of federally-funded staff).
 
@@ -187,6 +187,8 @@ Also explicitly out of scope for v1.2:
 
 1. **Dimension-to-regulation mapping.** Encode the table above as structured data in the compliance engine. Use the same pattern as `unallowable_costs.py`. This becomes the foundation for drill panel citations.
 
+1.5. **Add documentation linkage to Transaction model.** Add an `attachment_count: int` column (default 0) to the compliance engine's `Transaction` table. Add a `sync_attachables(db, client)` step to the QB sync pathway that queries QB's `Attachable` entity and updates `attachment_count` for each transaction. Add an Alembic migration for the new column. Add a method `transactions_without_documentation(threshold_cents: int) -> int` to the data access layer. This step unblocks the Documentation Gap stat in step 3.
+
 2. **Single canonical dimension definition.** Before touching `_tab_audit` or `build_drills()`, create the canonical source for the six dimensions' static metadata (id, title, owner, regulatory basis, auditor-perspective copy). Both functions will read from this in subsequent steps.
 
 3. **Compute Overall Readiness and dimension percentages.** Replace the six hardcoded dimension values in `_tab_audit` with computations based on real compliance engine + cockpit backend data. Document the computation for each dimension inline as comments referencing the dimension-to-regulation mapping.
@@ -230,3 +232,4 @@ For v1.2 to be considered implemented:
 - **v1 — 2026-04-23 — Initial spec (speculative).** Drafted before existing implementation was inspected. Proposed 4 cards + 7 sub-tabs. Replaced by v1.2 after reconciliation diagnostic revealed existing Audit Readiness tab is more built than v1 assumed.
 - **v1.1 — 2026-04-23 — Path A committed.** Two-service architecture confirmed. Superseded by v1.2.
 - **v1.2 — 2026-04-23 — Reconciled with existing implementation.** Preserves the existing UI (verdict + 3 stat cards + 6-dimension table + drillable rows). Work is backend-only: replace hardcoded values with computed values, replace placeholder "Open gaps" with real gap lists, replace hardcoded activity feed with fetched events. Drops v1's speculative sub-tab structure. Incorporates duplication-elimination requirement (Change 4) and orphaned-fixture cleanup (Change 5) based on the drill panel inventory diagnostic.
+- **v1.2.2 — 2026-04-23 — Documentation linkage path resolved.** Diagnostic confirmed no field exists on `Transaction` model and QB sync does not capture attachment data. Step 1.5 added to implementation order: add `attachment_count` column, `sync_attachables` step, Alembic migration. Documentation Gap computation specified.
