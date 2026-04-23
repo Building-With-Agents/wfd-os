@@ -72,14 +72,16 @@ New behavior: computes values from real sources.
 
 **Dimensions.** Each dimension's readiness % computed per dimension-specific rules:
 
-| Dimension | Computation |
-|---|---|
-| Allowable costs | % of scanned transactions with no unresolved flags from the compliance engine's Subpart E rules |
-| Transaction documentation | % of transactions above threshold with linked invoice/receipt |
-| Time & effort certifications | % of expected certifications completed for current and prior closed periods |
-| Procurement & competition | % of contracts over procurement threshold with documented competitive process or sole-source justification |
-| Subrecipient monitoring | % of active/former subrecipients with current risk assessment and monitoring record |
-| Performance reporting accuracy | % of reported placements reconcilable to WSAC source data |
+| Dimension | Computation | Status in v1.2 |
+|---|---|---|
+| Allowable costs | 100 × (1 − unresolved_subpart_e_flags / scanned_transactions). Requires `Transaction.last_scanned_at` for honest denominator. | Computed |
+| Transaction documentation | 100 × (1 − transactions_without_documentation / transactions_above_threshold). | Computed |
+| Time & effort certifications | 100 × (completed_certifications / expected_certifications). Requires Employee↔Grant assignment data not present in current model. | Placeholder (None) |
+| Procurement & competition | Requires procurement records data model not present in current engine. | Placeholder (None) |
+| Subrecipient monitoring | Requires subrecipient risk assessment data model not present in current engine. | Placeholder (None) |
+| Performance reporting accuracy | Requires WSAC reconciliation data model not present in current engine. | Placeholder (None) |
+
+Four of six dimensions return `None` (placeholder) in v1.2 because the underlying data models do not exist in the compliance engine. This is intentional — showing hardcoded percentages for dimensions where we have no data is dishonest. The placeholder dimensions become future work (v1.3+) as the data models are added.
 
 Owner assignments stay as currently hardcoded (Krista, Ritu, Bethany · Gage, etc.) until a real ownership-assignment mechanism is added.
 
@@ -155,11 +157,8 @@ This mapping should be encoded as structured data in the compliance engine (simi
 ```
 
 For the Audit Readiness tab:
-- Cockpit backend's `_tab_audit` is the orchestrator. It queries both its own data (transactions, documentation linkage) and the compliance engine (flags, rules, certifications) to compute the tab payload.
-- Drill panels assembled the same way.
-- LLM call for the verdict happens on the cockpit backend side, with a cached result.
 
-Alternative topology: the cockpit could call both services from Next.js directly (`/api/finance/*` for cockpit, `/api/grant-compliance/*` for compliance engine) and assemble on the client. Not recommended — keeps orchestration server-side, which is simpler to reason about and test.
+The compliance engine computes its own dimension readiness percentages and exposes them via `GET /compliance/dimensions`. The cockpit backend orchestrates by calling this endpoint, combining with its own data sources (firms, future PBC items), and assembling the tab payload for the UI.
 
 ---
 
@@ -189,7 +188,7 @@ Also explicitly out of scope for v1.2:
 
 1.5. **Add documentation linkage to Transaction model.** Add an `attachment_count: int` column (default 0) to the compliance engine's `Transaction` table. Add a `sync_attachables(db, client)` step to the QB sync pathway that queries QB's `Attachable` entity and updates `attachment_count` for each transaction. Add an Alembic migration for the new column. Add a method `transactions_without_documentation(threshold_cents: int) -> int` to the data access layer. This step unblocks the Documentation Gap stat in step 3.
 
-2. **Single canonical dimension definition.** Before touching `_tab_audit` or `build_drills()`, create the canonical source for the six dimensions' static metadata (id, title, owner, regulatory basis, auditor-perspective copy). Both functions will read from this in subsequent steps.
+2. **Compute dimension percentages on the engine, expose via endpoint.** On `feature/compliance-engine-extract`: add `Transaction.last_scanned_at` column + migration + sync hook. Add `transactions_above_threshold_total` helper. Add computation functions for `allowable_costs` and `transaction_documentation`. Add `GET /compliance/dimensions` endpoint returning all six dimensions with computed percentages where computable, `None` where placeholder. Two-commit sequence: engine-side here, cockpit-side wiring on `feature/finance-cockpit` as a follow-up.
 
 3. **Compute Overall Readiness and dimension percentages.** Replace the six hardcoded dimension values in `_tab_audit` with computations based on real compliance engine + cockpit backend data. Document the computation for each dimension inline as comments referencing the dimension-to-regulation mapping.
 
@@ -233,3 +232,4 @@ For v1.2 to be considered implemented:
 - **v1.1 — 2026-04-23 — Path A committed.** Two-service architecture confirmed. Superseded by v1.2.
 - **v1.2 — 2026-04-23 — Reconciled with existing implementation.** Preserves the existing UI (verdict + 3 stat cards + 6-dimension table + drillable rows). Work is backend-only: replace hardcoded values with computed values, replace placeholder "Open gaps" with real gap lists, replace hardcoded activity feed with fetched events. Drops v1's speculative sub-tab structure. Incorporates duplication-elimination requirement (Change 4) and orphaned-fixture cleanup (Change 5) based on the drill panel inventory diagnostic.
 - **v1.2.2 — 2026-04-23 — Documentation linkage path resolved.** Diagnostic confirmed no field exists on `Transaction` model and QB sync does not capture attachment data. Step 1.5 added to implementation order: add `attachment_count` column, `sync_attachables` step, Alembic migration. Documentation Gap computation specified.
+- **v1.2.3 — 2026-04-23 — Step 2 scope decisions.** Diagnostic on data-model gaps determined that four of six dimensions (time_effort, procurement, subrecipient_monitoring, performance_reporting) require data models not present in the engine and are deferred to v1.3+. Two dimensions (allowable_costs, transaction_documentation) are computed in v1.2 — allowable_costs requires adding Transaction.last_scanned_at for an honest denominator. Computation location decided: engine computes, cockpit orchestrates (B1). Branch split decided: engine-side commit first on feature/compliance-engine-extract, cockpit-side wiring as follow-up commit on feature/finance-cockpit.
