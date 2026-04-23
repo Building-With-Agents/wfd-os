@@ -58,6 +58,7 @@ except ImportError:  # pragma: no cover — dotenv is a dev-only convenience
 
 from agents.finance.audit_dimension_display import display_name_for_role  # noqa: E402
 from agents.finance.data_source import DataSource, default_source  # noqa: E402
+from agents.finance.verdict_generator import generate_verdict  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -485,25 +486,23 @@ def _tab_audit(data: dict) -> dict:
     # React component; Python just passes the raw values.
     stats = engine_response.get("stats") or {}
 
-    # Verdict — static fallback when the engine is unreachable.
-    if engine_status == "unreachable":
-        verdict = {
-            "tone": "neutral",
-            "headline": "Audit readiness data is currently unavailable.",
-            "body": "Verify the compliance engine is running.",
-        }
-    else:
-        # TODO(step 5): replace hardcoded verdict with LLM-generated cached text.
-        verdict = {
-            "tone": "watch",
-            "headline": "73% audit-ready. Biggest gap is time & effort certifications.",
-            "body": (
-                "Single Audit covering K8341 spend will be due roughly September 2027. "
-                "ESD monitoring visits can happen anytime with 2-4 weeks notice. Worth "
-                "closing the documentation gaps now while institutional memory is fresh, "
-                "not in a year when staff may have turned over."
-            ),
-        }
+    # Verdict — LLM-generated on the happy path, static fallback when
+    # the engine is unreachable. Cached for 5 min by input hash.
+    # See verdict_generator.generate_verdict for the three-layer fallback
+    # and agents/grant-compliance/docs/audit_readiness_tab_spec.md §v1.2.8.
+    # TODO(v1.2 cockpit-side step 5 follow-up): add pytest on this branch
+    # and cover the cache key, LLM happy path, and static fallback branches.
+    verdict_result = generate_verdict(
+        engine_status=engine_status,
+        stats=stats,
+        dimensions=ui_dimensions,
+    )
+    verdict = {
+        "tone": verdict_result["tone"],
+        "headline": verdict_result["headline"],
+        "body": verdict_result["body"],
+        "source": verdict_result.get("source"),
+    }
 
     return {
         "tab": "audit",
