@@ -56,6 +56,7 @@ try:
 except ImportError:  # pragma: no cover — dotenv is a dev-only convenience
     pass
 
+from agents.finance.audit_activity_labels import render_entries as render_activity_entries  # noqa: E402
 from agents.finance.audit_dimension_display import display_name_for_role  # noqa: E402
 from agents.finance.data_source import DataSource, default_source  # noqa: E402
 from agents.finance.verdict_generator import generate_verdict  # noqa: E402
@@ -267,6 +268,28 @@ def decisions():
             "created_at": created_at,
         })
     return {"items": items, "sorted_by": "priority", "total": len(items)}
+
+
+@app.get("/cockpit/activity")
+def cockpit_activity():
+    """Rendered Recent Compliance Activity feed.
+
+    Reads from data["audit_activity_from_engine"] (populated by
+    extract_all's fetch of /compliance/activity on :8000), applies
+    label translation via agents/finance/audit_activity_labels.py,
+    and returns {entries, engine_status}.
+
+    engine_status is "ok" when the last engine fetch succeeded and
+    "unreachable" otherwise — drives the cockpit's degraded-state
+    rendering per spec §v1.2.9.
+    """
+    data = _data()
+    engine_response = data.get("audit_activity_from_engine") or {}
+    engine_ok = engine_response.get("engine_ok", False)
+    return {
+        "entries": render_activity_entries(engine_response),
+        "engine_status": "ok" if engine_ok else "unreachable",
+    }
 
 
 # ---- Tab content ----------------------------------------------------------

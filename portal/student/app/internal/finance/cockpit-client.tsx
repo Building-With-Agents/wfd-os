@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type {
+  ActivityPayload,
   CockpitStatusPayload,
   HeroPayload,
   DecisionsPayload,
@@ -23,6 +24,7 @@ interface InitialState {
   status: CockpitStatusPayload
   hero: HeroPayload
   decisions: DecisionsPayload
+  activity: ActivityPayload
 }
 
 export function CockpitClient({ initial }: { initial: InitialState }) {
@@ -128,7 +130,7 @@ export function CockpitClient({ initial }: { initial: InitialState }) {
             ) : (
               <TabLoading tabId={activeTab} />
             )}
-            <ActivityFeed />
+            <ActivityFeed activity={initial.activity} />
           </>
         }
         chat={<ChatPanel activeTab={activeTabLabel} />}

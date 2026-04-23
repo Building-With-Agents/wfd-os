@@ -1,25 +1,73 @@
-// Static placeholder for Phase 2A. The real feed will read from an
-// activity log endpoint in Phase 2B. Content mirrors the HTML
-// cockpit's feed section so the visual treatment can be eyeballed.
+// Recent Compliance Activity feed — renders pre-translated audit-log
+// entries from the compliance engine via /cockpit/activity. Label
+// construction (timestamp formatting, actor display names, per-action
+// templates, classifier-action silencing) happens Python-side in
+// agents/finance/audit_activity_labels.py so the component stays a
+// pure renderer. See spec §v1.2.9.
+//
+// Three rendering states:
+//   - unreachable: engine couldn't be reached; clear operational message.
+//   - empty:       no compliance activity in the last 7 days.
+//   - populated:   entries rendered newest first.
+//
+// TODO(v1.2 cockpit-side step 6 follow-up): the React component has
+// no test infrastructure on this branch. The Python label module's
+// logic is where tests would be most valuable; both deferred per
+// scope. See integration_notes.md on feature/compliance-engine-extract.
 
-const FEED = [
-  { time: "10:42 AM", who: "Bethany", body: "2 placements verified via LinkedIn · count now 745" },
-  { time: "9:42 AM", who: "QB sync", body: "4 new transactions mirrored · 1 anomaly flagged (vendor field empty on $1,243 charge)" },
-  { time: "Yesterday", who: "Bethany", body: "Updated WJI TWC tracking · 3 new placements verified via LinkedIn" },
-  { time: "Yesterday", who: "Krista", body: "Approved Pete & Kelly March invoice · $18,500 paid" },
-  { time: "Apr 15", who: "Agent", body: "Generated April monthly placement dashboard for Andrew & Jenny" },
-  { time: "Apr 12", who: "Ritu", body: "Updated CLAUDE.md with monthly advance cycle context" },
-]
+import type { ActivityPayload } from "../../lib/types"
 
-export function ActivityFeed() {
+export function ActivityFeed({ activity }: { activity: ActivityPayload }) {
+  if (activity.engine_status === "unreachable") {
+    return (
+      <div className="cockpit-feed">
+        <h4>Recent Compliance Activity</h4>
+        <div
+          className="cockpit-feed-item"
+          style={{ color: "var(--cockpit-text-3)" }}
+        >
+          Compliance engine unavailable — recent activity not available.
+        </div>
+      </div>
+    )
+  }
+
+  if (activity.entries.length === 0) {
+    return (
+      <div className="cockpit-feed">
+        <h4>Recent Compliance Activity</h4>
+        <div
+          className="cockpit-feed-item"
+          style={{ color: "var(--cockpit-text-3)" }}
+        >
+          No recent compliance activity in the last 7 days.
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="cockpit-feed">
-      <h4>Recent activity</h4>
-      {FEED.map((row, i) => (
-        <div key={i} className="cockpit-feed-item">
-          <div className="cockpit-feed-time cockpit-num">{row.time}</div>
+      <h4>Recent Compliance Activity</h4>
+      {activity.entries.map((entry, i) => (
+        <div key={`${entry.occurred_at}-${i}`} className="cockpit-feed-item">
+          <div className="cockpit-feed-time cockpit-num">
+            {entry.timestamp_label}
+          </div>
           <div>
-            <span className="cockpit-feed-who">{row.who}</span> · {row.body}
+            <span className="cockpit-feed-who">{entry.actor_label}</span> ·{" "}
+            {entry.action_text}
+            {entry.metadata_text && (
+              <div
+                style={{
+                  fontSize: "var(--cockpit-fs-meta)",
+                  color: "var(--cockpit-text-3)",
+                  marginTop: 2,
+                }}
+              >
+                {entry.metadata_text}
+              </div>
+            )}
           </div>
         </div>
       ))}

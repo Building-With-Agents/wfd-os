@@ -11,17 +11,18 @@
 
 import { AgentShell } from "../_shared/agent-shell"
 import { CockpitClient } from "./cockpit-client"
-import { fetchStatus, fetchHero, fetchDecisions } from "./lib/api"
+import { fetchStatus, fetchHero, fetchDecisions, fetchActivity } from "./lib/api"
 
 export const dynamic = "force-dynamic"
 
 async function loadInitialState() {
-  const [status, hero, decisions] = await Promise.all([
+  const [status, hero, decisions, activity] = await Promise.all([
     fetchStatus(),
     fetchHero(),
     fetchDecisions(),
+    fetchActivity(),
   ])
-  return { status, hero, decisions }
+  return { status, hero, decisions, activity }
 }
 
 export default async function FinanceCockpitPage() {

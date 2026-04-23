@@ -22,6 +22,13 @@ from agents.finance.audit_dimension_display import display_name_for_role
 # (`/api/grant-compliance/*`) is for browser calls only.
 _COMPLIANCE_DIMENSIONS_URL = "http://127.0.0.1:8000/compliance/dimensions"
 
+# Compliance audit activity feed. Fetched once per extract_all()
+# cycle; the cockpit's /cockpit/activity endpoint applies label
+# translation (agents/finance/audit_activity_labels.py) before
+# serving to the UI. See spec §v1.2.9 for the "Recent Compliance
+# Activity" panel contract.
+_COMPLIANCE_ACTIVITY_URL = "http://127.0.0.1:8000/compliance/activity"
+
 # Per-dimension gap list. Fetched once per extract_all() cycle for
 # each of the six canonical dimensions — six sequential GETs. The
 # spec documented this endpoint as "lazy" (so it wouldn't bloat the
@@ -46,6 +53,52 @@ _FALLBACK_DIMENSION_TITLES: tuple[tuple[str, str], ...] = (
     ("subrecipient_monitoring", "Subrecipient monitoring"),
     ("performance_reporting", "Performance reporting accuracy"),
 )
+
+
+def fetch_audit_activity_from_engine(
+    days: int = 7, limit: int = 50, timeout_seconds: float = 5.0
+) -> dict:
+    """Fetch the last `days` of compliance audit log entries from the engine.
+
+    Returns a dict with:
+      - entries: list of raw entry dicts as returned by
+        GET /compliance/activity (see engine commit e87f3b7).
+      - engine_ok: True on success, False on any failure.
+      - error: None on success, str(exc) on failure.
+      - computed_at: engine's timestamp on success, None on failure.
+
+    Never raises. When engine_ok is False, the cockpit's
+    /cockpit/activity endpoint surfaces engine_status="unreachable"
+    and the UI shows "Compliance engine unavailable — recent activity
+    not available" per spec §v1.2.9.
+
+    TODO(v1.2 cockpit-side step 6 follow-up): add pytest on this
+    branch and cover success / timeout / error / empty-entries paths.
+    Tests deferred per scope; see integration_notes.md on
+    feature/compliance-engine-extract.
+    """
+    try:
+        response = httpx.get(
+            _COMPLIANCE_ACTIVITY_URL,
+            params={"days": days, "limit": limit},
+            timeout=timeout_seconds,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        return {
+            "entries": payload.get("entries", []),
+            "engine_ok": True,
+            "error": None,
+            "computed_at": payload.get("computed_at"),
+        }
+    except Exception as exc:  # noqa: BLE001 — intentional catch-all
+        print(f"[cockpit] audit activity fetch failed: {exc}")
+        return {
+            "entries": [],
+            "engine_ok": False,
+            "error": str(exc),
+            "computed_at": None,
+        }
 
 
 def fetch_audit_gaps_from_engine(
@@ -1861,6 +1914,7 @@ def extract_all(project_dir=None) -> dict:
     # downstream consumers render dimension rows in a clearly
     # "unavailable" state rather than hiding the issue.
     result["audit_dimensions_from_engine"] = fetch_audit_dimensions_from_engine()
+    result["audit_activity_from_engine"] = fetch_audit_activity_from_engine()
     result["charts"] = build_chart_data(result)
     result["drills"] = build_drills(result)
     return result

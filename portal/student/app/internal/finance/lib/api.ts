@@ -8,6 +8,7 @@
 // next.config.mjs.
 
 import type {
+  ActivityPayload,
   CockpitStatusPayload,
   HeroPayload,
   DecisionsPayload,
@@ -44,6 +45,10 @@ export function fetchHero(): Promise<HeroPayload> {
 
 export function fetchDecisions(): Promise<DecisionsPayload> {
   return getJSON("/cockpit/decisions")
+}
+
+export function fetchActivity(): Promise<ActivityPayload> {
+  return getJSON("/cockpit/activity")
 }
 
 export function fetchTab(tabId: string): Promise<TabPayload> {

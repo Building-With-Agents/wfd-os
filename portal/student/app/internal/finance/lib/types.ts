@@ -161,6 +161,27 @@ export interface DecisionsPayload {
 }
 
 
+// ---------- Recent Compliance Activity feed ----------
+//
+// Served by GET /cockpit/activity. Label translation is Python-side
+// (agents/finance/audit_activity_labels.py) so the React component
+// just renders strings. See spec §v1.2.9 for the "Recent Compliance
+// Activity" panel contract.
+
+export interface ActivityEntry {
+  timestamp_label: string
+  actor_label: string
+  action_text: string
+  metadata_text: string | null
+  occurred_at: string
+}
+
+export interface ActivityPayload {
+  entries: ActivityEntry[]
+  engine_status: "ok" | "unreachable"
+}
+
+
 // ---------- Per-tab payloads ----------
 
 export interface BudgetTabPayload {
