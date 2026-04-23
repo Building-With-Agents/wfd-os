@@ -253,10 +253,33 @@ export interface AuditDimension {
   owner: string
 }
 
+// Shape mirrors the compliance engine's /compliance/dimensions `stats`
+// block (see agents/grant-compliance docs for v1.2.5). The cockpit
+// fetches this once per extract_all refresh; when the engine is
+// unreachable the cockpit synthesizes a fallback with null values
+// and te_certs_status="engine_unreachable" per spec §v1.2.6.
+export interface AuditStats {
+  overall_readiness_pct: number | null
+  overall_readiness_basis: {
+    computed_dimension_count: number
+    total_dimension_count: number
+  }
+  doc_gap_count: number | null
+  doc_gap_threshold_cents: number
+  te_certs_status: string
+}
+
+export type EngineStatus = "ok" | "unreachable"
+
 export interface AuditTabPayload {
   tab: "audit"
   verdict: VerdictPayload
-  stats: { overall: string; doc_gap: number; te_certs: string }
+  stats: AuditStats
+  // "ok" when the last compliance-engine fetch succeeded,
+  // "unreachable" when it failed. Drives visually distinct rendering
+  // for the degraded state (engine-offline variants in stat subcopy,
+  // static verdict message). See spec §v1.2.6.
+  engine_status: EngineStatus
   dimensions: AuditDimension[]
 }
 

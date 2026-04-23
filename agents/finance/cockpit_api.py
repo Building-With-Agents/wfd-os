@@ -441,26 +441,31 @@ def _tone_for_dimension(pct: Optional[int], status: str) -> str:
 def _tab_audit(data: dict) -> dict:
     """Assemble the Audit Readiness tab payload.
 
-    Dimension rows are sourced from the compliance engine via
-    extract_all's audit_dimensions_from_engine fetch (see
-    cockpit_data.fetch_audit_dimensions_from_engine). When the engine
-    is unreachable, the fetch produces degraded-state placeholder
-    rows with a generic "Engine unreachable" message — no local
-    fallback values for pct / tone / owner are fabricated here.
+    Both dimensions and stats come from the compliance engine via
+    extract_all's audit_dimensions_from_engine fetch. When the engine
+    is unreachable, the fetch already synthesizes fallback payloads for
+    both — this function just flows them through and sets
+    engine_status="unreachable" so the UI can render a visually
+    distinct degraded state (per spec §v1.2.6).
 
-    Verdict and the three stat cards (Overall readiness,
-    Documentation gap, T&E certs) are still hardcoded as of step 2
-    cockpit-side; step 3 replaces them with real computations.
+    Verdict: hardcoded "happy path" copy in v1.2 step 3 (LLM-generated
+    cached text comes in step 5). When engine_status=="unreachable",
+    the verdict is overridden with a static "data unavailable" message
+    per spec §v1.2.6.
 
-    TODO(v1.2 cockpit-side step 2 follow-up): add pytest on this
-    branch and cover the engine-response mapping, role translation,
-    tone computation, and degraded-state handling. Tests deferred
-    per scope decision in step 2 cockpit-side — see integration_notes.md
-    on feature/compliance-engine-extract for the deferral record.
+    TODO(v1.2 cockpit-side step 2/3 follow-up): add pytest on this
+    branch and cover the engine-response mapping, tone computation,
+    subcopy selection, and unreachable fallback. Tests deferred per
+    scope decision; see integration_notes.md on
+    feature/compliance-engine-extract.
     """
     engine_response = data.get("audit_dimensions_from_engine") or {}
-    engine_dimensions = engine_response.get("dimensions", [])
+    engine_ok = engine_response.get("engine_ok", False)
+    engine_status = "ok" if engine_ok else "unreachable"
 
+    # Dimensions — unchanged from step 2 cockpit-side. Degraded-state
+    # rendering is handled by the fetch helper's fallback payload.
+    engine_dimensions = engine_response.get("dimensions", [])
     ui_dimensions: list[dict] = []
     for d in engine_dimensions:
         pct = d.get("readiness_pct")
@@ -475,10 +480,21 @@ def _tab_audit(data: dict) -> dict:
             "owner": display_name_for_role(d.get("owner_role")),
         })
 
-    return {
-        "tab": "audit",
-        # TODO(step 3): replace hardcoded verdict with LLM-generated cached text.
-        "verdict": {
+    # Stats — flowed through as-is from the engine response (or its
+    # fallback when unreachable). Display formatting lives in the
+    # React component; Python just passes the raw values.
+    stats = engine_response.get("stats") or {}
+
+    # Verdict — static fallback when the engine is unreachable.
+    if engine_status == "unreachable":
+        verdict = {
+            "tone": "neutral",
+            "headline": "Audit readiness data is currently unavailable.",
+            "body": "Verify the compliance engine is running.",
+        }
+    else:
+        # TODO(step 5): replace hardcoded verdict with LLM-generated cached text.
+        verdict = {
             "tone": "watch",
             "headline": "73% audit-ready. Biggest gap is time & effort certifications.",
             "body": (
@@ -487,13 +503,13 @@ def _tab_audit(data: dict) -> dict:
                 "closing the documentation gaps now while institutional memory is fresh, "
                 "not in a year when staff may have turned over."
             ),
-        },
-        # TODO(step 3): compute these from the engine + db.queries.
-        "stats": {
-            "overall": "73%",
-            "doc_gap": 12,
-            "te_certs": "0 / 9",
-        },
+        }
+
+    return {
+        "tab": "audit",
+        "verdict": verdict,
+        "stats": stats,
+        "engine_status": engine_status,
         "dimensions": ui_dimensions,
     }
 

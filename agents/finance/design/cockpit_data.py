@@ -37,32 +37,64 @@ _FALLBACK_DIMENSION_TITLES: tuple[tuple[str, str], ...] = (
 )
 
 
+def _unreachable_stats_fallback() -> dict:
+    """Stats payload the cockpit renders when the compliance engine is
+    unreachable. Shape mirrors the engine's `stats` block. Per spec
+    §v1.2.6, `te_certs_status` is "engine_unreachable" (distinct from
+    the normal "placeholder_pending_employee_grant_data") so the UI
+    can distinguish "not measured yet" (roadmap) from "engine is down"
+    (operational)."""
+    return {
+        "overall_readiness_pct": None,
+        "overall_readiness_basis": {
+            "computed_dimension_count": 0,
+            "total_dimension_count": 6,
+        },
+        "doc_gap_count": None,
+        # 250_000 cents = $2,500 de minimis threshold. Documented
+        # default; mirrored here so the cockpit can still render the
+        # "Transactions over $2,500" label even when the engine is down.
+        "doc_gap_threshold_cents": 250_000,
+        "te_certs_status": "engine_unreachable",
+    }
+
+
 def fetch_audit_dimensions_from_engine(timeout_seconds: float = 5.0) -> dict:
-    """Fetch the six audit dimensions from the compliance engine.
+    """Fetch the six audit dimensions and stat-card values from the engine.
 
     Returns a dict with:
-      - dimensions: list of dimension dicts from the engine (same shape
-        as the engine's /compliance/dimensions response), or a minimal
-        id+title fallback list when the engine is unreachable.
+      - dimensions: list of dimension dicts (engine shape), or the
+        minimal id+title fallback list when the engine is unreachable.
+      - stats: dict matching the engine's stats block shape. When the
+        engine is unreachable or its response omits the field, returns
+        the _unreachable_stats_fallback() payload with
+        te_certs_status="engine_unreachable". See spec §v1.2.6.
       - engine_ok: True on success, False on any failure.
       - error: None on success, str(exc) on failure.
       - computed_at: engine's timestamp on success, None on failure.
 
     Never raises — all exceptions are caught and surfaced via
-    engine_ok=False. Callers (build_drills, _tab_audit) render a
-    clearly-degraded state when engine_ok is False rather than
-    pretending everything is fine.
+    engine_ok=False. Callers render a clearly-degraded state rather
+    than pretending everything is fine.
 
-    TODO(v1.2 cockpit-side step 2 follow-up): add pytest on this branch
-    and cover the success / timeout / error paths. Tests deferred per
-    integration_notes.md on feature/compliance-engine-extract.
+    TODO(v1.2 cockpit-side step 2/3 follow-up): add pytest on this
+    branch and cover the success / timeout / error / missing-stats
+    paths. Tests deferred per integration_notes.md on
+    feature/compliance-engine-extract.
     """
     try:
         response = httpx.get(_COMPLIANCE_DIMENSIONS_URL, timeout=timeout_seconds)
         response.raise_for_status()
         payload = response.json()
+        # Engine responded; trust its stats block when present. If the
+        # engine is an older version without stats, fall back to the
+        # same unreachable-shaped payload — not perfectly accurate
+        # (engine IS technically reachable) but a tolerable edge case
+        # given the current engine always emits stats (see commit 643d9d8).
+        stats = payload.get("stats") or _unreachable_stats_fallback()
         return {
             "dimensions": payload.get("dimensions", []),
+            "stats": stats,
             "engine_ok": True,
             "error": None,
             "computed_at": payload.get("computed_at"),
@@ -86,6 +118,7 @@ def fetch_audit_dimensions_from_engine(timeout_seconds: float = 5.0) -> dict:
         print(f"[cockpit] audit dimensions fetch failed: {exc}")
         return {
             "dimensions": fallback,
+            "stats": _unreachable_stats_fallback(),
             "engine_ok": False,
             "error": str(exc),
             "computed_at": None,

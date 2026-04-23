@@ -15,6 +15,7 @@ import type {
   TransactionsTabPayload,
   ReportingTabPayload,
   AuditTabPayload,
+  Tone,
 } from "../../lib/types"
 import { fmtUSD, fmtPct, fmtNum } from "../../lib/format"
 import { VerdictBox } from "../../../_shared/verdict-box"
@@ -404,15 +405,85 @@ function ReportingTab({ payload }: { payload: ReportingTabPayload }) {
   )
 }
 
+// TODO(v1.2 cockpit-side step 3 follow-up): add pytest on this branch
+// and cover the stat-card rendering branches (computed value,
+// computed-null, placeholder, engine-unreachable). Tests deferred per
+// scope; see integration_notes.md on feature/compliance-engine-extract.
+function toneForOverallReadiness(
+  pct: number | null,
+  unreachable: boolean,
+): Tone {
+  // Mirror _tone_for_dimension in cockpit_api.py — null / unreachable
+  // → neutral; otherwise band on the pct value.
+  if (unreachable || pct === null) return "neutral"
+  if (pct >= 90) return "good"
+  if (pct >= 70) return "watch"
+  return "critical"
+}
+
+const MUTED_COLOR = "var(--cockpit-text-3)"
+
 function AuditTab({ payload, onOpen }: { payload: AuditTabPayload; onOpen: (k: string) => void }) {
-  const { stats, dimensions, verdict } = payload
+  const { stats, dimensions, verdict, engine_status } = payload
+  const unreachable = engine_status === "unreachable"
+
+  // --- Overall Readiness card ---
+  const overallPct = stats.overall_readiness_pct
+  const overallValue = overallPct !== null ? `${overallPct}%` : "—"
+  const overallTone = toneForOverallReadiness(overallPct, unreachable)
+  const overallValueColor =
+    overallTone === "neutral" ? MUTED_COLOR : `var(--cockpit-${overallTone})`
+  const overallSub = unreachable
+    ? "Engine unreachable"
+    : stats.overall_readiness_basis.computed_dimension_count === 0
+      ? "No dimensions measured yet"
+      : `Across ${stats.overall_readiness_basis.computed_dimension_count} of ${stats.overall_readiness_basis.total_dimension_count} audit dimensions`
+
+  // --- Documentation Gap card ---
+  const docGapCount = stats.doc_gap_count
+  const docGapValue: React.ReactNode = docGapCount !== null ? docGapCount : "—"
+  const docGapValueColor = docGapCount === null ? MUTED_COLOR : undefined
+  // Format threshold from cents → "$X,XXX" via fmtUSD; the engine
+  // owns the threshold value so the cockpit doesn't duplicate it.
+  const docGapThresholdDollars = fmtUSD(stats.doc_gap_threshold_cents / 100)
+  const docGapSub = unreachable
+    ? "Engine unreachable"
+    : docGapCount !== null
+      ? `Transactions over ${docGapThresholdDollars} missing invoices`
+      : "Documentation gap not measurable"
+
+  // --- T&E Certifications card ---
+  // v1.2: always a placeholder value. Subcopy distinguishes
+  // "not yet tracked" (roadmap) from "engine unreachable" (operational)
+  // via the te_certs_status string per spec §v1.2.6.
+  const teCertsValue = "—"
+  const teCertsSub =
+    unreachable || stats.te_certs_status === "engine_unreachable"
+      ? "Engine unreachable"
+      : "Not yet tracked — pending Employee↔Grant data"
+
   return (
     <div className="cockpit-tab-pane">
       <VerdictBox tone={verdict.tone} headline={verdict.headline} body={verdict.body} />
       <div className="cockpit-three-col">
-        <StatCard label="Overall readiness" value={stats.overall} sub="Across 6 audit dimensions" valueColor="var(--cockpit-watch)" />
-        <StatCard label="Documentation gap" value={stats.doc_gap} sub="Transactions over $2,500 missing invoices" />
-        <StatCard label="T&E certifications" value={stats.te_certs} sub="Quarterly certs since grant start" valueColor="var(--cockpit-critical)" />
+        <StatCard
+          label="Overall readiness"
+          value={overallValue}
+          sub={overallSub}
+          valueColor={overallValueColor}
+        />
+        <StatCard
+          label="Documentation gap"
+          value={docGapValue}
+          sub={docGapSub}
+          valueColor={docGapValueColor}
+        />
+        <StatCard
+          label="T&E certifications"
+          value={teCertsValue}
+          sub={teCertsSub}
+          valueColor={MUTED_COLOR}
+        />
       </div>
       <div className="cockpit-panel">
         <div className="cockpit-panel-head">
