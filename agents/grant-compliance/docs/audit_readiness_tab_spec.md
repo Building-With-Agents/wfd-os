@@ -74,7 +74,7 @@ New behavior: computes values from real sources.
 
 | Dimension | Computation | Status in v1.2 |
 |---|---|---|
-| Allowable costs | 100 × (1 − unresolved_subpart_e_flags / scanned_transactions). Requires `Transaction.last_scanned_at` for honest denominator. | Computed |
+| Allowable costs | 100 × (1 − distinct transactions with unresolved Subpart E flags / scanned-recently transactions). Numerator counts distinct transactions, not raw flag count, so a transaction with multiple flags counts once. Ensures percentage stays in [0, 100]. "Scanned-recently" means `last_scanned_at >= now() - scan_freshness_days` (default 7 days). | Computed |
 | Transaction documentation | 100 × (1 − transactions_without_documentation / transactions_above_threshold). | Computed |
 | Time & effort certifications | 100 × (completed_certifications / expected_certifications). Requires Employee↔Grant assignment data not present in current model. | Placeholder (None) |
 | Procurement & competition | Requires procurement records data model not present in current engine. | Placeholder (None) |
@@ -84,6 +84,20 @@ New behavior: computes values from real sources.
 Four of six dimensions return `None` (placeholder) in v1.2 because the underlying data models do not exist in the compliance engine. This is intentional — showing hardcoded percentages for dimensions where we have no data is dishonest. The placeholder dimensions become future work (v1.3+) as the data models are added.
 
 Owner assignments stay as currently hardcoded (Krista, Ritu, Bethany · Gage, etc.) until a real ownership-assignment mechanism is added.
+
+### Three-state dimension status
+
+The `GET /compliance/dimensions` endpoint distinguishes three states per dimension via two fields:
+
+- `status: "computed"` + `readiness_pct: <integer>` — formula exists and produced a value. Display the percentage.
+- `status: "computed"` + `readiness_pct: null` — formula exists but no data yet (e.g., scanner hasn't run, no transactions above threshold). Display "Awaiting first scan" or equivalent.
+- `status: "placeholder"` + `readiness_pct: null` — no formula exists in v1.2 (deferred to v1.3+ pending data model additions). Display "Readiness measurement not yet available for this dimension."
+
+The cockpit must distinguish all three states. Treating "computed but null" the same as "placeholder" loses the useful "you need to run a scan" signal.
+
+### Defensive percentage clamping
+
+All computed percentages are clamped to [0, 100] before being returned by the endpoint. This is defensive — under normal operation the formulas are bounded, but momentary inconsistencies (e.g., between scan completion and flag resolution) could produce out-of-range values that would render badly in the UI. Clamping ensures the wire payload always validates.
 
 ### Change 2 — Replace "Open gaps" placeholder in drill panels
 
@@ -233,3 +247,4 @@ For v1.2 to be considered implemented:
 - **v1.2 — 2026-04-23 — Reconciled with existing implementation.** Preserves the existing UI (verdict + 3 stat cards + 6-dimension table + drillable rows). Work is backend-only: replace hardcoded values with computed values, replace placeholder "Open gaps" with real gap lists, replace hardcoded activity feed with fetched events. Drops v1's speculative sub-tab structure. Incorporates duplication-elimination requirement (Change 4) and orphaned-fixture cleanup (Change 5) based on the drill panel inventory diagnostic.
 - **v1.2.2 — 2026-04-23 — Documentation linkage path resolved.** Diagnostic confirmed no field exists on `Transaction` model and QB sync does not capture attachment data. Step 1.5 added to implementation order: add `attachment_count` column, `sync_attachables` step, Alembic migration. Documentation Gap computation specified.
 - **v1.2.3 — 2026-04-23 — Step 2 scope decisions.** Diagnostic on data-model gaps determined that four of six dimensions (time_effort, procurement, subrecipient_monitoring, performance_reporting) require data models not present in the engine and are deferred to v1.3+. Two dimensions (allowable_costs, transaction_documentation) are computed in v1.2 — allowable_costs requires adding Transaction.last_scanned_at for an honest denominator. Computation location decided: engine computes, cockpit orchestrates (B1). Branch split decided: engine-side commit first on feature/compliance-engine-extract, cockpit-side wiring as follow-up commit on feature/finance-cockpit.
+- **v1.2.4 — 2026-04-23 — Engine-side step 2 implementation decisions captured.** Allowable costs formula clarified to use distinct-flagged-transactions in numerator (prevents pct < 0 with multi-flag transactions). Three-state dimension status (`computed` with value, `computed` with null, `placeholder` with null) documented for cockpit consumption. Defensive percentage clamping documented.
