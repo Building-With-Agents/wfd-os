@@ -22,6 +22,17 @@ from agents.finance.audit_dimension_display import display_name_for_role
 # (`/api/grant-compliance/*`) is for browser calls only.
 _COMPLIANCE_DIMENSIONS_URL = "http://127.0.0.1:8000/compliance/dimensions"
 
+# Per-dimension gap list. Fetched once per extract_all() cycle for
+# each of the six canonical dimensions — six sequential GETs. The
+# spec documented this endpoint as "lazy" (so it wouldn't bloat the
+# dimensions response), not necessarily click-time-lazy; the cockpit
+# consumes it at refresh time because the existing drill system
+# pre-builds every drill panel in extract_all (see /cockpit/drills/{key}
+# which is a straight dict lookup). See spec §v1.2.7 for rationale.
+_COMPLIANCE_GAPS_URL_TEMPLATE = (
+    "http://127.0.0.1:8000/compliance/dimensions/{dimension_id}/gaps"
+)
+
 # Deliberately minimal fallback used only when the compliance engine
 # is unreachable. Holds ids and human-readable titles only — every
 # other field (auditor-perspective copy, CFR citations, owner role,
@@ -35,6 +46,146 @@ _FALLBACK_DIMENSION_TITLES: tuple[tuple[str, str], ...] = (
     ("subrecipient_monitoring", "Subrecipient monitoring"),
     ("performance_reporting", "Performance reporting accuracy"),
 )
+
+
+def fetch_audit_gaps_from_engine(
+    dimension_id: str, timeout_seconds: float = 5.0
+) -> dict:
+    """Fetch the gap list for one audit dimension from the engine.
+
+    Returns a dict with:
+      - gaps: list of gap dicts (engine shape; see spec §v1.2.7).
+      - gap_count: integer count.
+      - status: "computed" | "placeholder" from the engine.
+      - placeholder_message: set when status == "placeholder", else None.
+      - engine_ok: True on success, False on any failure.
+      - error: None on success, str(exc) on failure.
+
+    Never raises — callers render a degraded "Engine unreachable"
+    drill-panel section when engine_ok is False.
+
+    TODO(v1.2 cockpit-side step 4 follow-up): add pytest on this
+    branch and cover success / timeout / placeholder / computed paths.
+    Tests deferred per scope; see integration_notes.md on
+    feature/compliance-engine-extract.
+    """
+    url = _COMPLIANCE_GAPS_URL_TEMPLATE.format(dimension_id=dimension_id)
+    try:
+        response = httpx.get(url, timeout=timeout_seconds)
+        response.raise_for_status()
+        payload = response.json()
+        return {
+            "gaps": payload.get("gaps", []),
+            "gap_count": payload.get("gap_count", 0),
+            "status": payload.get("status", "placeholder"),
+            "placeholder_message": payload.get("placeholder_message"),
+            "engine_ok": True,
+            "error": None,
+        }
+    except Exception as exc:  # noqa: BLE001 — intentional catch-all
+        print(f"[cockpit] audit gap fetch failed for {dimension_id!r}: {exc}")
+        return {
+            "gaps": [],
+            "gap_count": 0,
+            "status": "placeholder",
+            "placeholder_message": None,
+            "engine_ok": False,
+            "error": str(exc),
+        }
+
+
+def _fmt_gap_dollars(amount_dollars) -> str:
+    """Format a dollar amount for drill-panel gap labels.
+
+    Mirrors the engine's own formatter (both rendered as "$X,XXX" for
+    whole numbers, "$X,XXX.YY" otherwise) so amounts inside
+    compliance-flag gap metadata display the same way the gap title
+    already does for transaction_documentation gaps.
+
+    TODO: share a single formatter between engine and cockpit when
+    wfdos-common lands; for now the helper is duplicated across the
+    two branches by design. Cockpit-side TS uses fmtUSD for the
+    DocumentationGap stat card — separate surface, same "$X,XXX"
+    output shape.
+    """
+    if not isinstance(amount_dollars, (int, float)):
+        return "—"
+    if amount_dollars == int(amount_dollars):
+        return f"${int(amount_dollars):,}"
+    return f"${amount_dollars:,.2f}"
+
+
+def _build_audit_gap_section(gap_response: dict) -> dict:
+    """Build the drill-panel section that replaces the old "Open gaps"
+    placeholder. Three branches: engine-unreachable (prose with
+    operational guidance), placeholder dimension (prose with the
+    engine's honest placeholder_message), computed dimension (rows
+    with one row per gap, or a single "No open gaps" row when clean).
+    """
+    if not gap_response.get("engine_ok"):
+        return {
+            "type": "prose",
+            "title": "Open gaps",
+            "body": (
+                "Engine unreachable — gap detail is not available. "
+                "Verify the compliance engine is running."
+            ),
+        }
+
+    status = gap_response.get("status", "placeholder")
+    if status == "placeholder":
+        message = gap_response.get("placeholder_message") or (
+            "Gap detection not yet available for this dimension."
+        )
+        return {
+            "type": "prose",
+            "title": "Open gaps",
+            "body": message,
+        }
+
+    # Computed dimension.
+    gaps = gap_response.get("gaps") or []
+    if not gaps:
+        return {
+            "type": "rows",
+            "title": "Open gaps",
+            "rows": [{"label": "No open gaps in this dimension.", "value": "✓"}],
+        }
+
+    rows: list[dict] = []
+    for gap in gaps:
+        meta = gap.get("metadata") or {}
+        gap_type = gap.get("type")
+        title = gap.get("title", "")
+        detail = gap.get("detail", "")
+        if gap_type == "compliance_flag":
+            vendor = meta.get("vendor_name") or "—"
+            amt_str = _fmt_gap_dollars(meta.get("amount_dollars"))
+            date_str = meta.get("txn_date") or "—"
+            label = (
+                f"{title} — {detail} "
+                f"({vendor} · {amt_str} · {date_str})"
+            )
+            value = (meta.get("severity") or "").upper()
+        elif gap_type == "missing_documentation":
+            # Engine pre-formats title as "{vendor} — $X,XXX"; append
+            # date + qb_id for cross-reference at the end of the label.
+            date_str = meta.get("txn_date") or "—"
+            qb_id = meta.get("qb_id") or ""
+            suffix = f" ({qb_id})" if qb_id else ""
+            label = f"{title} · {date_str}{suffix}"
+            value = detail
+        else:
+            # Unknown type — render generically rather than hide.
+            label = title
+            value = detail
+        rows.append({"label": label, "value": value})
+
+    return {
+        "type": "rows",
+        "title": "Open gaps",
+        "rows": rows,
+    }
 
 
 def _unreachable_stats_fallback() -> dict:
@@ -941,17 +1092,17 @@ def build_drills(data: dict) -> dict:
         }
 
     # ---------- Audit dimension drills ----------
-    # Sourced from the compliance engine via extract_all's
-    # audit_dimensions_from_engine fetch. Drill summary adapts to the
-    # three-state dimension status contract documented in
-    # agents/grant-compliance/docs/audit_readiness_tab_spec.md §v1.2.4:
-    #   - computed + pct    → "{pct}% audit-ready · owner: {display}"
-    #   - computed + null   → "Awaiting first scan · owner: {display}"
-    #   - placeholder       → "Readiness measurement not yet available · owner: {display}"
-    # Engine-unreachable is handled upstream in
-    # fetch_audit_dimensions_from_engine by emitting placeholder rows
-    # with a generic "Engine unreachable" message for the
-    # what_auditors_look_for text.
+    # Dimension metadata + readiness come from extract_all's
+    # audit_dimensions_from_engine fetch (step 2 cockpit-side).
+    # "Open gaps" content comes from a per-dimension gap fetch
+    # (step 4 cockpit-side, this block) via fetch_audit_gaps_from_engine.
+    # See audit_readiness_tab_spec.md §v1.2.4 for the three-state
+    # dimension-status contract and §v1.2.7 for the gap shape.
+    #
+    # TODO(v1.2 cockpit-side step 4 follow-up): add pytest on this
+    # branch to cover the summary/readiness/gap rendering branches.
+    # Tests deferred per scope; see integration_notes.md on
+    # feature/compliance-engine-extract.
     engine_response = data.get("audit_dimensions_from_engine") or {}
     for dim in engine_response.get("dimensions", []):
         owner_display = display_name_for_role(dim.get("owner_role"))
@@ -970,6 +1121,9 @@ def build_drills(data: dict) -> dict:
             )
             readiness_value = "—"
 
+        gap_response = fetch_audit_gaps_from_engine(dim["id"])
+        gap_section = _build_audit_gap_section(gap_response)
+
         drills[f"audit:{dim['id']}"] = {
             "eyebrow": "Audit Dimension",
             "title": dim.get("title", dim["id"]),
@@ -983,16 +1137,7 @@ def build_drills(data: dict) -> dict:
                         "value": readiness_value,
                     }],
                 },
-                {
-                    "type": "rows",
-                    "title": "Open gaps",
-                    "rows": [{"label": "Full gap detail pending first "
-                                       "audit-readiness sweep",
-                              "value": "—"}],
-                    "note": "This placeholder will be replaced once the "
-                            "initial audit-readiness review produces a "
-                            "dimension-specific gap list.",
-                },
+                gap_section,
             ],
         }
 
