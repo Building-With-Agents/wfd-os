@@ -11,11 +11,13 @@ from sqlalchemy.orm import Session
 from grant_compliance.agents.compliance import ComplianceMonitor
 from grant_compliance.api.schemas import ComplianceFlagOut, FlagResolution
 from grant_compliance.audit.log import write_entry
-from grant_compliance.compliance.audit_dimensions import DIMENSIONS
+from grant_compliance.compliance.audit_dimensions import DIMENSIONS, get_dimension
 from grant_compliance.compliance.dimension_readiness import (
     COMPUTED_DIMENSIONS,
     COMPUTE_FUNCTIONS,
+    GAP_FUNCTIONS,
     compute_stats,
+    placeholder_message_for,
 )
 from grant_compliance.db.models import ComplianceFlag, FlagStatus
 from grant_compliance.db.session import get_db
@@ -132,3 +134,36 @@ def list_dimensions(db: Session = Depends(get_db)) -> dict:
         "stats": compute_stats(db),
         "computed_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.get("/dimensions/{dimension_id}/gaps")
+def list_dimension_gaps(dimension_id: str, db: Session = Depends(get_db)) -> dict:
+    """Return the open gaps for one audit dimension. Lazy-fetched when the
+    user clicks a dimension row in the Audit Readiness drill panel.
+
+    See spec §v1.2.7 for the per-dimension gap definitions and the
+    response shape (dimension_id, status, gap_count, gaps, optional
+    placeholder_message, computed_at).
+
+    Returns 404 if `dimension_id` is not one of the six canonical
+    dimensions in `audit_dimensions.DIMENSIONS`.
+    """
+    if get_dimension(dimension_id) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown audit dimension: {dimension_id!r}",
+        )
+
+    gaps = GAP_FUNCTIONS[dimension_id](db)
+    status = "computed" if dimension_id in COMPUTED_DIMENSIONS else "placeholder"
+
+    response: dict = {
+        "dimension_id": dimension_id,
+        "status": status,
+        "gap_count": len(gaps),
+        "gaps": gaps,
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if status == "placeholder":
+        response["placeholder_message"] = placeholder_message_for(dimension_id)
+    return response
