@@ -62,11 +62,11 @@ Current behavior: returns hardcoded Python literals for verdict, three stats, an
 
 New behavior: computes values from real sources.
 
-**Stat 1 — Overall Readiness (`stats.overall`).** Weighted average of the six dimension readiness percentages. Weights to be defined; a defensible default is equal weighting. Whatever the formula is, it must be documented and stable. Never a literal.
+**Stat 1 — Overall Readiness (`stats.overall`).** Weighted average of the six dimension readiness percentages. Weights to be defined; a defensible default is equal weighting. Whatever the formula is, it must be documented and stable. Never a literal. The "Across N of 6 audit dimensions" subcopy dynamically reflects how many dimensions are computable (currently 2 of 6 in v1.2). Computed dimensions with `readiness_pct: null` (e.g., engine has no scan data yet) are excluded from the average and from the count.
 
 **Stat 2 — Documentation Gap (`stats.doc_gap`).** Count of transactions above the de minimis threshold ($2,500) that lack linked invoice documentation. Source: compliance engine's `transactions_without_documentation(threshold_cents=250_000)` method (added in step 1.5). Populated by the QB `Attachable` sync pathway. Per the diagnostic at `scripts/transaction_documentation_linkage.md`, no linkage field exists on the current `Transaction` model; step 1.5 adds it.
 
-**Stat 3 — T&E Certifications (`stats.te_certs`).** Ratio of completed quarterly certifications to expected certifications since grant start. Source: compliance engine's `/time-effort/certifications` endpoint. Expected count is (quarters since K8341 started) × (count of federally-funded staff).
+**Stat 3 — T&E Certifications (`stats.te_certs`).** Ratio of completed quarterly certifications to expected certifications since grant start. Both numerator and denominator depend on Employee↔Grant assignment data which does not exist in the engine in v1.2. As with the time_effort dimension, this stat is a placeholder in v1.2: returns `null` with a status flag, displayed as "Not yet tracked" or equivalent. Becomes computable in v1.3+ when Employee↔Grant data model is added.
 
 **Verdict.** LLM-generated based on the three stats + dimension percentages + identified top gap. Must cite the specific dimension that drives the "biggest gap" phrasing. One LLM call per tab load; cached for some interval (e.g., 5 minutes) to avoid repeated generation.
 
@@ -204,17 +204,15 @@ Also explicitly out of scope for v1.2:
 
 2. **Compute dimension percentages on the engine, expose via endpoint.** On `feature/compliance-engine-extract`: add `Transaction.last_scanned_at` column + migration + sync hook. Add `transactions_above_threshold_total` helper. Add computation functions for `allowable_costs` and `transaction_documentation`. Add `GET /compliance/dimensions` endpoint returning all six dimensions with computed percentages where computable, `None` where placeholder. Two-commit sequence: engine-side here, cockpit-side wiring on `feature/finance-cockpit` as a follow-up.
 
-3. **Compute Overall Readiness and dimension percentages.** Replace the six hardcoded dimension values in `_tab_audit` with computations based on real compliance engine + cockpit backend data. Document the computation for each dimension inline as comments referencing the dimension-to-regulation mapping.
+3. **Compute the three stat cards.** Engine-side: extend `/compliance/dimensions` response (or add a sibling `/compliance/stats` endpoint) to include the three stat values: `overall_readiness_pct` (computed from dimension percentages, equal-weighted average of computed dimensions only), `doc_gap_count` (from `transactions_without_documentation`), `te_certs_status` (placeholder in v1.2). Cockpit-side: replace the three hardcoded `StatCard` literals in `_tab_audit` with values from the engine response. Two-commit sequence: engine-side first, cockpit-side wiring as follow-up. Same pattern as step 2.
 
-4. **Compute the three stat cards.** Replace hardcoded values with computations. For `doc_gap`, add any missing data-model fields needed for documentation linkage.
+4. **Replace "Open gaps" drill content.** For each audit dimension, implement real gap-list generation in `build_drills()`.
 
-5. **Replace "Open gaps" drill content.** For each audit dimension, implement real gap-list generation in `build_drills()`.
+5. **LLM-generated verdict.** Add cached verdict generation. Ensure the verdict cites the specific dimension driving the top gap.
 
-6. **LLM-generated verdict.** Add cached verdict generation. Ensure the verdict cites the specific dimension driving the top gap.
+6. **Recent Activity feed.** Add `/cockpit/activity` endpoint. Replace hardcoded feed with fetched data.
 
-7. **Recent Activity feed.** Add `/cockpit/activity` endpoint. Replace hardcoded feed with fetched data.
-
-8. **Archive or remove orphaned fixture.** Based on decision in Change 5.
+7. **Archive or remove orphaned fixture.** Based on decision in Change 5.
 
 Each step should stop and report before continuing.
 
@@ -248,3 +246,4 @@ For v1.2 to be considered implemented:
 - **v1.2.2 — 2026-04-23 — Documentation linkage path resolved.** Diagnostic confirmed no field exists on `Transaction` model and QB sync does not capture attachment data. Step 1.5 added to implementation order: add `attachment_count` column, `sync_attachables` step, Alembic migration. Documentation Gap computation specified.
 - **v1.2.3 — 2026-04-23 — Step 2 scope decisions.** Diagnostic on data-model gaps determined that four of six dimensions (time_effort, procurement, subrecipient_monitoring, performance_reporting) require data models not present in the engine and are deferred to v1.3+. Two dimensions (allowable_costs, transaction_documentation) are computed in v1.2 — allowable_costs requires adding Transaction.last_scanned_at for an honest denominator. Computation location decided: engine computes, cockpit orchestrates (B1). Branch split decided: engine-side commit first on feature/compliance-engine-extract, cockpit-side wiring as follow-up commit on feature/finance-cockpit.
 - **v1.2.4 — 2026-04-23 — Engine-side step 2 implementation decisions captured.** Allowable costs formula clarified to use distinct-flagged-transactions in numerator (prevents pct < 0 with multi-flag transactions). Three-state dimension status (`computed` with value, `computed` with null, `placeholder` with null) documented for cockpit consumption. Defensive percentage clamping documented.
+- **v1.2.5 — 2026-04-23 — Step 3 scope decisions.** T&E Certifications stat card joins time_effort dimension as a v1.2 placeholder pending Employee↔Grant data model. Overall Readiness aggregates only computed dimensions with non-null percentages; subcopy reflects dynamic count. Documentation Gap is computable now, unblocked from step 1.5.
