@@ -12,6 +12,85 @@ from openpyxl import load_workbook
 from datetime import date
 from pathlib import Path
 
+import httpx
+
+from agents.finance.audit_dimension_display import display_name_for_role
+
+
+# Compliance engine endpoint that supplies the six audit-dimension
+# rows (metadata + readiness). Server-side call; the Next.js rewrite
+# (`/api/grant-compliance/*`) is for browser calls only.
+_COMPLIANCE_DIMENSIONS_URL = "http://127.0.0.1:8000/compliance/dimensions"
+
+# Deliberately minimal fallback used only when the compliance engine
+# is unreachable. Holds ids and human-readable titles only — every
+# other field (auditor-perspective copy, CFR citations, owner role,
+# readiness pct) is expected to come from the engine. Keeping this
+# short avoids re-hardcoding the dimension contract here.
+_FALLBACK_DIMENSION_TITLES: tuple[tuple[str, str], ...] = (
+    ("allowable_costs", "Allowable costs"),
+    ("transaction_documentation", "Transaction documentation"),
+    ("time_effort", "Time & effort certifications"),
+    ("procurement", "Procurement & competition"),
+    ("subrecipient_monitoring", "Subrecipient monitoring"),
+    ("performance_reporting", "Performance reporting accuracy"),
+)
+
+
+def fetch_audit_dimensions_from_engine(timeout_seconds: float = 5.0) -> dict:
+    """Fetch the six audit dimensions from the compliance engine.
+
+    Returns a dict with:
+      - dimensions: list of dimension dicts from the engine (same shape
+        as the engine's /compliance/dimensions response), or a minimal
+        id+title fallback list when the engine is unreachable.
+      - engine_ok: True on success, False on any failure.
+      - error: None on success, str(exc) on failure.
+      - computed_at: engine's timestamp on success, None on failure.
+
+    Never raises — all exceptions are caught and surfaced via
+    engine_ok=False. Callers (build_drills, _tab_audit) render a
+    clearly-degraded state when engine_ok is False rather than
+    pretending everything is fine.
+
+    TODO(v1.2 cockpit-side step 2 follow-up): add pytest on this branch
+    and cover the success / timeout / error paths. Tests deferred per
+    integration_notes.md on feature/compliance-engine-extract.
+    """
+    try:
+        response = httpx.get(_COMPLIANCE_DIMENSIONS_URL, timeout=timeout_seconds)
+        response.raise_for_status()
+        payload = response.json()
+        return {
+            "dimensions": payload.get("dimensions", []),
+            "engine_ok": True,
+            "error": None,
+            "computed_at": payload.get("computed_at"),
+        }
+    except Exception as exc:  # noqa: BLE001 — intentional catch-all for degraded rendering
+        fallback = [
+            {
+                "id": did,
+                "title": title,
+                "what_auditors_look_for":
+                    "Engine unreachable — readiness data not available.",
+                "cfr_citations": [],
+                "compliance_supplement_area": "",
+                "owner_role": "",
+                "default_tone": "neutral",
+                "readiness_pct": None,
+                "status": "placeholder",
+            }
+            for did, title in _FALLBACK_DIMENSION_TITLES
+        ]
+        print(f"[cockpit] audit dimensions fetch failed: {exc}")
+        return {
+            "dimensions": fallback,
+            "engine_ok": False,
+            "error": str(exc),
+            "computed_at": None,
+        }
+
 
 # =============================================================================
 # Drill content schema — polymorphic section types
@@ -829,81 +908,47 @@ def build_drills(data: dict) -> dict:
         }
 
     # ---------- Audit dimension drills ----------
-    # Placeholder gap detail until the first audit-readiness sweep lands.
-    # Each entry mirrors the row in the Audit Readiness table.
-    audit_dimensions = [
-        {
-            "id": "allowable_costs",
-            "title": "Allowable costs",
-            "owner": "Krista",
-            "readiness": "96%",
-            "tone": "good",
-            "what_auditors_look_for":
-                "Every transaction maps to an allowable category under the grant "
-                "budget (Exhibit B) and 2 CFR 200 cost principles.",
-        },
-        {
-            "id": "transaction_documentation",
-            "title": "Transaction documentation",
-            "owner": "Krista",
-            "readiness": "88%",
-            "tone": "watch",
-            "what_auditors_look_for":
-                "Vendor invoices, receipts, and written approvals on file for "
-                "every transaction — especially those over $2,500.",
-        },
-        {
-            "id": "time_effort",
-            "title": "Time & effort certifications",
-            "owner": "Ritu",
-            "readiness": "0%",
-            "tone": "critical",
-            "what_auditors_look_for":
-                "Quarterly attestations from every federally-funded staff "
-                "member documenting the share of effort charged to K8341.",
-        },
-        {
-            "id": "procurement",
-            "title": "Procurement & competition",
-            "owner": "Ritu",
-            "readiness": "92%",
-            "tone": "good",
-            "what_auditors_look_for":
-                "Competitive process or a documented sole-source justification "
-                "on file for every contract awarded under the grant.",
-        },
-        {
-            "id": "subrecipient_monitoring",
-            "title": "Subrecipient monitoring",
-            "owner": "Ritu · Bethany",
-            "readiness": "81%",
-            "tone": "watch",
-            "what_auditors_look_for":
-                "Risk assessment, periodic monitoring, and follow-up evidence "
-                "for each provider receiving grant pass-through funds.",
-        },
-        {
-            "id": "performance_reporting",
-            "title": "Performance reporting accuracy",
-            "owner": "Bethany · Gage",
-            "readiness": "95%",
-            "tone": "good",
-            "what_auditors_look_for":
-                "Reported placement counts reconcile to the underlying WSAC + "
-                "WJI TWC tracking source data with a clear audit trail.",
-        },
-    ]
-    for dim in audit_dimensions:
+    # Sourced from the compliance engine via extract_all's
+    # audit_dimensions_from_engine fetch. Drill summary adapts to the
+    # three-state dimension status contract documented in
+    # agents/grant-compliance/docs/audit_readiness_tab_spec.md §v1.2.4:
+    #   - computed + pct    → "{pct}% audit-ready · owner: {display}"
+    #   - computed + null   → "Awaiting first scan · owner: {display}"
+    #   - placeholder       → "Readiness measurement not yet available · owner: {display}"
+    # Engine-unreachable is handled upstream in
+    # fetch_audit_dimensions_from_engine by emitting placeholder rows
+    # with a generic "Engine unreachable" message for the
+    # what_auditors_look_for text.
+    engine_response = data.get("audit_dimensions_from_engine") or {}
+    for dim in engine_response.get("dimensions", []):
+        owner_display = display_name_for_role(dim.get("owner_role"))
+        pct = dim.get("readiness_pct")
+        status = dim.get("status", "placeholder")
+
+        if status == "computed" and pct is not None:
+            summary = f"{pct}% audit-ready · owner: {owner_display}"
+            readiness_value: str | int = f"{pct}%"
+        elif status == "computed":
+            summary = f"Awaiting first scan · owner: {owner_display}"
+            readiness_value = "—"
+        else:
+            summary = (
+                f"Readiness measurement not yet available · owner: {owner_display}"
+            )
+            readiness_value = "—"
+
         drills[f"audit:{dim['id']}"] = {
             "eyebrow": "Audit Dimension",
-            "title": dim["title"],
-            "summary": f"{dim['readiness']} audit-ready · owner: {dim['owner']}",
+            "title": dim.get("title", dim["id"]),
+            "summary": summary,
             "sections": [
                 {
                     "type": "rows",
                     "title": "What auditors look for",
-                    "rows": [{"label": dim["what_auditors_look_for"],
-                              "value": dim["readiness"]}],
+                    "rows": [{
+                        "label": dim.get("what_auditors_look_for", ""),
+                        "value": readiness_value,
+                    }],
                 },
                 {
                     "type": "rows",
@@ -1631,6 +1676,13 @@ def extract_all(project_dir=None) -> dict:
             cost_per_placement, placements, providers, recovered
         ),
     }
+    # Fetch audit dimensions from the compliance engine once per
+    # data-source refresh. Both build_drills (below) and
+    # cockpit_api._tab_audit read from this key. If the engine is
+    # unreachable the fetch returns a degraded-state marker; the
+    # downstream consumers render dimension rows in a clearly
+    # "unavailable" state rather than hiding the issue.
+    result["audit_dimensions_from_engine"] = fetch_audit_dimensions_from_engine()
     result["charts"] = build_chart_data(result)
     result["drills"] = build_drills(result)
     return result

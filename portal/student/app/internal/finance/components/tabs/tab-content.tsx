@@ -430,16 +430,28 @@ function AuditTab({ payload, onOpen }: { payload: AuditTabPayload; onOpen: (k: s
               </tr>
             </thead>
             <tbody>
-              {dimensions.map((d) => (
-                <DrillableRow key={d.id} drillKey={`audit:${d.id}`} onOpen={onOpen}>
-                  <td style={cell("left", 20)}>{d.label}</td>
-                  <td style={{ ...cell("left"), color: "var(--cockpit-text-2)", fontSize: "var(--cockpit-fs-helper)" }}>{d.what}</td>
-                  <td style={cell("right")} className="cockpit-num" data-tone={d.tone}>
-                    <span style={{ color: `var(--cockpit-${d.tone})`, fontSize: "var(--cockpit-fs-label)" }}>{d.pct}%</span>
-                  </td>
-                  <td style={cell("left", 20)}>{d.owner}</td>
-                </DrillableRow>
-              ))}
+              {dimensions.map((d) => {
+                // Three-state readiness rendering per audit_readiness_tab_spec.md §v1.2.4:
+                //   computed + pct     → "{pct}%"
+                //   computed + null    → "Awaiting scan"
+                //   placeholder        → "—"
+                const readinessText =
+                  d.pct !== null
+                    ? `${d.pct}%`
+                    : d.status === "computed"
+                      ? "Awaiting scan"
+                      : "—"
+                return (
+                  <DrillableRow key={d.id} drillKey={`audit:${d.id}`} onOpen={onOpen}>
+                    <td style={cell("left", 20)}>{d.label}</td>
+                    <td style={{ ...cell("left"), color: "var(--cockpit-text-2)", fontSize: "var(--cockpit-fs-helper)" }}>{d.what}</td>
+                    <td style={cell("right")} className="cockpit-num" data-tone={d.tone}>
+                      <span style={{ color: `var(--cockpit-${d.tone})`, fontSize: "var(--cockpit-fs-label)" }}>{readinessText}</span>
+                    </td>
+                    <td style={cell("left", 20)}>{d.owner}</td>
+                  </DrillableRow>
+                )
+              })}
             </tbody>
           </table>
         </div>

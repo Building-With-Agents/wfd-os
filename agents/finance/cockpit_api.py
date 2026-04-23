@@ -56,6 +56,7 @@ try:
 except ImportError:  # pragma: no cover — dotenv is a dev-only convenience
     pass
 
+from agents.finance.audit_dimension_display import display_name_for_role  # noqa: E402
 from agents.finance.data_source import DataSource, default_source  # noqa: E402
 
 
@@ -419,9 +420,64 @@ def _tab_reporting(data: dict) -> dict:
     }
 
 
+def _tone_for_dimension(pct: Optional[int], status: str) -> str:
+    """Map readiness pct + three-state status to a UI tone slug.
+
+    Contract (from audit_readiness_tab_spec.md §v1.2.4):
+      - placeholder, or computed + pct is None  → "neutral"
+      - computed + pct >= 90                    → "good"
+      - computed + pct >= 70                    → "watch"
+      - computed + pct  < 70                    → "critical"
+    """
+    if status == "placeholder" or pct is None:
+        return "neutral"
+    if pct >= 90:
+        return "good"
+    if pct >= 70:
+        return "watch"
+    return "critical"
+
+
 def _tab_audit(data: dict) -> dict:
+    """Assemble the Audit Readiness tab payload.
+
+    Dimension rows are sourced from the compliance engine via
+    extract_all's audit_dimensions_from_engine fetch (see
+    cockpit_data.fetch_audit_dimensions_from_engine). When the engine
+    is unreachable, the fetch produces degraded-state placeholder
+    rows with a generic "Engine unreachable" message — no local
+    fallback values for pct / tone / owner are fabricated here.
+
+    Verdict and the three stat cards (Overall readiness,
+    Documentation gap, T&E certs) are still hardcoded as of step 2
+    cockpit-side; step 3 replaces them with real computations.
+
+    TODO(v1.2 cockpit-side step 2 follow-up): add pytest on this
+    branch and cover the engine-response mapping, role translation,
+    tone computation, and degraded-state handling. Tests deferred
+    per scope decision in step 2 cockpit-side — see integration_notes.md
+    on feature/compliance-engine-extract for the deferral record.
+    """
+    engine_response = data.get("audit_dimensions_from_engine") or {}
+    engine_dimensions = engine_response.get("dimensions", [])
+
+    ui_dimensions: list[dict] = []
+    for d in engine_dimensions:
+        pct = d.get("readiness_pct")
+        status = d.get("status", "placeholder")
+        ui_dimensions.append({
+            "id": d["id"],
+            "label": d.get("title", d["id"]),
+            "what": d.get("what_auditors_look_for", ""),
+            "pct": pct,
+            "status": status,
+            "tone": _tone_for_dimension(pct, status),
+            "owner": display_name_for_role(d.get("owner_role")),
+        })
+
     return {
         "tab": "audit",
+        # TODO(step 3): replace hardcoded verdict with LLM-generated cached text.
         "verdict": {
             "tone": "watch",
             "headline": "73% audit-ready. Biggest gap is time & effort certifications.",
@@ -432,31 +488,13 @@ def _tab_audit(data: dict) -> dict:
                 "not in a year when staff may have turned over."
             ),
         },
+        # TODO(step 3): compute these from the engine + db.queries.
         "stats": {
             "overall": "73%",
             "doc_gap": 12,
             "te_certs": "0 / 9",
         },
-        "dimensions": [
-            {"id": "allowable_costs", "label": "Allowable costs",
-             "what": "Every transaction maps to an allowable category",
-             "pct": 96, "tone": "good", "owner": "Krista"},
-            {"id": "transaction_documentation", "label": "Transaction documentation",
-             "what": "Vendor invoices, receipts, approvals on file",
-             "pct": 88, "tone": "watch", "owner": "Krista"},
-            {"id": "time_effort", "label": "Time & effort certifications",
-             "what": "Quarterly attestations from federally-funded staff",
-             "pct": 0, "tone": "critical", "owner": "Ritu"},
-            {"id": "procurement", "label": "Procurement & competition",
-             "what": "Competitive process or sole-source justification per contract",
-             "pct": 92, "tone": "good", "owner": "Ritu"},
-            {"id": "subrecipient_monitoring", "label": "Subrecipient monitoring",
-             "what": "Risk assessment, monitoring, follow-up per provider",
-             "pct": 81, "tone": "watch", "owner": "Ritu · Bethany"},
-            {"id": "performance_reporting", "label": "Performance reporting accuracy",
-             "what": "Reported placements reconcilable to source data",
-             "pct": 95, "tone": "good", "owner": "Bethany · Gage"},
-        ],
+        "dimensions": ui_dimensions,
     }
 
 

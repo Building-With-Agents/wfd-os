@@ -242,7 +242,13 @@ export interface AuditDimension {
   id: string
   label: string
   what: string
-  pct: number
+  // null when the dimension is a placeholder (no formula in v1.2) or
+  // when it's computed but no data yet (e.g. scanner hasn't run).
+  pct: number | null
+  // "computed": a real formula exists on the engine side. "placeholder":
+  // no formula in v1.2 — deferred to v1.3+ pending data-model additions.
+  // See audit_readiness_tab_spec.md §v1.2.4 for the three-state contract.
+  status: "computed" | "placeholder"
   tone: Tone
   owner: string
 }
