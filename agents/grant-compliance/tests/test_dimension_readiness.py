@@ -20,13 +20,17 @@ from grant_compliance.compliance.audit_dimensions import DIMENSIONS, dimension_i
 from grant_compliance.compliance.dimension_readiness import (
     COMPUTE_FUNCTIONS,
     COMPUTED_DIMENSIONS,
+    DEFAULT_DOCUMENTATION_THRESHOLD_CENTS,
+    TE_CERTS_PLACEHOLDER_STATUS,
     compute_allowable_costs,
     compute_performance_reporting,
     compute_procurement,
+    compute_stats,
     compute_subrecipient_monitoring,
     compute_time_effort,
     compute_transaction_documentation,
 )
+from grant_compliance.db.queries import transactions_without_documentation
 from grant_compliance.db.models import (
     ComplianceFlag,
     FlagSeverity,
@@ -353,6 +357,132 @@ def test_dimensions_endpoint_readiness_pct_reflects_real_state(db):
     assert pcts["procurement"] is None
     assert pcts["subrecipient_monitoring"] is None
     assert pcts["performance_reporting"] is None
+
+
+def test_dimensions_endpoint_includes_stats_block(db):
+    """Endpoint response carries the stats object alongside dimensions."""
+    result = list_dimensions(db=db)
+    assert "stats" in result
+    stats = result["stats"]
+    expected_keys = {
+        "overall_readiness_pct",
+        "overall_readiness_basis",
+        "doc_gap_count",
+        "doc_gap_threshold_cents",
+        "te_certs_status",
+    }
+    assert set(stats.keys()) == expected_keys
+    assert set(stats["overall_readiness_basis"].keys()) == {
+        "computed_dimension_count",
+        "total_dimension_count",
+    }
+
+
+# ---------------------------------------------------------------------------
+# compute_stats — overall readiness aggregation
+# ---------------------------------------------------------------------------
+
+
+def test_compute_stats_overall_when_both_dimensions_have_values(db):
+    """Both computed dimensions contribute → avg = mean of the two pcts."""
+    now = datetime.now(timezone.utc)
+    # allowable_costs: 2 scanned, 0 flagged → 100
+    _mk_txn(db, "Bill:1", amount_cents=500_000, last_scanned_at=now, attachment_count=1)
+    _mk_txn(db, "Bill:2", amount_cents=500_000, last_scanned_at=now, attachment_count=1)
+    # transaction_documentation: 2 above threshold, both documented → 100
+    stats = compute_stats(db)
+    assert stats["overall_readiness_pct"] == 100
+    assert stats["overall_readiness_basis"]["computed_dimension_count"] == 2
+    assert stats["overall_readiness_basis"]["total_dimension_count"] == 6
+
+
+def test_compute_stats_overall_averages_mixed_values(db):
+    """allowable_costs 50, transaction_documentation 50 → overall 50."""
+    now = datetime.now(timezone.utc)
+    t1 = _mk_txn(db, "Bill:1", amount_cents=500_000, last_scanned_at=now, attachment_count=0)
+    _mk_txn(db, "Bill:2", amount_cents=500_000, last_scanned_at=now, attachment_count=1)
+    _mk_flag(db, t1, rule_id="UC.200.423", status=FlagStatus.open)
+    db.flush()
+
+    stats = compute_stats(db)
+    assert stats["overall_readiness_pct"] == 50
+    assert stats["overall_readiness_basis"]["computed_dimension_count"] == 2
+
+
+def test_compute_stats_overall_uneven_average(db):
+    """allowable_costs 100, transaction_documentation 50 → overall 75."""
+    now = datetime.now(timezone.utc)
+    _mk_txn(db, "Bill:1", amount_cents=500_000, last_scanned_at=now, attachment_count=0)
+    _mk_txn(db, "Bill:2", amount_cents=500_000, last_scanned_at=now, attachment_count=1)
+    # No flags → allowable_costs = 100.
+    # 1 of 2 above-threshold is missing docs → transaction_documentation = 50.
+    stats = compute_stats(db)
+    assert stats["overall_readiness_pct"] == 75
+
+
+def test_compute_stats_excludes_null_dimensions_from_count_and_average(db):
+    """One dim returns null (no data) → count=1, overall = the other dim's pct."""
+    now = datetime.now(timezone.utc)
+    # allowable_costs: 1 scanned, 0 flagged → 100
+    _mk_txn(db, "Bill:1", amount_cents=100_000, last_scanned_at=now)
+    # transaction_documentation: zero txns above $2,500 → None (no denominator)
+    stats = compute_stats(db)
+    assert stats["overall_readiness_pct"] == 100
+    assert stats["overall_readiness_basis"]["computed_dimension_count"] == 1
+
+
+def test_compute_stats_overall_is_none_when_no_dimensions_qualify(db):
+    """No scan data, no txns above threshold → both computed dims return None → overall None."""
+    stats = compute_stats(db)
+    assert stats["overall_readiness_pct"] is None
+    assert stats["overall_readiness_basis"]["computed_dimension_count"] == 0
+    assert stats["overall_readiness_basis"]["total_dimension_count"] == 6
+
+
+# ---------------------------------------------------------------------------
+# compute_stats — doc_gap_count
+# ---------------------------------------------------------------------------
+
+
+def test_compute_stats_doc_gap_count_matches_direct_query(db):
+    _mk_txn(db, "Bill:1", amount_cents=500_000, attachment_count=0)  # missing
+    _mk_txn(db, "Bill:2", amount_cents=500_000, attachment_count=1)
+    _mk_txn(db, "Bill:3", amount_cents=500_000, attachment_count=0)  # missing
+    _mk_txn(db, "Bill:4", amount_cents=100_000, attachment_count=0)  # below threshold
+    db.flush()
+
+    stats = compute_stats(db)
+    direct = transactions_without_documentation(
+        db, threshold_cents=DEFAULT_DOCUMENTATION_THRESHOLD_CENTS
+    )
+    assert stats["doc_gap_count"] == direct
+    assert stats["doc_gap_count"] == 2
+    assert stats["doc_gap_threshold_cents"] == 250_000
+
+
+# ---------------------------------------------------------------------------
+# compute_stats — te_certs_status placeholder
+# ---------------------------------------------------------------------------
+
+
+def test_compute_stats_te_certs_status_is_placeholder_constant(db):
+    """Cockpit pattern-matches on this exact string to render 'Not yet tracked'."""
+    stats = compute_stats(db)
+    assert stats["te_certs_status"] == "placeholder_pending_employee_grant_data"
+    # Also verify the symbol is exported for callers who prefer the
+    # constant over the literal.
+    assert stats["te_certs_status"] == TE_CERTS_PLACEHOLDER_STATUS
+
+
+# ---------------------------------------------------------------------------
+# compute_stats — basis counts reflect v1.2 placeholder shape
+# ---------------------------------------------------------------------------
+
+
+def test_compute_stats_basis_total_is_always_six(db):
+    """total_dimension_count is the full 6, independent of how many qualify."""
+    stats = compute_stats(db)
+    assert stats["overall_readiness_basis"]["total_dimension_count"] == 6
 
 
 def test_dimensions_endpoint_reads_from_canonical_source(db, monkeypatch):

@@ -25,6 +25,7 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from grant_compliance.compliance.audit_dimensions import DIMENSIONS
 from grant_compliance.db.models import ComplianceFlag, FlagStatus, Transaction
 from grant_compliance.db.queries import (
     transactions_above_threshold_total,
@@ -172,3 +173,79 @@ COMPUTE_FUNCTIONS = {
     "subrecipient_monitoring": compute_subrecipient_monitoring,
     "performance_reporting": compute_performance_reporting,
 }
+
+
+# ---------------------------------------------------------------------------
+# Stat-card aggregates for the Audit Readiness tab
+# ---------------------------------------------------------------------------
+#
+# The cockpit consumes these via the `stats` object on the
+# GET /compliance/dimensions response. See audit_readiness_tab_spec.md
+# §v1.2.5 for the T&E placeholder + dynamic "Across N of 6" subcopy
+# contract.
+
+# Sentinel constant for T&E Certifications stat while Employee↔Grant
+# assignment data is absent from the engine. Cockpit pattern-matches
+# on this exact string to render "Not yet tracked" in the UI.
+# Replace with a real numeric/string ratio in v1.3+ once the data
+# model lands.
+TE_CERTS_PLACEHOLDER_STATUS: str = "placeholder_pending_employee_grant_data"
+
+
+def compute_stats(db: Session) -> dict:
+    """Compute the three Audit Readiness stat-card values.
+
+    Returns a dict with:
+      - `overall_readiness_pct`: equal-weighted integer average of the
+        readiness percentages of dimensions that are both (a) marked
+        `computed` AND (b) returned a non-null pct in this snapshot.
+        Placeholder dimensions and computed-but-null dimensions are
+        excluded from both the numerator and the denominator. Returns
+        `None` if no dimensions qualify — this is distinct from 0% and
+        means "no data yet" rather than "everything failing."
+      - `overall_readiness_basis`: `{computed_dimension_count,
+        total_dimension_count}`. `computed_dimension_count` is the N
+        used in the cockpit's "Across N of 6 audit dimensions" subcopy
+        — i.e. the count that actually contributed to the average
+        (excludes computed-but-null). `total_dimension_count` is
+        always 6 in v1.2 (one per entry in audit_dimensions.DIMENSIONS).
+      - `doc_gap_count`: transactions at or above the de minimis
+        threshold with no linked documentation. Straight pass-through
+        from queries.transactions_without_documentation.
+      - `doc_gap_threshold_cents`: the threshold used, so the cockpit
+        can render the "Transactions over $X" label from the wire
+        payload rather than duplicating the threshold literal.
+      - `te_certs_status`: the placeholder constant
+        `TE_CERTS_PLACEHOLDER_STATUS` in v1.2. Becomes a real ratio in
+        v1.3+ once Employee↔Grant assignment data is present.
+
+    Calls the existing per-dimension compute_* functions internally,
+    so this function's output always agrees with the dimensions block
+    of the /compliance/dimensions endpoint (shared compute path, no
+    chance of drift).
+    """
+    contributing_pcts: list[int] = []
+    for dim_id in COMPUTED_DIMENSIONS:
+        pct = COMPUTE_FUNCTIONS[dim_id](db)
+        if pct is not None:
+            contributing_pcts.append(pct)
+
+    if contributing_pcts:
+        overall_pct: Optional[int] = _clamp_pct(
+            sum(contributing_pcts) / len(contributing_pcts)
+        )
+    else:
+        overall_pct = None
+
+    return {
+        "overall_readiness_pct": overall_pct,
+        "overall_readiness_basis": {
+            "computed_dimension_count": len(contributing_pcts),
+            "total_dimension_count": len(DIMENSIONS),
+        },
+        "doc_gap_count": transactions_without_documentation(
+            db, DEFAULT_DOCUMENTATION_THRESHOLD_CENTS
+        ),
+        "doc_gap_threshold_cents": DEFAULT_DOCUMENTATION_THRESHOLD_CENTS,
+        "te_certs_status": TE_CERTS_PLACEHOLDER_STATUS,
+    }

@@ -15,6 +15,7 @@ from grant_compliance.compliance.audit_dimensions import DIMENSIONS
 from grant_compliance.compliance.dimension_readiness import (
     COMPUTED_DIMENSIONS,
     COMPUTE_FUNCTIONS,
+    compute_stats,
 )
 from grant_compliance.db.models import ComplianceFlag, FlagStatus
 from grant_compliance.db.session import get_db
@@ -125,5 +126,9 @@ def list_dimensions(db: Session = Depends(get_db)) -> dict:
         })
     return {
         "dimensions": dimensions_out,
+        # Stat-card aggregates. See dimension_readiness.compute_stats for
+        # the shape and the audit_readiness_tab_spec.md §v1.2.5 for the
+        # placeholder / "Across N of 6" contract.
+        "stats": compute_stats(db),
         "computed_at": datetime.now(timezone.utc).isoformat(),
     }
