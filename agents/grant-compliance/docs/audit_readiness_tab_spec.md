@@ -95,6 +95,16 @@ The `GET /compliance/dimensions` endpoint distinguishes three states per dimensi
 
 The cockpit must distinguish all three states. Treating "computed but null" the same as "placeholder" loses the useful "you need to run a scan" signal.
 
+### Engine-unreachable handling
+
+When the cockpit cannot reach the compliance engine, the audit tab must render a degraded but coherent state, distinct from both placeholder and computed-with-null. The cockpit synthesizes a fallback payload with these properties:
+
+- **Dimensions:** all six rendered with `tone: "neutral"` and a clear "Engine unreachable — readiness data not available" message in drill summaries. Existing pattern from step 2 cockpit-side.
+- **Stats:** `overall_readiness_pct: null`, `doc_gap_count: null`, `te_certs_status: "engine_unreachable"`. The cockpit's own internal payload carries an `engine_status: "unreachable"` flag that the UI uses to render distinguishing visual treatment (e.g., a small "engine offline" badge near the verdict box).
+- **Verdict box:** falls back to a static "Audit readiness data is currently unavailable. Verify the compliance engine is running." message. No LLM call attempted.
+
+The distinction between `placeholder` (no formula in v1.2) and `engine_unreachable` (formula exists, engine is down) is meaningful to the user. A placeholder dimension is a roadmap item; an unreachable engine is an operational issue with a different remediation path. The UI must visually distinguish these states.
+
 ### Defensive percentage clamping
 
 All computed percentages are clamped to [0, 100] before being returned by the endpoint. This is defensive — under normal operation the formulas are bounded, but momentary inconsistencies (e.g., between scan completion and flag resolution) could produce out-of-range values that would render badly in the UI. Clamping ensures the wire payload always validates.
@@ -247,3 +257,4 @@ For v1.2 to be considered implemented:
 - **v1.2.3 — 2026-04-23 — Step 2 scope decisions.** Diagnostic on data-model gaps determined that four of six dimensions (time_effort, procurement, subrecipient_monitoring, performance_reporting) require data models not present in the engine and are deferred to v1.3+. Two dimensions (allowable_costs, transaction_documentation) are computed in v1.2 — allowable_costs requires adding Transaction.last_scanned_at for an honest denominator. Computation location decided: engine computes, cockpit orchestrates (B1). Branch split decided: engine-side commit first on feature/compliance-engine-extract, cockpit-side wiring as follow-up commit on feature/finance-cockpit.
 - **v1.2.4 — 2026-04-23 — Engine-side step 2 implementation decisions captured.** Allowable costs formula clarified to use distinct-flagged-transactions in numerator (prevents pct < 0 with multi-flag transactions). Three-state dimension status (`computed` with value, `computed` with null, `placeholder` with null) documented for cockpit consumption. Defensive percentage clamping documented.
 - **v1.2.5 — 2026-04-23 — Step 3 scope decisions.** T&E Certifications stat card joins time_effort dimension as a v1.2 placeholder pending Employee↔Grant data model. Overall Readiness aggregates only computed dimensions with non-null percentages; subcopy reflects dynamic count. Documentation Gap is computable now, unblocked from step 1.5.
+- **v1.2.6 — 2026-04-23 — Engine-unreachable handling specified for step 3 cockpit-side.** When the cockpit cannot reach the compliance engine, all stats render in a distinct "engine unreachable" state separate from both computed and placeholder. Verdict box shows a static message. Cockpit-internal `engine_status` flag drives visual differentiation. Also: noted that the spec's seven-step implementation order reflects current scope after collapse of stale step 3 in v1.2.5; eight-step historical form preserved only in git history.
