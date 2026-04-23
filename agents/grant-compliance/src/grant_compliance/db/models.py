@@ -226,6 +226,15 @@ class Transaction(Base):
     attachment_count: Mapped[int] = mapped_column(
         Integer, default=0, server_default="0", nullable=False
     )
+    # Timestamp of the last Compliance Monitor scan for this transaction.
+    # Stamped by ComplianceMonitor.scan_transaction on every evaluation,
+    # regardless of whether a flag is raised. Lets the Audit Readiness
+    # allowable_costs computation use a fresh denominator — only scans
+    # within the freshness window count toward the readiness percentage,
+    # so stale or never-scanned transactions don't inflate the score.
+    last_scanned_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
 
     allocations: Mapped[list["Allocation"]] = relationship(back_populates="transaction")
     flags: Mapped[list["ComplianceFlag"]] = relationship(back_populates="transaction")

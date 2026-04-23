@@ -7,6 +7,8 @@ flag was raised — but the raise/no-raise decision is always deterministic.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -21,6 +23,11 @@ class ComplianceMonitor(Agent):
     def scan_transaction(self, txn: Transaction) -> list[ComplianceFlag]:
         """Run all rules against one transaction. Returns the flags written
         to the session (not yet committed).
+
+        Stamps `txn.last_scanned_at` on every call, regardless of whether
+        any flag is raised. The stamp is what makes the allowable_costs
+        readiness denominator honest — the dimension counts transactions
+        that have actually been evaluated, not every mirrored row.
         """
         drafts = run_all_for_transaction(self.db, txn)
         flags: list[ComplianceFlag] = []
@@ -51,6 +58,7 @@ class ComplianceMonitor(Agent):
                     "message": draft.message,
                 },
             )
+        txn.last_scanned_at = datetime.now(timezone.utc)
         return flags
 
     def scan_all_unscanned(self) -> int:

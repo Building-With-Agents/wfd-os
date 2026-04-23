@@ -38,3 +38,19 @@ def transactions_without_documentation(db: Session, threshold_cents: int) -> int
         )
     )
     return db.execute(stmt).scalar_one()
+
+
+def transactions_above_threshold_total(db: Session, threshold_cents: int) -> int:
+    """Count all transactions at or above `threshold_cents`, regardless of
+    documentation state.
+
+    Denominator for the Audit Readiness tab's transaction_documentation
+    readiness percentage — paired with `transactions_without_documentation`
+    above as the numerator.
+    """
+    stmt = (
+        select(func.count())
+        .select_from(Transaction)
+        .where(Transaction.amount_cents >= threshold_cents)
+    )
+    return db.execute(stmt).scalar_one()

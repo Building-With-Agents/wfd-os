@@ -11,6 +11,11 @@ from sqlalchemy.orm import Session
 from grant_compliance.agents.compliance import ComplianceMonitor
 from grant_compliance.api.schemas import ComplianceFlagOut, FlagResolution
 from grant_compliance.audit.log import write_entry
+from grant_compliance.compliance.audit_dimensions import DIMENSIONS
+from grant_compliance.compliance.dimension_readiness import (
+    COMPUTED_DIMENSIONS,
+    COMPUTE_FUNCTIONS,
+)
 from grant_compliance.db.models import ComplianceFlag, FlagStatus
 from grant_compliance.db.session import get_db
 
@@ -84,3 +89,41 @@ def explain_flag(flag_id: str, db: Session = Depends(get_db)) -> dict[str, str]:
     text = monitor.explain_flag(flag)
     db.commit()
     return {"explanation": text}
+
+
+@router.get("/dimensions")
+def list_dimensions(db: Session = Depends(get_db)) -> dict:
+    """Return all six audit-readiness dimensions with computed percentages.
+
+    Each entry carries the canonical static metadata (from
+    `audit_dimensions.DIMENSIONS`) plus:
+      - `readiness_pct`: integer percent, or null for placeholder
+        dimensions / computed dimensions whose denominator is zero.
+      - `status`: "computed" or "placeholder". A "computed" dimension
+        with `readiness_pct=null` just means no data yet (e.g. no
+        recent scans); a "placeholder" dimension has no real formula
+        in v1.2 and will not get one until its data model lands.
+
+    Consumed by the Finance Cockpit's Audit Readiness tab. See
+    `docs/audit_readiness_tab_spec.md` for the computation formulas.
+    """
+    dimensions_out: list[dict] = []
+    for d in DIMENSIONS:
+        compute_fn = COMPUTE_FUNCTIONS[d.id]
+        pct = compute_fn(db)
+        status = "computed" if d.id in COMPUTED_DIMENSIONS else "placeholder"
+        dimensions_out.append({
+            "id": d.id,
+            "title": d.title,
+            "what_auditors_look_for": d.what_auditors_look_for,
+            "cfr_citations": list(d.cfr_citations),
+            "compliance_supplement_area": d.compliance_supplement_area,
+            "owner_role": d.owner_role,
+            "default_tone": d.default_tone,
+            "readiness_pct": pct,
+            "status": status,
+        })
+    return {
+        "dimensions": dimensions_out,
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+    }
