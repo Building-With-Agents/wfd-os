@@ -109,15 +109,46 @@ The distinction between `placeholder` (no formula in v1.2) and `engine_unreachab
 
 All computed percentages are clamped to [0, 100] before being returned by the endpoint. This is defensive — under normal operation the formulas are bounded, but momentary inconsistencies (e.g., between scan completion and flag resolution) could produce out-of-range values that would render badly in the UI. Clamping ensures the wire payload always validates.
 
-### Change 2 — Replace "Open gaps" placeholder in drill panels
+### Change 2 — Replace "Open gaps" placeholder with real gap lists
 
-Location: `build_drills()` in `agents/finance/design/cockpit_data.py:832`.
+Current state: each `audit:*` drill panel has a real "What auditors look for" row and a placeholder "Open gaps" row identical across all six dimensions ("Full gap detail pending first audit-readiness sweep").
 
-Current behavior: each `audit:*` drill panel has a real "What auditors look for" row and a placeholder "Open gaps" row ("Full gap detail pending first audit-readiness sweep").
+New state: each computed dimension's drill panel shows a list of actual open gaps. Each placeholder dimension's drill panel shows an honest explanation of why no gap list exists yet, pointing at the data model gap.
 
-New behavior: the "Open gaps" row is replaced by a list of actual open gaps for that dimension. For example, clicking "Allowable costs" opens a drill showing specific unresolved compliance flags; clicking "Subrecipient monitoring" shows which subrecipients lack current monitoring records.
+**Per-dimension gap definitions:**
 
-Each gap entry should show: what's missing, why it matters (regulatory basis, one sentence), owner, and status. If possible, a link to the source (specific flag, specific subrecipient record, specific transaction).
+- **Allowable costs:** Each unresolved Subpart E compliance flag is a gap. Each gap displays: rule citation (e.g., "§200.438"), flag message, source transaction summary (vendor name, amount in dollars, txn date), severity, raised date. Sorted by severity desc, then raised date desc.
+- **Transaction documentation:** Each transaction above threshold without attachment is a gap. Each gap displays: vendor name, amount, txn date, qb_id (for cross-reference), the threshold itself for context. Sorted by amount desc.
+- **Time & effort:** Placeholder dimension. Drill panel shows: "Gap detection not yet available. When Employee↔Grant assignment data is added (v1.3+), this drill will show employees who lack required quarterly certifications for the current and prior closed periods."
+- **Procurement & competition:** Placeholder dimension. Drill panel shows: "Gap detection not yet available. When procurement record tracking is added (v1.3+), this drill will show contracts above threshold lacking documented competitive process or sole-source justification."
+- **Subrecipient monitoring:** Placeholder dimension. Drill panel shows: "Gap detection not yet available. When subrecipient risk assessment tracking is added (v1.3+), this drill will show subrecipients lacking current risk assessment, monitoring records, or audit follow-up."
+- **Performance reporting:** Placeholder dimension. Drill panel shows: "Gap detection not yet available. When WSAC reconciliation tracking is added (v1.3+), this drill will show reported placements not reconcilable to source data."
+
+**Endpoint shape: lazy per-dimension fetch.** Add `GET /compliance/dimensions/{dimension_id}/gaps` to the engine. Drill panels are user-action-driven (clicked) so gap data is fetched lazily, not bundled into the main `/compliance/dimensions` response. Keeps the initial response compact and aligns with the cockpit's existing drill-fetch pattern.
+
+Response shape:
+
+```json
+{
+  "dimension_id": "allowable_costs",
+  "status": "computed",
+  "gap_count": 4,
+  "gaps": [
+    {
+      "type": "compliance_flag",
+      "id": "...",
+      "title": "...",
+      "detail": "...",
+      "metadata": {...}
+    }
+  ],
+  "computed_at": "2026-04-23T..."
+}
+```
+
+For placeholder dimensions: `gaps: []`, `gap_count: 0`, plus a `placeholder_message: "..."` field carrying the honest explanation.
+
+Engine-unreachable fallback for drill panels: when the cockpit's drill fetch fails, render the existing `<DrillPanel>` error state ("Engine unreachable") rather than synthesizing fake gaps.
 
 ### Change 3 — Replace hardcoded Recent Activity feed
 
@@ -216,7 +247,7 @@ Also explicitly out of scope for v1.2:
 
 3. **Compute the three stat cards.** Engine-side: extend `/compliance/dimensions` response (or add a sibling `/compliance/stats` endpoint) to include the three stat values: `overall_readiness_pct` (computed from dimension percentages, equal-weighted average of computed dimensions only), `doc_gap_count` (from `transactions_without_documentation`), `te_certs_status` (placeholder in v1.2). Cockpit-side: replace the three hardcoded `StatCard` literals in `_tab_audit` with values from the engine response. Two-commit sequence: engine-side first, cockpit-side wiring as follow-up. Same pattern as step 2.
 
-4. **Replace "Open gaps" drill content.** For each audit dimension, implement real gap-list generation in `build_drills()`.
+4. **Lazy-load real gap lists per dimension.** Engine-side: add `GET /compliance/dimensions/{dimension_id}/gaps` endpoint. For computed dimensions, returns actual gap data from compliance flags (allowable_costs) or transactions-without-attachment query (transaction_documentation). For placeholder dimensions, returns empty gaps with an honest `placeholder_message`. Cockpit-side: update `build_drills()` for `audit:*` keys to either proxy through to the engine endpoint or remove from the static drill registry and let the cockpit's drill system fetch on click. Two-commit sequence: engine-side first, cockpit-side wiring as follow-up.
 
 5. **LLM-generated verdict.** Add cached verdict generation. Ensure the verdict cites the specific dimension driving the top gap.
 
@@ -258,3 +289,4 @@ For v1.2 to be considered implemented:
 - **v1.2.4 — 2026-04-23 — Engine-side step 2 implementation decisions captured.** Allowable costs formula clarified to use distinct-flagged-transactions in numerator (prevents pct < 0 with multi-flag transactions). Three-state dimension status (`computed` with value, `computed` with null, `placeholder` with null) documented for cockpit consumption. Defensive percentage clamping documented.
 - **v1.2.5 — 2026-04-23 — Step 3 scope decisions.** T&E Certifications stat card joins time_effort dimension as a v1.2 placeholder pending Employee↔Grant data model. Overall Readiness aggregates only computed dimensions with non-null percentages; subcopy reflects dynamic count. Documentation Gap is computable now, unblocked from step 1.5.
 - **v1.2.6 — 2026-04-23 — Engine-unreachable handling specified for step 3 cockpit-side.** When the cockpit cannot reach the compliance engine, all stats render in a distinct "engine unreachable" state separate from both computed and placeholder. Verdict box shows a static message. Cockpit-internal `engine_status` flag drives visual differentiation. Also: noted that the spec's seven-step implementation order reflects current scope after collapse of stale step 3 in v1.2.5; eight-step historical form preserved only in git history.
+- **v1.2.7 — 2026-04-23 — Step 4 scope decisions.** Per-dimension gap definitions specified. Endpoint shape: lazy per-dimension fetch via `GET /compliance/dimensions/{id}/gaps` rather than bundling gaps into the main dimensions response. Honest placeholder messages defined for the four dimensions without computed gap detection.
