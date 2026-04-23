@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from grant_compliance.agents.compliance import ComplianceMonitor
 from grant_compliance.api.schemas import ComplianceFlagOut, FlagResolution
 from grant_compliance.audit.log import write_entry
+from grant_compliance.compliance.activity import list_recent_activity
 from grant_compliance.compliance.audit_dimensions import DIMENSIONS, get_dimension
 from grant_compliance.compliance.dimension_readiness import (
     COMPUTED_DIMENSIONS,
@@ -167,3 +168,29 @@ def list_dimension_gaps(dimension_id: str, db: Session = Depends(get_db)) -> dic
     if status == "placeholder":
         response["placeholder_message"] = placeholder_message_for(dimension_id)
     return response
+
+
+@router.get("/activity")
+def list_activity(
+    days: int = Query(
+        7, ge=1, le=30, description="Window size in days (1-30)"
+    ),
+    limit: int = Query(
+        50, ge=1, le=200, description="Max entries returned (1-200)"
+    ),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Return recent compliance audit-log entries, newest first.
+
+    Used by the Finance Cockpit's "Recent Compliance Activity" panel.
+    See audit_readiness_tab_spec.md §v1.2.9 for the consumer contract.
+
+    Parameter validation is handled by FastAPI's Query(ge=..., le=...):
+    non-numeric, negative, zero, or over-cap values produce an HTTP 422
+    before the handler runs. Defaults: 7 days / 50 entries.
+    """
+    entries = list_recent_activity(db, days=days, limit=limit)
+    return {
+        "entries": entries,
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+    }
