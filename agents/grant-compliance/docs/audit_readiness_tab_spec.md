@@ -95,6 +95,16 @@ The `GET /compliance/dimensions` endpoint distinguishes three states per dimensi
 
 The cockpit must distinguish all three states. Treating "computed but null" the same as "placeholder" loses the useful "you need to run a scan" signal.
 
+### Three-layer verdict fallback
+
+The cockpit's verdict generation uses three layers of fallback:
+
+1. **LLM happy path:** Engine reachable, LLM call succeeds. Verdict is editorially generated 2-4 sentences grounded in current data. `source: "llm"`.
+2. **Data-driven fallback:** Engine reachable, LLM call fails (missing API key, timeout, parse error, quota exceeded). Verdict is deterministically built from stats — honest but mechanical (e.g., "35% audit-ready across 2 of 6 measured dimensions. Lowest readiness: transaction_documentation at 12%."). `source: "static_fallback"`. Prevents LLM flakes from crashing the audit tab.
+3. **Static fallback:** Engine unreachable entirely. Verdict shows the static "Audit readiness data is currently unavailable. Verify the compliance engine is running." per spec §v1.2.6. `source: "static_fallback"`.
+
+The UI may surface the `source` field via a small badge (e.g., distinguishing LLM-generated from mechanical fallback) in a future iteration. The wire payload includes the field today; rendering it is optional.
+
 ### Engine-unreachable handling
 
 When the cockpit cannot reach the compliance engine, the audit tab must render a degraded but coherent state, distinct from both placeholder and computed-with-null. The cockpit synthesizes a fallback payload with these properties:
@@ -150,17 +160,39 @@ For placeholder dimensions: `gaps: []`, `gap_count: 0`, plus a `placeholder_mess
 
 Engine-unreachable fallback for drill panels: when the cockpit's drill fetch fails, render the existing `<DrillPanel>` error state ("Engine unreachable") rather than synthesizing fake gaps.
 
-### Change 3 — Replace hardcoded Recent Activity feed
+### Change 3 — Replace hardcoded Recent Activity feed with compliance audit log
 
-Location: `components/cockpit-shell/activity-feed.tsx`.
+Current state: hardcoded `const FEED = [...]` in `portal/student/app/internal/finance/components/cockpit-shell/activity-feed.tsx` with 6 sample entries.
 
-Current behavior: `const FEED = [...]` with six hardcoded entries.
+New state: feed renders real entries from the compliance engine's `audit_log` table.
 
-New behavior: fetch from a new `/cockpit/activity` endpoint that returns recent operational events (placements verified, QB syncs, invoices approved, compliance flags resolved, certifications signed).
+**Scope decisions for v1.2:**
 
-The underlying data sources already exist (compliance engine audit log, cockpit backend transactions, WSAC placement imports). The work is assembling them into a unified activity stream with a consistent shape.
+- **Section header renamed** from "Recent Activity" to "Recent Compliance Activity" to set correct expectations. The feed is bounded to compliance-engine events; it does not surface placement validation work, invoice approvals, or other operational events that aren't already captured in the engine's audit log. Those are deferred to v1.3+ when their source systems are connected.
+- **Data source:** compliance engine `audit_log` table only.
+- **Time horizon:** last 7 days, capped at 50 entries, sorted newest first.
+- **Engine-unreachable handling:** consistent with other tabs — feed shows "Compliance engine unavailable — recent activity not available" rather than synthesized fake entries.
 
-This change is lower priority than changes 1 and 2. It can ship independently.
+**Endpoint shape:** new `GET /compliance/activity?days=7&limit=50` on the engine. Returns normalized entries:
+
+```json
+{
+  "entries": [
+    {
+      "actor": "krista@cfa.org",
+      "action": "flag.resolve",
+      "target_summary": "Vendor X $1,500 entertainment flag",
+      "occurred_at": "2026-04-23T15:30:00Z",
+      "metadata": { ... }
+    }
+  ],
+  "computed_at": "2026-04-23T15:30:00Z"
+}
+```
+
+Cockpit-side: eager fetch in `extract_all()` (consistent with steps 2-4 pattern), small label translation module that maps audit_log action types to human-readable text (e.g., `flag.resolve` → "Resolved compliance flag on..."). Action types not covered by the label module fall back to a generic "{actor} performed {action}" rendering.
+
+Two-commit sequence: engine-side first, cockpit-side wiring as follow-up.
 
 ### Change 4 — Eliminate duplicated dimension values
 
@@ -291,3 +323,4 @@ For v1.2 to be considered implemented:
 - **v1.2.6 — 2026-04-23 — Engine-unreachable handling specified for step 3 cockpit-side.** When the cockpit cannot reach the compliance engine, all stats render in a distinct "engine unreachable" state separate from both computed and placeholder. Verdict box shows a static message. Cockpit-internal `engine_status` flag drives visual differentiation. Also: noted that the spec's seven-step implementation order reflects current scope after collapse of stale step 3 in v1.2.5; eight-step historical form preserved only in git history.
 - **v1.2.7 — 2026-04-23 — Step 4 scope decisions.** Per-dimension gap definitions specified. Endpoint shape: lazy per-dimension fetch via `GET /compliance/dimensions/{id}/gaps` rather than bundling gaps into the main dimensions response. Honest placeholder messages defined for the four dimensions without computed gap detection.
 - **v1.2.8 — 2026-04-23 — Step 5 LLM verdict location decided.** Verdict generation lives on the cockpit side, not the engine. Verdict is presentation logic; the engine stays deterministic except for the existing `/compliance/flags/{id}/explain` endpoint. Cockpit reuses existing `agents/assistant/` LLM infrastructure. Single-commit step (no two-commit sequence required).
+- **v1.2.9 — 2026-04-23 — Step 6 scope decisions and three-layer verdict fallback documented.** Recent Activity feed scope locked to compliance audit log only; section header renamed to "Recent Compliance Activity"; 7-day / 50-entry cap; two-commit sequence (engine-side new endpoint, cockpit-side wiring + label translation module). Verdict fallback formalized as three layers (LLM, data-driven, static) per step 5 implementation deviation in commit 670ff43.
