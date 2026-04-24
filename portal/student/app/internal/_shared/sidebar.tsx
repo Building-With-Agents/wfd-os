@@ -70,9 +70,13 @@ const NAV: NavSection[] = [
         match: "/internal/jessica",
       },
       {
+        // Market Intel agent surfaces via the LaborPulse Q&A frontend
+        // (workforce-development director asks questions about demand,
+        // wages, skills gaps; gets evidence-grounded answers). Click
+        // goes directly at the user-facing /laborpulse route.
         label: "Market Intel",
-        href: "/internal/market-intel",
-        match: "/internal/market-intel",
+        href: "/laborpulse",
+        match: "/laborpulse",
       },
     ],
   },

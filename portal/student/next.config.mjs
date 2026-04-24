@@ -80,6 +80,17 @@ const nextConfig = {
         source: "/api/grant-compliance/:path*",
         destination: "http://localhost:8000/:path*",
       },
+      // LaborPulse Q&A API (agents/laborpulse/api.py on :8015). The
+      // default port in its docstring is 8012 but we moved it to 8015
+      // to avoid colliding with the Recruiting/job_board service
+      // already on 8012. Service routes live under /api/laborpulse/*
+      // at the root, so this is a pass-through rewrite (no prefix
+      // strip). Runs in mock mode when JIE_BASE_URL is unset —
+      // returns canned Borderplex answers after ~10s.
+      {
+        source: "/api/laborpulse/:path*",
+        destination: "http://localhost:8015/api/laborpulse/:path*",
+      },
       {
         source: "/api/stats",
         destination: "http://localhost:8005/api/stats",

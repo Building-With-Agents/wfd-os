@@ -1,0 +1,35 @@
+# agents/laborpulse — workforce-development director Q&A proxy.
+#
+# Thin FastAPI service that proxies SSE from the job-intelligence-engine
+# `/analytics/query` endpoint and writes thumbs-up/down feedback to
+# qa_feedback in the wfd-os Postgres.
+#
+# Source imports (`agents.laborpulse.*`) resolve via the monorepo root
+# install (#27). This file declares runtime deps for deployment
+# isolation; the standalone Docker image installs these instead of the
+# full aggregate.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-laborpulse"
+version = "0.0.1"
+description = "LaborPulse — SSE proxy to JIE + qa_feedback writer for workforce-development directors."
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "wfdos-common",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic[email]>=2.5",
+    "psycopg2-binary>=2.9",
+    # httpx with h2 for persistent SSE connections to JIE.
+    "httpx[http2]>=0.27",
+    "python-dotenv>=1.0",
+]
+
+[tool.setuptools]
+py-modules = []
+packages = []
