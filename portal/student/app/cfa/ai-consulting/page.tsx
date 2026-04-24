@@ -1,4 +1,5 @@
 "use client"
+import { apiFetch } from "@/lib/fetch"
 
 import { useState } from "react"
 import {
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import NewsletterSubscribe from "@/components/newsletter-subscribe"
 
 const PROJECT_AREAS = [
   "Labor market intelligence",
@@ -47,11 +49,13 @@ function NavBar() {
           <span className="text-lg font-bold text-foreground">Computing for All</span>
         </a>
         <div className="hidden items-center gap-6 sm:flex">
-          <a href="/#about" className="text-sm text-muted-foreground hover:text-foreground">About</a>
-          <a href="/#programs" className="text-sm text-muted-foreground hover:text-foreground">Programs</a>
           <a href="/cfa/ai-consulting" className="text-sm font-medium text-foreground">AI Consulting</a>
+          <a href="/youth" className="text-sm text-muted-foreground hover:text-foreground">Youth Program</a>
+          <a href="/coalition" className="text-sm text-muted-foreground hover:text-foreground">Coalition</a>
+          <a href="/#programs" className="text-sm text-muted-foreground hover:text-foreground">Programs</a>
+          <a href="/#about" className="text-sm text-muted-foreground hover:text-foreground">About</a>
           <a href="https://secure.givelively.org/donate/computing-for-all" target="_blank" rel="noopener noreferrer" className="text-sm text-muted-foreground hover:text-foreground">Donate</a>
-          <a href="#intake-form">
+          <a href="https://calendly.com/ritu-computingforall" target="_blank" rel="noopener noreferrer">
             <Button size="sm" className="gap-1">Schedule a conversation <ArrowRight className="h-3.5 w-3.5" /></Button>
           </a>
         </div>
@@ -65,15 +69,15 @@ function Hero() {
     <section className="bg-gradient-to-b from-primary/5 to-background px-4 py-16 sm:py-24">
       <div className="mx-auto max-w-4xl text-center">
         <h1 className="text-3xl font-bold leading-tight text-foreground sm:text-5xl">
-          Your sector is being transformed by AI.{" "}
+          Your business is being transformed by AI.{" "}
           <span className="text-primary">We can help you lead that transformation.</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
-          CFA builds agentic AI systems for coalition employers &mdash; using apprentices from our own
-          talent pipeline, under expert supervision, at a price that works for mid-market organizations.
+          CFA builds agentic AI systems for employers &mdash; using our own talent pipeline,
+          under expert supervision, at a price that works for mid-market organizations.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
-          <a href="#intake-form">
+          <a href="/cfa/ai-consulting/chat">
             <Button size="lg" className="gap-2 text-base">
               Tell us about your project <ArrowRight className="h-4 w-4" />
             </Button>
@@ -95,6 +99,9 @@ function Hero() {
 function ProblemSection() {
   return (
     <section className="px-4 py-16">
+      <h2 className="mx-auto mb-10 max-w-3xl text-center text-2xl font-bold text-foreground sm:text-3xl">
+        Most AI Waits to Be Asked. Agentic AI Gets to Work.
+      </h2>
       <div className="mx-auto grid max-w-6xl gap-8 md:grid-cols-2">
         <Card className="border-green-200 bg-green-50/50 p-6">
           <h3 className="mb-4 text-lg font-semibold text-green-800">The opportunity</h3>
@@ -126,6 +133,32 @@ function ProblemSection() {
       <p className="mx-auto mt-8 max-w-2xl text-center text-lg font-semibold text-foreground">
         CFA was built to break down exactly this barrier.
       </p>
+
+      {/* Use case examples */}
+      <div className="mx-auto mt-12 max-w-6xl">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            { icon: "BarChart3", title: "Regional Job Market Dashboard", desc: "What employers are hiring for right now, updated daily." },
+            { icon: "FileText", title: "Grant Reporting Automation", desc: "Compliance reports generated automatically from live data." },
+            { icon: "MessageCircle", title: "Staff Query Assistant", desc: "Ask any business question, get an answer instantly from your own data." },
+            { icon: "DollarSign", title: "Billing Reconciliation", desc: "Connect fragmented billing and clinical systems automatically." },
+            { icon: "FileStack", title: "Document Processing", desc: "Contracts, intake forms, and records processed without manual work." },
+            { icon: "Calendar", title: "Scheduling Automation", desc: "Patient or client scheduling handled end to end by an agent." },
+          ].map((uc) => (
+            <Card key={uc.title} className="p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                  <Zap className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-foreground">{uc.title}</h4>
+                  <p className="mt-1 text-sm text-muted-foreground">{uc.desc}</p>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
     </section>
   )
 }
@@ -162,10 +195,10 @@ function OfferSection() {
 
 function DeRiskSection() {
   const steps = [
-    { num: "1", title: "Tell us your problem", desc: "Describe what you need in plain English. No technical jargon required. We translate business problems into agentic AI solutions." },
-    { num: "2", title: "We scope and price it", desc: "CFA scopes your project, defines deliverables, and gives you a fixed price before anything starts. No surprises. No scope creep." },
-    { num: "3", title: "We build it", desc: "Apprentices deliver under expert supervision. Weekly milestones. You see progress at every stage. You give feedback throughout." },
-    { num: "4", title: "You decide", desc: "Hire the talent. Keep as managed services. Come back for the next project. Any path works." },
+    { num: "1", title: "Tell us your problems. All of them.", desc: "Describe what you need in plain English. No technical jargon required. We translate business problems into agentic AI solutions." },
+    { num: "2", title: "We'll scope. And price!", desc: "CFA scopes your project, defines deliverables, and gives you a fixed price before anything starts. No surprises. No scope creep." },
+    { num: "3", title: "Ready to go? We build it.", desc: "Apprentices deliver under expert supervision. Weekly milestones. You see progress at every stage. You give feedback throughout." },
+    { num: "4", title: "Keep your project staff? You decide.", desc: "Hire the talent. Keep as managed services. Come back for the next project. Any path works." },
   ]
 
   return (
@@ -195,13 +228,13 @@ function DeRiskSection() {
 
 function OutcomesSection() {
   const outcomes = [
-    { title: "Hire", color: "border-green-300 bg-green-50", icon: UserCheck, iconColor: "text-green-600",
+    { title: "Hire your project team", color: "border-green-300 bg-green-50", icon: UserCheck, iconColor: "text-green-600",
       desc: "The apprentice delivered. You want them full time. CFA places them with you. You get a proven hire \u2014 they already know your systems.",
       detail: "Placement fee: 15-20% first year salary" },
-    { title: "Managed Services", color: "border-purple-300 bg-purple-50", icon: Shield, iconColor: "text-purple-600",
+    { title: "Managed Services \u2014 we maintain it for you", color: "border-purple-300 bg-purple-50", icon: Shield, iconColor: "text-purple-600",
       desc: "System is built and running. You want CFA to keep it running. Monthly managed services fee. Same team that built it maintains it.",
       detail: "Monthly retainer pricing" },
-    { title: "Next Project", color: "border-teal-300 bg-teal-50", icon: RotateCw, iconColor: "text-teal-600",
+    { title: "Next project \u2014 let\u2019s do it again", color: "border-teal-300 bg-teal-50", icon: RotateCw, iconColor: "text-teal-600",
       desc: "That worked. You have another problem. CFA team already knows your org. Next project scoped and started faster.",
       detail: "Repeat engagement pricing" },
   ]
@@ -298,7 +331,7 @@ function IntakeForm() {
     setError(null)
 
     try {
-      const res = await fetch("/api/consulting/inquire", {
+      const res = await apiFetch("/api/consulting/inquire", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -457,6 +490,7 @@ function IntakeForm() {
 function Footer() {
   return (
     <footer className="border-t border-border bg-card py-8">
+        <NewsletterSubscribe />
       <div className="mx-auto max-w-6xl px-4 text-center">
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Compass className="h-4 w-4 text-primary" />

@@ -1,4 +1,5 @@
 "use client"
+import { apiFetch } from "@/lib/fetch"
 
 import { useEffect, useRef, useState } from "react"
 import {
@@ -86,7 +87,7 @@ export default function WJIDashboard() {
   const paymentsInput = useRef<HTMLInputElement>(null)
 
   const loadDashboard = () => {
-    fetch(`${API_BASE}/dashboard`)
+    apiFetch(`${API_BASE}/dashboard`)
       .then((r) => (r.ok ? r.json() : null))
       .then(setSummary)
       .catch(() => setSummary(null))
@@ -107,7 +108,7 @@ export default function WJIDashboard() {
     form.append("file", file)
 
     try {
-      const res = await fetch(`${API_BASE}/upload/${type}`, {
+      const res = await apiFetch(`${API_BASE}/upload/${type}`, {
         method: "POST",
         body: form,
       })
@@ -131,7 +132,7 @@ export default function WJIDashboard() {
   const deleteBatch = async (batchId: number) => {
     if (!confirm(`Delete upload batch #${batchId}? This removes all rows from that upload.`)) return
     try {
-      const res = await fetch(`${API_BASE}/batches/${batchId}`, { method: "DELETE" })
+      const res = await apiFetch(`${API_BASE}/batches/${batchId}`, { method: "DELETE" })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       loadDashboard()
     } catch (e: any) {
@@ -153,7 +154,16 @@ export default function WJIDashboard() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6">
+          <nav className="mb-3 flex items-center justify-between text-sm">
+            <a href="/" className="font-semibold text-foreground hover:text-primary">Computing for All</a>
+            <div className="hidden items-center gap-5 md:flex">
+              <a href="/cfa/ai-consulting" className="text-muted-foreground hover:text-foreground">AI Consulting</a>
+              <a href="/youth" className="text-muted-foreground hover:text-foreground">Youth Program</a>
+              <a href="/coalition" className="text-muted-foreground hover:text-foreground">Coalition</a>
+              <a href="/resources" className="text-muted-foreground hover:text-foreground">Resources</a>
+            </div>
+          </nav>
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-foreground">WJI Grant Closeout Dashboard</h1>

@@ -1,4 +1,5 @@
 "use client"
+import { apiFetch } from "@/lib/fetch"
 
 import { useEffect, useState } from "react"
 import {
@@ -73,7 +74,7 @@ export default function MarketingDashboard() {
   const [loadingBody, setLoadingBody] = useState(false)
 
   const loadData = () => {
-    fetch(`${API_BASE}/pipeline`)
+    apiFetch(`${API_BASE}/pipeline`)
       .then((r) => r.json())
       .then((d) => {
         setPipeline(d.pipeline || {})
@@ -87,7 +88,7 @@ export default function MarketingDashboard() {
   const updateStatus = async (id: string, status: string, approvedBy?: string) => {
     setActing(id)
     try {
-      await fetch(`${API_BASE}/content/${id}/status`, {
+      await apiFetch(`${API_BASE}/content/${id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, approved_by: approvedBy }),
@@ -101,7 +102,7 @@ export default function MarketingDashboard() {
   const markLoaded = async (id: string) => {
     setActing(id)
     try {
-      await fetch(`${API_BASE}/content/${id}/mark-loaded`, { method: "POST" })
+      await apiFetch(`${API_BASE}/content/${id}/mark-loaded`, { method: "POST" })
       loadData()
     } finally {
       setActing(null)
@@ -113,7 +114,7 @@ export default function MarketingDashboard() {
     setLoadingBody(true)
     setViewBody(null)
     try {
-      const r = await fetch(`${API_BASE}/content/${c.id}`)
+      const r = await apiFetch(`${API_BASE}/content/${c.id}`)
       if (r.ok) {
         const full = await r.json()
         setViewBody(full.content_body || "(no content)")

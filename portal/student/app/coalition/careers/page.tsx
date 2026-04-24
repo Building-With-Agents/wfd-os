@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import NewsletterSubscribe from "@/components/newsletter-subscribe"
 
 const SKILL_OPTIONS = [
   "Python", "JavaScript", "Java", "SQL", "HTML/CSS", "React",
@@ -273,6 +274,7 @@ export default function CareersPage() {
       </main>
 
       <footer className="border-t border-border bg-card py-4 mt-8">
+        <NewsletterSubscribe />
         <div className="mx-auto max-w-4xl px-4 text-center text-xs text-muted-foreground">
           &copy; 2026 Computing for All | computingforall.org
         </div>

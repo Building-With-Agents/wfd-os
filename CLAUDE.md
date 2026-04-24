@@ -674,3 +674,72 @@ Waifinder Deployment 001: Workforce Solutions Borderplex
 8. What % of 5,000+ students have resumes in Blob Storage?
 9. Which agent to build first after discovery?
 10. Evidence for cancelling Dynamics?
+
+=============================================================
+## Standing rule — Portal pages that show live data
+=============================================================
+
+When building or modifying any Next.js page under `portal/student/app/`
+that needs to display data from a backend API (stats, scores, drafts,
+pipeline, etc.), ALWAYS use the server-component-wrapper pattern.
+NEVER use `"use client"` + `useEffect` + `fetch` as the only data loading
+path — that pattern breaks on ngrok, on slow networks, during Turbopack
+HMR restarts, and whenever a backend service is restarted mid-request.
+
+### The problem (why this matters)
+
+When a reviewer opens a dashboard via the ngrok tunnel, client-side fetch
+calls can fail silently for many reasons:
+  - ngrok free-tier browser-warning interstitial intercepts AJAX
+  - Next.js dev server Turbopack HMR state is stale after a hot reload
+  - A backend uvicorn service was restarted in the middle of a page load
+  - The reviewer's browser is caching a prior failed response
+  - CORS, race conditions, `null` from `safeJson`, etc.
+
+The visible symptom is ALWAYS the same: localhost works, ngrok shows
+"Loading…" forever or empty "(0)" counts everywhere. This pattern has
+now shown up on at least 4 separate pages (home, coalition, for-employers,
+internal/bd) and each time the fix is the same.
+
+### The fix (mandatory for all new dashboards)
+
+Split each data-loading page into TWO files:
+
+1. `app/<route>/page.tsx` — Server component. Fetches data at request
+   time from `http://localhost:<port>` (server-to-localhost, never through
+   ngrok). Passes result as `initialX` prop to the client component.
+
+2. `app/<route>/<route>-client.tsx` — Client component with `"use client"`.
+   Accepts `initialX` prop and uses `useState(initialX || null)`. The
+   `useEffect` client-side fetch becomes a FALLBACK only — it runs only
+   if `initialX` was not provided (rare — mostly for client-side
+   navigation between pages).
+
+### Reference implementations already in the repo
+
+  - `app/page.tsx` + `app/home-client.tsx` (stats)
+  - `app/coalition/page.tsx` + `app/coalition/coalition-client.tsx` (stats)
+  - `app/for-employers/page.tsx` + `app/for-employers/for-employers-client.tsx` (stats)
+  - `app/internal/bd/page.tsx` + `app/internal/bd/bd-client.tsx` (BD command center)
+
+Copy that pattern for every new dashboard. If you find yourself writing
+`useEffect(() => { apiFetch(...) })` as the ONLY data loading path in a
+page.tsx, STOP and refactor to the wrapper pattern first.
+
+### Checklist when building a new dashboard
+
+  [ ] `page.tsx` is a server component (no `"use client"` directive)
+  [ ] `page.tsx` fetches every data source via `fetch("http://localhost:<port>/api/...", { cache: "no-store" })` wrapped in try/catch returning null on error
+  [ ] `page.tsx` renders a client component and passes all data as `initialX` props
+  [ ] `<route>-client.tsx` accepts `initial*` props and uses them as initial state
+  [ ] `<route>-client.tsx` has an optional `useEffect` that only fetches if `initial*` was undefined (fallback path, not primary)
+  [ ] Every API endpoint used by the page is reachable from `curl http://localhost:<port>/...` (test this BEFORE checking the browser)
+  [ ] After any backend Python code change, restart the corresponding uvicorn service — do not rely on `--reload`
+
+### Checklist when data appears "stale on ngrok but fresh on localhost"
+
+  1. `curl` the relevant `/api/...` endpoint through ngrok with `-H "ngrok-skip-browser-warning: true"` — does it return JSON?
+  2. If YES → the issue is client-side: either the page is using client-only fetching (refactor to SSR wrapper), or Turbopack HMR is stuck (restart Next.js dev server)
+  3. If NO → the issue is backend: restart the uvicorn service for that route
+  4. NEVER tell the user "it should work" — always test through the exact URL they'll use (ngrok, not localhost)
+

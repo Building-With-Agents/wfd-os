@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import NewsletterSubscribe from "@/components/newsletter-subscribe"
 
 function NavBar() {
   return (
@@ -21,9 +22,9 @@ function NavBar() {
           <span className="text-lg font-bold text-foreground">Computing for All</span>
         </a>
         <div className="hidden items-center gap-6 md:flex">
+          <a href="/cfa/ai-consulting" className="text-sm text-muted-foreground hover:text-foreground">AI Consulting</a>
           <a href="/youth" className="text-sm font-medium text-foreground">Youth Program</a>
           <a href="/coalition" className="text-sm text-muted-foreground hover:text-foreground">Coalition</a>
-          <a href="/cfa/ai-consulting" className="text-sm text-muted-foreground hover:text-foreground">AI Consulting</a>
           <a href="/#about" className="text-sm text-muted-foreground hover:text-foreground">About</a>
           <a href="https://secure.givelively.org/donate/computing-for-all" target="_blank" rel="noopener noreferrer">
             <Button size="sm" variant="outline" className="gap-1">
@@ -41,7 +42,7 @@ function Hero() {
     <section className="bg-gradient-to-b from-primary/5 via-primary/3 to-background px-4 py-16 sm:py-24">
       <div className="mx-auto max-w-4xl text-center">
         <Badge className="mb-4 bg-primary/10 text-primary border-primary/20">
-          Free Program &middot; Ages 16-24 &middot; Washington State
+          Grant-funded program &middot; Ages 16-24 &middot; Washington State
         </Badge>
         <h1 className="text-4xl font-bold leading-tight tracking-tight text-foreground sm:text-5xl lg:text-6xl">
           Tech Career Bridge
@@ -160,7 +161,7 @@ function Benefits() {
 function ProgramDetails() {
   const details = [
     "Live, online instruction in a virtual classroom, led by industry-experienced instructors",
-    "Free for qualified students",
+    "Grant-funded program for qualified students",
     "Connected with Seattle earn-to-learn programs",
     "Advanced placement tests for students with prior programming experience",
     "Some assistance available for computer equipment",
@@ -180,6 +181,28 @@ function ProgramDetails() {
               </li>
             ))}
           </ul>
+        </Card>
+      </div>
+    </section>
+  )
+}
+
+function ReadyToApplyMidCTA() {
+  return (
+    <section className="px-4 py-12">
+      <div className="mx-auto max-w-3xl">
+        <Card className="border-primary/20 bg-primary/5 p-8 text-center">
+          <h3 className="text-2xl font-bold text-foreground sm:text-3xl">Ready to Apply?</h3>
+          <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+            Start your tech career journey today. Applications are open for the upcoming quarters.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+            <a href="#apply">
+              <Button size="lg" className="gap-2">
+                Apply Now <ArrowRight className="h-4 w-4" />
+              </Button>
+            </a>
+          </div>
         </Card>
       </div>
     </section>
@@ -242,13 +265,13 @@ function Schedule() {
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
               <span className="text-sm text-foreground">
-                <strong>Spring 2026:</strong> March 31 &ndash; May 26
+                <strong>Spring 2026:&nbsp;</strong>March 31 &ndash; May 26
               </span>
             </div>
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-primary" />
               <span className="text-sm text-foreground">
-                <strong>Summer 2026:</strong> July 1 &ndash; August 13
+                <strong>Summer 2026:&nbsp;</strong>July 1 &ndash; August 13
               </span>
             </div>
           </div>
@@ -430,6 +453,7 @@ function SupportStudents() {
 function Footer() {
   return (
     <footer className="border-t border-border bg-white py-10">
+        <NewsletterSubscribe />
       <div className="mx-auto max-w-5xl px-4">
         <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-between">
           <div className="flex items-center gap-2">
@@ -463,6 +487,7 @@ export default function YouthProgramPage() {
       <Intro />
       <Benefits />
       <ProgramDetails />
+      <ReadyToApplyMidCTA />
       <Schedule />
       <Curriculum />
       <Requirements />

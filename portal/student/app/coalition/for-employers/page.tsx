@@ -1,4 +1,5 @@
 "use client"
+import { apiFetch } from "@/lib/fetch"
 
 import { useState } from "react"
 import {
@@ -11,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
+import NewsletterSubscribe from "@/components/newsletter-subscribe"
 
 const PROJECT_AREAS = [
   "Labor market intelligence",
@@ -47,9 +49,9 @@ function NavBar() {
           <span className="text-lg font-bold text-foreground">WA Tech Coalition</span>
         </div>
         <div className="hidden items-center gap-6 sm:flex">
+          <a href="/cfa/ai-consulting" className="text-sm text-muted-foreground hover:text-foreground">AI Consulting</a>
           <a href="/showcase" className="text-sm text-muted-foreground hover:text-foreground">Talent Showcase</a>
           <a href="/for-employers" className="text-sm font-medium text-foreground">For Employers</a>
-          <a href="#" className="text-sm text-muted-foreground hover:text-foreground">About</a>
           <a href="#intake-form">
             <Button size="sm" className="gap-1">Schedule a conversation <ArrowRight className="h-3.5 w-3.5" /></Button>
           </a>
@@ -294,7 +296,7 @@ function IntakeForm() {
     setError(null)
 
     try {
-      const res = await fetch("/api/consulting/inquire", {
+      const res = await apiFetch("/api/consulting/inquire", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -439,6 +441,7 @@ function IntakeForm() {
 function Footer() {
   return (
     <footer className="border-t border-border bg-card py-8">
+        <NewsletterSubscribe />
       <div className="mx-auto max-w-6xl px-4 text-center">
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Compass className="h-4 w-4 text-primary" />

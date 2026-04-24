@@ -1,4 +1,5 @@
 "use client"
+import { apiFetch } from "@/lib/fetch"
 
 import { useEffect, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
@@ -104,7 +105,7 @@ export default function ChatWidget() {
     setSending(true)
 
     try {
-      const res = await fetch(`${API_BASE}/chat`, {
+      const res = await apiFetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, agent_type: agentType, user_role: "visitor", message: text.trim() }),
@@ -138,6 +139,7 @@ export default function ChatWidget() {
           onClick={() => setOpen(true)}
           className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary shadow-lg transition-transform hover:scale-105 hover:shadow-xl"
           aria-label="Open chat"
+          suppressHydrationWarning
         >
           <MessageCircle className="h-6 w-6 text-white" />
         </button>
@@ -219,12 +221,14 @@ export default function ChatWidget() {
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMsg(input) } }}
                 placeholder="Type a message..."
                 disabled={sending}
+                suppressHydrationWarning
                 className="flex-1 rounded-full border border-input bg-muted/30 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={() => sendMsg(input)}
                 disabled={!input.trim() || sending}
+                suppressHydrationWarning
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-white disabled:opacity-50"
               >
                 <Send className="h-3.5 w-3.5" />

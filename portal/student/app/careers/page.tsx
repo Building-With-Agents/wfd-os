@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import NewsletterSubscribe from "@/components/newsletter-subscribe"
 
 const SKILL_OPTIONS = [
   "Python", "JavaScript", "Java", "SQL", "HTML/CSS", "React",
@@ -27,7 +28,6 @@ const ROLE_OPTIONS = [
 ]
 
 export default function CareersPage() {
-  const [showIntakeForm, setShowIntakeForm] = useState(false)
   const [lookupEmail, setLookupEmail] = useState("")
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
@@ -71,16 +71,25 @@ export default function CareersPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3 sm:px-6">
-          <a href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-            <ArrowLeft className="h-4 w-4" /> Computing for All
+      {/* Header with top-level navigation — AI Consulting first, consistent across portal */}
+      <header className="sticky top-0 z-50 border-b border-border bg-card/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+          <a href="/" className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+              <Compass className="h-4.5 w-4.5 text-primary-foreground" />
+            </div>
+            <span className="text-lg font-bold text-foreground">Computing for All</span>
           </a>
-          <div className="flex items-center gap-2">
-            <Compass className="h-5 w-5 text-primary" />
-            <span className="font-semibold text-foreground">Career Accelerator</span>
-          </div>
+          <nav className="hidden items-center gap-6 md:flex">
+            <a href="/cfa/ai-consulting" className="text-sm text-muted-foreground hover:text-foreground">AI Consulting</a>
+            <a href="/youth" className="text-sm text-muted-foreground hover:text-foreground">Youth Program</a>
+            <a href="/coalition" className="text-sm text-muted-foreground hover:text-foreground">Coalition</a>
+            <a href="/careers" className="text-sm font-medium text-foreground">Career Accelerator</a>
+            <a href="/resources" className="text-sm text-muted-foreground hover:text-foreground">Resources</a>
+          </nav>
+          <a href="/" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground md:hidden">
+            <ArrowLeft className="h-4 w-4" /> Back
+          </a>
         </div>
       </header>
 
@@ -99,7 +108,7 @@ export default function CareersPage() {
           </p>
         </div>
 
-        {!showIntakeForm && !submitted && (
+        {!submitted && (
           <div className="space-y-6">
             {/* Path 1: Resume Upload */}
             <Card className="p-6">
@@ -140,21 +149,27 @@ export default function CareersPage() {
               )}
             </Card>
 
-            {/* Path 2: No resume */}
+            {/* OR divider + anchor to the intake form below. The intake form is
+                always rendered below so the user doesn't rely on state toggles. */}
+            <div className="relative flex items-center py-2">
+              <div className="flex-grow border-t border-border"></div>
+              <span className="mx-4 text-xs uppercase tracking-wide text-muted-foreground">or</span>
+              <div className="flex-grow border-t border-border"></div>
+            </div>
+
             <div className="text-center">
-              <button
-                onClick={() => setShowIntakeForm(true)}
-                className="text-sm font-medium text-primary hover:underline"
+              <a
+                href="#no-resume-form"
+                className="inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-2 hover:underline"
               >
                 No resume? Answer a few questions instead &rarr;
-              </button>
+              </a>
             </div>
-          </div>
-        )}
 
-        {/* Intake Form (no resume path) */}
-        {showIntakeForm && !submitted && (
-          <Card className="p-6">
+            {/* Intake Form — always visible below the upload card.
+                No state toggle — Jessica and any reviewer can see and use this
+                form immediately without needing JavaScript to reveal it. */}
+            <Card id="no-resume-form" className="p-6 scroll-mt-24">
             <div className="flex items-center gap-2 mb-4">
               <User className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-semibold text-foreground">Tell us about yourself</h2>
@@ -215,16 +230,9 @@ export default function CareersPage() {
               <Button type="submit" className="w-full gap-2">
                 Show me my matches <Sparkles className="h-4 w-4" />
               </Button>
-
-              <button
-                type="button"
-                onClick={() => setShowIntakeForm(false)}
-                className="block w-full text-center text-xs text-muted-foreground hover:text-foreground"
-              >
-                &larr; Back to resume upload
-              </button>
             </form>
           </Card>
+          </div>
         )}
 
         {/* Success state */}
@@ -273,6 +281,7 @@ export default function CareersPage() {
       </main>
 
       <footer className="border-t border-border bg-card py-4 mt-8">
+        <NewsletterSubscribe />
         <div className="mx-auto max-w-4xl px-4 text-center text-xs text-muted-foreground">
           &copy; 2026 Computing for All | computingforall.org
         </div>

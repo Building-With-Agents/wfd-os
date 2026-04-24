@@ -6,6 +6,7 @@ import { Compass, GraduationCap, ArrowLeft, ArrowRight, Mail } from "lucide-reac
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card } from "@/components/ui/card"
+import NewsletterSubscribe from "@/components/newsletter-subscribe"
 
 export default function CollegeLoginPage() {
   const router = useRouter()
@@ -82,6 +83,7 @@ export default function CollegeLoginPage() {
       </main>
 
       <footer className="border-t border-border bg-card py-4">
+        <NewsletterSubscribe />
         <div className="mx-auto max-w-4xl px-4 text-center text-xs text-muted-foreground">
           &copy; 2026 Computing for All | computingforall.org
         </div>

@@ -1,4 +1,5 @@
 "use client"
+import { apiFetch } from "@/lib/fetch"
 
 import { useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import NewsletterSubscribe from "@/components/newsletter-subscribe"
 
 const API_BASE = "/api"
 
@@ -53,7 +55,7 @@ function ClientPortalContent() {
       setLoading(false)
       return
     }
-    fetch(`${API_BASE}/consulting/client/${token}`)
+    apiFetch(`${API_BASE}/consulting/client/${token}`)
       .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json() })
       .then(setData)
       .catch((e) => setError(e.message))
@@ -405,6 +407,7 @@ function ClientPortalContent() {
 
       {/* Footer */}
       <footer className="border-t border-border bg-card py-4 mt-8">
+        <NewsletterSubscribe />
         <div className="mx-auto max-w-6xl px-4 text-center">
           <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <Shield className="h-3.5 w-3.5" />

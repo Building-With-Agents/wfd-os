@@ -52,6 +52,13 @@ function Button({
     <Comp
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      // Browser form-detection / password-manager extensions (1Password,
+      // LastPass, Edge Autofill, etc.) inject an `fdprocessedid` attribute
+      // into form elements before React hydrates, causing a dev-console
+      // hydration mismatch warning. suppressHydrationWarning tells React
+      // to expect and ignore these attribute differences on this element.
+      // Does not affect production behavior — buttons still work normally.
+      suppressHydrationWarning
       {...props}
     />
   )

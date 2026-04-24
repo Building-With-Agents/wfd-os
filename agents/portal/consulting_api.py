@@ -4,6 +4,7 @@ Run: uvicorn consulting_api:app --reload --port 8003
 """
 import sys, os, json, asyncio, traceback
 from datetime import datetime, timezone
+from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
@@ -962,6 +963,639 @@ def post_engagement_update(engagement_id: str, update: NewUpdate):
         "update_date": update_date.isoformat() if update_date else None,
         "teams": teams_result,
     }
+
+
+# =================================================================
+# BD COMMAND CENTER API — Jason's dashboard endpoints
+# =================================================================
+
+@app.get("/api/consulting/bd/priorities")
+def bd_priorities():
+    """Today's priorities — warm signals + new Hot companies."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, company_name, contact_name, contact_title, signal_type,
+                   signal_detail, priority, detected_at, content_id
+            FROM warm_signals
+            WHERE alert_sent = TRUE AND converted_to_conversation = FALSE
+            ORDER BY detected_at DESC LIMIT 5
+        """)
+        signals = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("""
+            SELECT DISTINCT ON (company_domain)
+                   company_name, company_domain, confidence, scoring_rationale,
+                   recommended_buyer, tier_assigned_at
+            FROM company_scores
+            WHERE tier = 'Hot'
+              AND tier_assigned_at > NOW() - INTERVAL '48 hours'
+            ORDER BY company_domain, tier_assigned_at DESC
+        """)
+        new_hot = [dict(r) for r in cur.fetchall()]
+
+        for r in signals + new_hot:
+            for k, v in r.items():
+                if isinstance(v, datetime):
+                    r[k] = v.isoformat()
+
+        return {"signals": signals, "new_hot": new_hot}
+    finally:
+        conn.close()
+
+
+@app.get("/api/consulting/bd/hot-prospects")
+def bd_hot_prospects():
+    """All Hot companies with contact and pipeline status."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT DISTINCT ON (cs.company_domain)
+                   cs.company_name, cs.company_domain, cs.confidence,
+                   cs.recommended_buyer, cs.tier_assigned_at,
+                   cs.scoring_rationale,
+                   hwc.id as contact_id, hwc.contact_name, hwc.contact_title,
+                   hwc.contact_email, hwc.match_confidence, hwc.pipeline_stage,
+                   EXTRACT(DAY FROM NOW() - cs.tier_assigned_at)::int as days_since_scored
+            FROM company_scores cs
+            LEFT JOIN hot_warm_contacts hwc ON hwc.company_domain = cs.company_domain
+            WHERE cs.tier = 'Hot'
+            ORDER BY cs.company_domain, cs.tier_assigned_at DESC
+        """)
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            for k, v in r.items():
+                if isinstance(v, datetime):
+                    r[k] = v.isoformat()
+        return {"prospects": rows}
+    finally:
+        conn.close()
+
+
+@app.get("/api/consulting/bd/warm-signals")
+def bd_warm_signals():
+    """All unacted warm signals."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, company_name, company_domain, contact_name, contact_title,
+                   signal_type, signal_detail, priority, company_tier_at_signal,
+                   detected_at
+            FROM warm_signals
+            WHERE converted_to_conversation = FALSE
+            ORDER BY
+              CASE priority WHEN 'Immediate' THEN 1 WHEN 'High' THEN 2 ELSE 3 END,
+              detected_at DESC
+        """)
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            for k, v in r.items():
+                if isinstance(v, datetime):
+                    r[k] = v.isoformat()
+        return {"signals": rows}
+    finally:
+        conn.close()
+
+
+@app.get("/api/consulting/bd/pipeline")
+def bd_pipeline():
+    """Pipeline kanban — hot_warm_contacts grouped by stage."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, company_name, company_domain, contact_name, contact_title,
+                   contact_email, company_tier, match_confidence, pipeline_stage
+            FROM hot_warm_contacts
+            ORDER BY found_at DESC
+        """)
+        rows = [dict(r) for r in cur.fetchall()]
+
+        stages = ["Identified", "LinkedIn Sent", "LinkedIn Connected", "Email Sent",
+                  "Replied", "Conversation", "Proposal", "Client"]
+        grouped = {s: [] for s in stages}
+        for r in rows:
+            stage = r.get("pipeline_stage") or "Identified"
+            if stage not in grouped:
+                grouped[stage] = []
+            grouped[stage].append(r)
+        return {"stages": stages, "pipeline": grouped}
+    finally:
+        conn.close()
+
+
+class PipelineStageUpdate(BaseModel):
+    stage: str
+
+
+@app.patch("/api/consulting/bd/pipeline/{contact_id}")
+def bd_update_pipeline(contact_id: int, body: PipelineStageUpdate):
+    """Update pipeline_stage for a contact."""
+    valid = {"Identified", "LinkedIn Sent", "LinkedIn Connected", "Email Sent",
+             "Replied", "Conversation", "Proposal", "Client"}
+    if body.stage not in valid:
+        raise HTTPException(status_code=400, detail=f"Invalid stage. Valid: {sorted(valid)}")
+
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE hot_warm_contacts SET pipeline_stage = %s WHERE id = %s",
+            (body.stage, contact_id),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Contact not found")
+        return {"success": True, "contact_id": contact_id, "stage": body.stage}
+    finally:
+        conn.close()
+
+
+class SignalActioned(BaseModel):
+    actioned: bool = True
+
+
+@app.patch("/api/consulting/bd/signals/{signal_id}")
+def bd_action_signal(signal_id: int, body: SignalActioned):
+    """Mark a warm signal as actioned/converted."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE warm_signals SET converted_to_conversation = %s WHERE id = %s",
+            (body.actioned, signal_id),
+        )
+        conn.commit()
+        if cur.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Signal not found")
+        return {"success": True, "signal_id": signal_id, "actioned": body.actioned}
+    finally:
+        conn.close()
+
+
+# =================================================================
+# Email Drafts — review, edit, approve, send from dashboard
+# =================================================================
+
+def _graph_credential():
+    """Return Azure ClientSecretCredential for Graph API."""
+    from azure.identity import ClientSecretCredential
+    return ClientSecretCredential(
+        tenant_id=os.getenv("GRAPH_TENANT_ID", os.getenv("AZURE_TENANT_ID", "")),
+        client_id=os.getenv("GRAPH_CLIENT_ID", os.getenv("AZURE_CLIENT_ID", "")),
+        client_secret=os.getenv("GRAPH_CLIENT_SECRET", os.getenv("AZURE_CLIENT_SECRET", "")),
+    )
+
+
+def _graph_headers():
+    cred = _graph_credential()
+    token = cred.get_token("https://graph.microsoft.com/.default")
+    return {
+        "Authorization": f"Bearer {token.token}",
+        "Content-Type": "application/json",
+    }
+
+
+def _sender_user_id(sender_email: str) -> str:
+    """Map sender email to Graph user ID."""
+    if sender_email == "ritu@computinforall.org":
+        return "be5fe791-2674-4547-bc8e-eabc67917369"
+    return sender_email
+
+
+GRAPH_BASE = "https://graph.microsoft.com/v1.0"
+
+
+@app.get("/api/consulting/bd/email-drafts")
+def bd_email_drafts():
+    """List all email sequences awaiting review."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT id, contact_id, content_id, company_domain, company_name,
+                   contact_name, contact_email, sender, sender_email,
+                   subject_line, touch_1_body, touch_2_body, touch_3_body,
+                   touch_1_message_id, sequence_status, created_at
+            FROM email_sequences
+            WHERE sequence_status = 'pending_review'
+            ORDER BY created_at DESC
+        """)
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            for k, v in r.items():
+                if isinstance(v, datetime):
+                    r[k] = v.isoformat()
+        return {"drafts": rows}
+    finally:
+        conn.close()
+
+
+class EmailDraftUpdate(BaseModel):
+    subject_line: Optional[str] = None
+    touch_1_body: Optional[str] = None
+    touch_2_body: Optional[str] = None
+    touch_3_body: Optional[str] = None
+
+
+@app.patch("/api/consulting/bd/email-drafts/{draft_id}")
+def bd_update_email_draft(draft_id: int, body: EmailDraftUpdate):
+    """Edit subject or body of an email draft. Also updates the Outlook draft."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("SELECT * FROM email_sequences WHERE id = %s", (draft_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Draft not found")
+        if row["sequence_status"] != "pending_review":
+            raise HTTPException(status_code=400, detail=f"Cannot edit sequence in status '{row['sequence_status']}'")
+
+        # Build SQL update
+        updates = []
+        params = []
+        for field in ["subject_line", "touch_1_body", "touch_2_body", "touch_3_body"]:
+            value = getattr(body, field)
+            if value is not None:
+                updates.append(f"{field} = %s")
+                params.append(value)
+
+        if updates:
+            params.append(draft_id)
+            cur.execute(f"UPDATE email_sequences SET {', '.join(updates)} WHERE id = %s", params)
+            conn.commit()
+
+        # Sync changes to the Outlook draft via Graph API
+        if row.get("touch_1_message_id") and (body.subject_line or body.touch_1_body):
+            try:
+                import requests as http_req
+                user_id = _sender_user_id(row["sender_email"])
+                headers = _graph_headers()
+                patch_body = {}
+                if body.subject_line:
+                    patch_body["subject"] = body.subject_line
+                if body.touch_1_body:
+                    patch_body["body"] = {"contentType": "Text", "content": body.touch_1_body}
+                if patch_body:
+                    r = http_req.patch(
+                        f"{GRAPH_BASE}/users/{user_id}/messages/{row['touch_1_message_id']}",
+                        headers=headers,
+                        json=patch_body,
+                        timeout=15,
+                    )
+                    if r.status_code not in (200, 204):
+                        print(f"[GRAPH] Draft update warning: {r.status_code} {r.text[:200]}")
+            except Exception as e:
+                print(f"[GRAPH] Draft sync error: {e}")
+
+        return {"success": True, "draft_id": draft_id}
+    finally:
+        conn.close()
+
+
+class ApprovalBody(BaseModel):
+    approved_by: str = "ritu"
+
+
+@app.post("/api/consulting/bd/email-drafts/{draft_id}/approve")
+def bd_approve_email_draft(draft_id: int, body: ApprovalBody):
+    """Approve and send the Touch 1 draft. Sequence becomes 'active'.
+    Touch 2 and Touch 3 will auto-send on schedule via process_sequence_touches.
+    """
+    import requests as http_req
+
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("SELECT * FROM email_sequences WHERE id = %s", (draft_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Draft not found")
+        if row["sequence_status"] != "pending_review":
+            raise HTTPException(status_code=400, detail=f"Cannot approve sequence in status '{row['sequence_status']}'")
+
+        sender_email = row["sender_email"]
+        user_id = _sender_user_id(sender_email)
+        headers = _graph_headers()
+
+        # Try to send the existing draft first if we have a message_id
+        sent = False
+        if row.get("touch_1_message_id"):
+            try:
+                r = http_req.post(
+                    f"{GRAPH_BASE}/users/{user_id}/messages/{row['touch_1_message_id']}/send",
+                    headers=headers,
+                    timeout=30,
+                )
+                if r.status_code in (200, 202):
+                    sent = True
+                    print(f"[GRAPH] Sent existing draft {row['touch_1_message_id'][:30]}...")
+                else:
+                    print(f"[GRAPH] Send-existing-draft failed: {r.status_code} {r.text[:200]}")
+            except Exception as e:
+                print(f"[GRAPH] Send-existing-draft error: {e}")
+
+        # Fallback: send fresh via /sendMail (works even if draft doesn't exist)
+        if not sent:
+            try:
+                payload = {
+                    "message": {
+                        "subject": row["subject_line"],
+                        "body": {"contentType": "Text", "content": row["touch_1_body"]},
+                        "toRecipients": [
+                            {"emailAddress": {"name": row["contact_name"], "address": row["contact_email"]}}
+                        ],
+                    },
+                    "saveToSentItems": True,
+                }
+                r = http_req.post(
+                    f"{GRAPH_BASE}/users/{user_id}/sendMail",
+                    headers=headers,
+                    json=payload,
+                    timeout=30,
+                )
+                if r.status_code == 202:
+                    sent = True
+                    print(f"[GRAPH] Sent fresh email -> {row['contact_email']}")
+                else:
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"Graph send failed: {r.status_code} {r.text[:200]}",
+                    )
+            except HTTPException:
+                raise
+            except Exception as e:
+                raise HTTPException(status_code=502, detail=f"Graph send error: {e}")
+
+        # Mark sequence active and record timestamps
+        cur.execute(
+            """UPDATE email_sequences
+               SET sequence_status = 'active',
+                   touch_1_sent_at = NOW(),
+                   approved_by = %s,
+                   approved_at = NOW()
+               WHERE id = %s""",
+            (body.approved_by, draft_id),
+        )
+        conn.commit()
+
+        return {
+            "success": True,
+            "draft_id": draft_id,
+            "company_name": row["company_name"],
+            "contact_name": row["contact_name"],
+            "sent_to": row["contact_email"],
+            "next_touch": "Touch 2 will auto-send in 5 days if no reply",
+        }
+    finally:
+        conn.close()
+
+
+@app.delete("/api/consulting/bd/email-drafts/{draft_id}")
+def bd_reject_email_draft(draft_id: int):
+    """Reject a draft — deletes the Outlook draft and the sequence row."""
+    import requests as http_req
+
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("SELECT * FROM email_sequences WHERE id = %s", (draft_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Draft not found")
+
+        # Delete the Outlook draft if it exists
+        if row.get("touch_1_message_id"):
+            try:
+                user_id = _sender_user_id(row["sender_email"])
+                headers = _graph_headers()
+                r = http_req.delete(
+                    f"{GRAPH_BASE}/users/{user_id}/messages/{row['touch_1_message_id']}",
+                    headers=headers,
+                    timeout=15,
+                )
+                if r.status_code not in (200, 204):
+                    print(f"[GRAPH] Draft delete warning: {r.status_code}")
+            except Exception as e:
+                print(f"[GRAPH] Draft delete error: {e}")
+
+        # Delete from database
+        cur.execute("DELETE FROM email_sequences WHERE id = %s", (draft_id,))
+        conn.commit()
+
+        return {"success": True, "draft_id": draft_id, "rejected": True}
+    finally:
+        conn.close()
+
+
+# =================================================================
+# MARKETING COMMAND CENTER API — Jessica's dashboard endpoints
+# =================================================================
+
+@app.get("/api/consulting/marketing/performance")
+def marketing_performance():
+    """Content performance metrics — signals per piece."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT cs.id, cs.title, cs.author, cs.vertical, cs.topic_tags,
+                   cs.status, cs.distributed_at, cs.submitted_at,
+                   COALESCE(dl.contacts_reached, 0) as contacts_reached,
+                   COALESCE(ws.signal_count, 0) as signals_generated
+            FROM content_submissions cs
+            LEFT JOIN (
+                SELECT content_id, COUNT(*) as contacts_reached
+                FROM distribution_log GROUP BY content_id
+            ) dl ON cs.id = dl.content_id
+            LEFT JOIN (
+                SELECT content_id, COUNT(*) as signal_count
+                FROM warm_signals GROUP BY content_id
+            ) ws ON cs.id = ws.content_id
+            ORDER BY cs.submitted_at DESC
+        """)
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            contacts = r.get("contacts_reached") or 0
+            signals = r.get("signals_generated") or 0
+            r["signal_rate_pct"] = round(signals / contacts * 100, 1) if contacts > 0 else 0
+            for k, v in r.items():
+                if isinstance(v, datetime):
+                    r[k] = v.isoformat()
+        return {"content": rows}
+    finally:
+        conn.close()
+
+
+@app.get("/api/consulting/marketing/gaps")
+def marketing_gaps():
+    """Content gap analysis from company_scores recommended_content."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT DISTINCT ON (company_domain)
+                   company_name, company_domain, tier, recommended_content
+            FROM company_scores
+            WHERE tier IN ('Hot', 'Warm')
+              AND recommended_content IS NOT NULL
+              AND recommended_content != ''
+            ORDER BY company_domain, tier_assigned_at DESC
+        """)
+        recs = [dict(r) for r in cur.fetchall()]
+
+        cur.execute("SELECT id, title, topic_tags FROM content_submissions")
+        existing = [dict(r) for r in cur.fetchall()]
+        existing_tags = set()
+        for c in existing:
+            for tag in (c.get("topic_tags") or []):
+                existing_tags.add(tag.lower())
+
+        gaps = {}
+        for r in recs:
+            topic = (r.get("recommended_content") or "")[:120]
+            if topic not in gaps:
+                gaps[topic] = {"topic": topic, "companies": [], "tiers": []}
+            gaps[topic]["companies"].append(r["company_name"])
+            gaps[topic]["tiers"].append(r["tier"])
+
+        gap_list = []
+        for topic, data in gaps.items():
+            count = len(data["companies"])
+            topic_words = set(topic.lower().split())
+            has_coverage = bool(topic_words & existing_tags)
+            if count >= 3 and not has_coverage:
+                priority = "high"
+            elif count >= 1 and not has_coverage:
+                priority = "medium"
+            else:
+                priority = "covered"
+            gap_list.append({
+                "topic": topic,
+                "company_count": count,
+                "companies": data["companies"][:5],
+                "tiers": data["tiers"],
+                "has_coverage": has_coverage,
+                "priority": priority,
+            })
+
+        gap_list.sort(key=lambda x: (-x["company_count"], x["has_coverage"]))
+        return {"gaps": gap_list}
+    finally:
+        conn.close()
+
+
+@app.get("/api/consulting/marketing/calendar")
+def marketing_calendar():
+    """Content calendar — all content_submissions with status."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT cs.*, COALESCE(ws.signal_count, 0) as signals
+            FROM content_submissions cs
+            LEFT JOIN (
+                SELECT content_id, COUNT(*) as signal_count
+                FROM warm_signals GROUP BY content_id
+            ) ws ON cs.id = ws.content_id
+            ORDER BY cs.submitted_at DESC
+        """)
+        rows = [dict(r) for r in cur.fetchall()]
+        for r in rows:
+            for k, v in r.items():
+                if isinstance(v, datetime):
+                    r[k] = v.isoformat()
+        return {"calendar": rows}
+    finally:
+        conn.close()
+
+
+class ContentSubmission(BaseModel):
+    title: str
+    url: Optional[str] = None
+    author: str
+    vertical: Optional[str] = "general"
+    topic_tags: Optional[list[str]] = None
+    funnel_stage: Optional[str] = "awareness"
+    format: Optional[str] = "long-form"
+    distribute_immediately: Optional[bool] = True
+    schedule_datetime: Optional[str] = None
+
+
+@app.post("/api/consulting/marketing/submit-content")
+def marketing_submit(body: ContentSubmission):
+    """Submit a new content piece to the distribution pipeline."""
+    distribution_timing = None
+    if not body.distribute_immediately and body.schedule_datetime:
+        distribution_timing = body.schedule_datetime
+
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """INSERT INTO content_submissions
+               (title, url, author, vertical, topic_tags, funnel_stage, format,
+                distribution_timing, status, deployment_id)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+               RETURNING id""",
+            (
+                body.title, body.url, body.author, body.vertical,
+                body.topic_tags or [], body.funnel_stage, body.format,
+                distribution_timing, "pending", "waifinder-national",
+            ),
+        )
+        new_id = cur.fetchone()[0]
+        conn.commit()
+        return {
+            "id": new_id,
+            "status": "pending",
+            "estimated_distribution": "next 15-minute Agent 13 cycle"
+                                      if body.distribute_immediately
+                                      else body.schedule_datetime,
+        }
+    finally:
+        conn.close()
+
+
+@app.get("/api/consulting/marketing/leads-summary")
+def marketing_leads_summary():
+    """Lead capture metrics — this week vs last week. Endpoint name avoids collision with existing /api/marketing/leads."""
+    conn = psycopg2.connect(**PG_CONFIG)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            SELECT COUNT(*) as total FROM marketing_leads
+            WHERE created_at > NOW() - INTERVAL '7 days'
+        """)
+        this_week = cur.fetchone()["total"]
+
+        cur.execute("""
+            SELECT COUNT(*) as total FROM marketing_leads
+            WHERE created_at BETWEEN NOW() - INTERVAL '14 days'
+                                 AND NOW() - INTERVAL '7 days'
+        """)
+        last_week = cur.fetchone()["total"]
+
+        cur.execute("""
+            SELECT content_title, content_type, COUNT(*) as leads
+            FROM marketing_leads
+            WHERE created_at > NOW() - INTERVAL '7 days'
+            GROUP BY content_title, content_type
+            ORDER BY leads DESC LIMIT 10
+        """)
+        by_content = [dict(r) for r in cur.fetchall()]
+
+        return {
+            "this_week": this_week,
+            "last_week": last_week,
+            "delta_pct": round((this_week - last_week) / last_week * 100, 1) if last_week else 0,
+            "by_content": by_content,
+        }
+    finally:
+        conn.close()
 
 
 @app.get("/api/health")

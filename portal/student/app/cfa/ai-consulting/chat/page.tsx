@@ -1,4 +1,5 @@
 "use client"
+import { apiFetch } from "@/lib/fetch"
 
 import { useEffect, useRef, useState } from "react"
 import {
@@ -92,7 +93,7 @@ export default function ConsultingChat() {
     setSending(true)
 
     try {
-      const res = await fetch(`${API_BASE}/chat`, {
+      const res = await apiFetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -235,7 +236,7 @@ export default function ConsultingChat() {
                             setMessages((prev) => [...prev, userMsg])
                             setInput("")
                             setSending(true)
-                            fetch(`${API_BASE}/chat`, {
+                            apiFetch(`${API_BASE}/chat`, {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({

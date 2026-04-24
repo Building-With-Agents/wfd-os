@@ -1,4 +1,5 @@
 "use client"
+import { apiFetch } from "@/lib/fetch"
 
 import { useEffect, useState } from "react"
 import { ArrowLeft, ArrowRight, Calendar, Tag, User } from "lucide-react"
@@ -36,11 +37,11 @@ export default function BlogPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${API_BASE}/content?content_type=blog_post&status=published`).then((r) => r.ok ? r.json() : { content: [] }),
-      fetch(`${API_BASE}/content?content_type=case_study&status=published`).then((r) => r.ok ? r.json() : { content: [] }),
+      apiFetch(`${API_BASE}/content?content_type=blog_post&status=published`).then((r) => r.ok ? r.json() : { content: [] }),
+      apiFetch(`${API_BASE}/content?content_type=case_study&status=published`).then((r) => r.ok ? r.json() : { content: [] }),
       // Also show in_review for now so the page isn't empty pre-publish
-      fetch(`${API_BASE}/content?content_type=blog_post`).then((r) => r.ok ? r.json() : { content: [] }),
-      fetch(`${API_BASE}/content?content_type=case_study`).then((r) => r.ok ? r.json() : { content: [] }),
+      apiFetch(`${API_BASE}/content?content_type=blog_post`).then((r) => r.ok ? r.json() : { content: [] }),
+      apiFetch(`${API_BASE}/content?content_type=case_study`).then((r) => r.ok ? r.json() : { content: [] }),
     ]).then(([pubPosts, pubCS, allPosts, allCS]) => {
       setPosts(pubPosts.content.length > 0 ? pubPosts.content : allPosts.content)
       setCaseStudies(pubCS.content.length > 0 ? pubCS.content : allCS.content)

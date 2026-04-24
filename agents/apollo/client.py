@@ -254,3 +254,159 @@ def get_contact_by_email(email: str) -> dict:
 
     except Exception as e:
         return {"ok": False, "contact_id": None, "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# 6. Search contacts by company domain
+# ---------------------------------------------------------------------------
+
+def search_contacts_by_domain(
+    domain: str,
+    title_keywords: list[str] | None = None,
+    limit: int = 10,
+) -> dict:
+    """Search Apollo contacts by company domain.
+
+    Returns {ok, contacts: [{id, name, first_name, last_name, title, email,
+    linkedin_url, seniority, organization_name, account_id}], error}.
+    """
+    if not _api_key():
+        return {"ok": False, "contacts": [], "error": "APOLLO_API_KEY not set"}
+
+    payload: dict = {
+        "organization_domains": domain if isinstance(domain, list) else [domain],
+        "per_page": limit,
+    }
+    if title_keywords:
+        payload["person_titles"] = title_keywords
+
+    try:
+        r = requests.post(
+            f"{APOLLO_BASE}/mixed_people/api_search",
+            headers=_headers(),
+            json=payload,
+            timeout=15,
+        )
+        data = r.json()
+
+        if r.status_code == 200:
+            people = data.get("people", [])
+            contacts = []
+            for p in people:
+                contacts.append({
+                    "id": p.get("id"),
+                    "name": f"{p.get('first_name', '')} {p.get('last_name', '')}".strip(),
+                    "first_name": p.get("first_name", ""),
+                    "last_name": p.get("last_name", ""),
+                    "title": p.get("title"),
+                    "email": p.get("email"),
+                    "linkedin_url": p.get("linkedin_url"),
+                    "seniority": p.get("seniority"),
+                    "organization_name": p.get("organization_name"),
+                    "account_id": p.get("account_id"),
+                })
+            return {"ok": True, "contacts": contacts, "error": None}
+
+        # Fall back to contacts/search if people/search fails
+        if r.status_code in (404, 403):
+            return _search_contacts_fallback(domain, title_keywords, limit)
+
+        print(f"[APOLLO] search_contacts_by_domain failed: HTTP {r.status_code}")
+        return {"ok": False, "contacts": [], "error": f"HTTP {r.status_code}"}
+
+    except Exception as e:
+        print(f"[APOLLO] search_contacts_by_domain exception: {e}")
+        return {"ok": False, "contacts": [], "error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# 7. Search contacts by company name
+# ---------------------------------------------------------------------------
+
+def search_contacts_by_name(
+    company_name: str,
+    title_keywords: list[str] | None = None,
+    limit: int = 10,
+) -> dict:
+    """Search Apollo contacts by organization name (fallback when domain misses).
+
+    Returns same structure as search_contacts_by_domain.
+    """
+    if not _api_key():
+        return {"ok": False, "contacts": [], "error": "APOLLO_API_KEY not set"}
+
+    payload: dict = {
+        "organization_name": company_name,
+        "per_page": limit,
+    }
+    if title_keywords:
+        payload["person_titles"] = title_keywords
+
+    try:
+        r = requests.post(
+            f"{APOLLO_BASE}/mixed_people/api_search",
+            headers=_headers(),
+            json=payload,
+            timeout=15,
+        )
+        data = r.json()
+
+        if r.status_code == 200:
+            people = data.get("people", [])
+            contacts = []
+            for p in people:
+                contacts.append({
+                    "id": p.get("id"),
+                    "name": f"{p.get('first_name', '')} {p.get('last_name', '')}".strip(),
+                    "first_name": p.get("first_name", ""),
+                    "last_name": p.get("last_name", ""),
+                    "title": p.get("title"),
+                    "email": p.get("email"),
+                    "linkedin_url": p.get("linkedin_url"),
+                    "seniority": p.get("seniority"),
+                    "organization_name": p.get("organization_name"),
+                    "account_id": p.get("account_id"),
+                })
+            return {"ok": True, "contacts": contacts, "error": None}
+
+        print(f"[APOLLO] search_contacts_by_name failed: HTTP {r.status_code}")
+        return {"ok": False, "contacts": [], "error": f"HTTP {r.status_code}"}
+
+    except Exception as e:
+        print(f"[APOLLO] search_contacts_by_name exception: {e}")
+        return {"ok": False, "contacts": [], "error": str(e)}
+
+
+def _search_contacts_fallback(domain, title_keywords, limit):
+    """Fallback using contacts/search when people/search is unavailable."""
+    try:
+        payload = {
+            "q_organization_domains": domain if isinstance(domain, list) else [domain],
+            "per_page": limit,
+        }
+        r = requests.post(
+            f"{APOLLO_BASE}/contacts/search",
+            headers=_headers(),
+            json=payload,
+            timeout=15,
+        )
+        if r.status_code == 200:
+            raw_contacts = r.json().get("contacts", [])
+            contacts = []
+            for c in raw_contacts:
+                contacts.append({
+                    "id": c.get("id"),
+                    "name": f"{c.get('first_name', '')} {c.get('last_name', '')}".strip(),
+                    "first_name": c.get("first_name", ""),
+                    "last_name": c.get("last_name", ""),
+                    "title": c.get("title"),
+                    "email": c.get("email"),
+                    "linkedin_url": c.get("linkedin_url"),
+                    "seniority": c.get("seniority"),
+                    "organization_name": c.get("organization_name"),
+                    "account_id": c.get("account_id"),
+                })
+            return {"ok": True, "contacts": contacts, "error": None}
+        return {"ok": False, "contacts": [], "error": f"Fallback HTTP {r.status_code}"}
+    except Exception as e:
+        return {"ok": False, "contacts": [], "error": str(e)}

@@ -478,6 +478,22 @@ def get_stats():
     return row
 
 
+@app.get("/api/coalition/candidate-count")
+def coalition_candidate_count():
+    """Live count of job-ready candidates in the talent showcase pool.
+
+    Definition: students with a parsed resume — same predicate the showcase
+    listing API uses (showcase_api.py:81). Used by the Coalition landing page
+    to render an accurate count instead of a hardcoded value.
+    """
+    conn = get_conn()
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT count(*)::int as count FROM students WHERE resume_parsed = TRUE")
+    row = cur.fetchone()
+    conn.close()
+    return {"count": int(row["count"])}
+
+
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "student-portal-api", "port": 8001}

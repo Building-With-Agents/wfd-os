@@ -1,4 +1,5 @@
 "use client"
+import { apiFetch } from "@/lib/fetch"
 
 import { useEffect, useState } from "react"
 import {
@@ -145,7 +146,7 @@ export function CandidateProfileModal({ candidateId, open, onClose }: CandidateP
     setLoading(true)
     setError(null)
 
-    fetch(`${API_BASE}/showcase/candidates/${candidateId}`)
+    apiFetch(`${API_BASE}/showcase/candidates/${candidateId}`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         return res.json()
