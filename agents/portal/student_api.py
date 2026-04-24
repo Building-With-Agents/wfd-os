@@ -330,6 +330,82 @@ def _extract_text_from_docx(docx_bytes: bytes) -> str:
     return "\n".join(paragraphs)
 
 
+@app.get("/api/student/jobs-search")
+def jobs_search(q: str = "", limit: int = 10):
+    """Public job-board search for the /careers quick-gap-analysis
+    picker. Students type a keyword ('data analyst', 'python', etc.),
+    see up to N jobs from our enriched pool (jobs_enriched — CFA +
+    WSB tenants), and pick one. The picked job's full description is
+    then used as the JD input to /quick-gap-analysis. No auth.
+
+    Query jobs_enriched rather than the legacy job_listings pool
+    because enriched rows carry skills_required + a cleaner
+    job_description column. Smaller pool (~140 rows) but richer data.
+    """
+    limit = max(1, min(limit, 50))
+    q_clean = (q or "").strip()
+
+    if q_clean:
+        like = f"%{q_clean}%"
+        rows = query(
+            """
+            SELECT
+                id, title, company, city, state, is_remote,
+                skills_required, job_description,
+                enriched_at
+            FROM jobs_enriched
+            WHERE (
+                title ILIKE %s
+                OR company ILIKE %s
+                OR job_description ILIKE %s
+            )
+              AND COALESCE(is_suppressed, FALSE) = FALSE
+            ORDER BY enriched_at DESC NULLS LAST
+            LIMIT %s
+            """,
+            (like, like, like, limit),
+        )
+    else:
+        # No query -> newest enriched jobs first, so the picker isn't
+        # empty on first open.
+        rows = query(
+            """
+            SELECT
+                id, title, company, city, state, is_remote,
+                skills_required, job_description,
+                enriched_at
+            FROM jobs_enriched
+            WHERE COALESCE(is_suppressed, FALSE) = FALSE
+            ORDER BY enriched_at DESC NULLS LAST
+            LIMIT %s
+            """,
+            (limit,),
+        )
+
+    # Trim description preview; full description still included for
+    # "fill textarea on click" without a second round trip.
+    out: list[dict] = []
+    for r in rows:
+        desc = (r.get("job_description") or "").strip()
+        preview = desc[:220]
+        if len(desc) > 220:
+            preview += "…"
+        out.append({
+            "id": r["id"],
+            "title": r["title"],
+            "company": r.get("company"),
+            "city": r.get("city"),
+            "state": r.get("state"),
+            "is_remote": bool(r.get("is_remote")),
+            "skills_required": r.get("skills_required") or [],
+            "description": desc,
+            "description_preview": preview,
+            "enriched_at": r["enriched_at"].isoformat() if r.get("enriched_at") else None,
+        })
+
+    return {"jobs": out, "count": len(out), "query": q_clean}
+
+
 @app.post("/api/student/quick-gap-analysis")
 def quick_gap_analysis(body: QuickAnalysisBody):
     """Pre-signup value delivery: candidate pastes a job + their resume,

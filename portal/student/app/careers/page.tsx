@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import {
   Compass, ArrowLeft, Upload, FileText, User, Mail, ArrowRight,
   Search, Sparkles, CheckCircle2, AlertCircle, Loader2,
-  Target, TrendingUp, XCircle, BookOpen,
+  Target, TrendingUp, XCircle, BookOpen, Briefcase, MapPin, X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -24,6 +24,19 @@ interface QuickAnalysisResult {
   partial_matches: string[]
   narrative: string
   growth_tips: string[]
+}
+
+// Matches the shape returned by /api/student/jobs-search
+interface JobSearchHit {
+  id: number
+  title: string
+  company: string | null
+  city: string | null
+  state: string | null
+  is_remote: boolean
+  skills_required: string[]
+  description: string
+  description_preview: string
 }
 
 const SKILL_OPTIONS = [
@@ -79,6 +92,14 @@ export default function CareersPage() {
   // Resume upload parse state
   const [parsingResume, setParsingResume] = useState(false)
   const [parseError, setParseError] = useState<string | null>(null)
+
+  // Job-board picker state
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerQuery, setPickerQuery] = useState("")
+  const [pickerResults, setPickerResults] = useState<JobSearchHit[]>([])
+  const [pickerLoading, setPickerLoading] = useState(false)
+  const [pickerError, setPickerError] = useState<string | null>(null)
+  const [selectedJob, setSelectedJob] = useState<JobSearchHit | null>(null)
 
   const toggleSkill = (skill: string) => {
     setSelectedSkills(prev =>
@@ -143,6 +164,52 @@ export default function CareersPage() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) void uploadAndParseResume(file)
+  }
+
+  const runJobSearch = async (q: string) => {
+    setPickerError(null)
+    setPickerLoading(true)
+    try {
+      const res = await fetch(
+        `/api/student/jobs-search?q=${encodeURIComponent(q)}&limit=10`
+      )
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const msg =
+          (body as { error?: { message?: string } })?.error?.message ||
+          (body as { detail?: string })?.detail ||
+          `HTTP ${res.status}`
+        throw new Error(msg)
+      }
+      const data = (await res.json()) as { jobs: JobSearchHit[] }
+      setPickerResults(data.jobs)
+    } catch (err) {
+      setPickerError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setPickerLoading(false)
+    }
+  }
+
+  const handleOpenPicker = () => {
+    setPickerOpen(true)
+    // Prime with newest 10 so the list isn't empty on first open.
+    if (pickerResults.length === 0) void runJobSearch("")
+  }
+
+  const handlePickerSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    void runJobSearch(pickerQuery)
+  }
+
+  const handlePickJob = (job: JobSearchHit) => {
+    setSelectedJob(job)
+    setJdText(job.description)
+    setPickerOpen(false)
+  }
+
+  const handleClearSelectedJob = () => {
+    setSelectedJob(null)
+    setJdText("")
   }
 
   const handleAnalyze = async () => {
@@ -328,16 +395,159 @@ export default function CareersPage() {
             {!analysisResult && (
               <div className="space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-foreground">
-                    Job description
-                  </label>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <label className="block text-sm font-medium text-foreground">
+                      Job description
+                    </label>
+                    {!selectedJob && !pickerOpen && (
+                      <button
+                        type="button"
+                        onClick={handleOpenPicker}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+                      >
+                        <Briefcase className="h-3.5 w-3.5" />
+                        Or pick from our job board →
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Selected-job chip */}
+                  {selectedJob && (
+                    <div className="mb-2 flex items-start justify-between gap-3 rounded-md border border-primary/40 bg-primary/5 p-3 text-sm">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+                          <Briefcase className="h-3 w-3" />
+                          Using job from CFA board
+                        </div>
+                        <div className="mt-0.5 truncate font-medium text-foreground">
+                          {selectedJob.title}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {selectedJob.company ?? "—"}
+                          {selectedJob.city && ` · ${selectedJob.city}, ${selectedJob.state}`}
+                          {selectedJob.is_remote && " · Remote"}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleClearSelectedJob}
+                        aria-label="Clear selected job"
+                        className="flex-shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Picker (search + results) */}
+                  {pickerOpen && !selectedJob && (
+                    <div className="mb-2 rounded-md border bg-background p-3">
+                      <form onSubmit={handlePickerSearch} className="flex gap-2">
+                        <Input
+                          type="text"
+                          placeholder='Try "data analyst", "python", "El Paso"…'
+                          value={pickerQuery}
+                          onChange={(e) => setPickerQuery(e.target.value)}
+                          className="flex-1 text-sm"
+                          autoFocus
+                        />
+                        <Button
+                          type="submit"
+                          size="sm"
+                          variant="outline"
+                          disabled={pickerLoading}
+                          className="gap-1 flex-shrink-0"
+                        >
+                          {pickerLoading ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Search className="h-3.5 w-3.5" />
+                          )}
+                          Search
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setPickerOpen(false)}
+                          className="text-xs text-muted-foreground"
+                        >
+                          Close
+                        </Button>
+                      </form>
+
+                      {pickerError && (
+                        <p className="mt-2 text-xs text-destructive">{pickerError}</p>
+                      )}
+
+                      {pickerResults.length > 0 ? (
+                        <ul className="mt-3 max-h-80 space-y-2 overflow-y-auto">
+                          {pickerResults.map((job) => (
+                            <li key={job.id}>
+                              <button
+                                type="button"
+                                onClick={() => handlePickJob(job)}
+                                className="group w-full rounded-md border bg-card p-3 text-left transition-colors hover:border-primary hover:bg-primary/5"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="font-medium text-foreground group-hover:text-primary">
+                                      {job.title}
+                                    </div>
+                                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+                                      <span>{job.company ?? "—"}</span>
+                                      {job.city && (
+                                        <>
+                                          <span>·</span>
+                                          <span className="flex items-center gap-0.5">
+                                            <MapPin className="h-3 w-3" />
+                                            {job.city}, {job.state}
+                                          </span>
+                                        </>
+                                      )}
+                                      {job.is_remote && (
+                                        <>
+                                          <span>·</span>
+                                          <span>Remote</span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <ArrowRight className="h-4 w-4 flex-shrink-0 text-muted-foreground group-hover:text-primary" />
+                                </div>
+                                {job.description_preview && (
+                                  <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground">
+                                    {job.description_preview}
+                                  </p>
+                                )}
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : !pickerLoading && !pickerError ? (
+                        <p className="mt-3 text-center text-xs text-muted-foreground">
+                          No jobs matched — try a different search.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+
                   <Textarea
                     value={jdText}
-                    onChange={(e) => setJdText(e.target.value)}
+                    onChange={(e) => {
+                      setJdText(e.target.value)
+                      // If the user edits away from a picked job, drop
+                      // the chip so we don't mislead them.
+                      if (selectedJob && e.target.value !== selectedJob.description) {
+                        setSelectedJob(null)
+                      }
+                    }}
                     placeholder={
-                      "Paste the full job description here — responsibilities, required skills, nice-to-haves…"
+                      selectedJob
+                        ? "Job description loaded from the board — you can edit if you want."
+                        : "Paste the full job description here — or pick one from our board above."
                     }
-                    rows={6}
+                    rows={selectedJob ? 4 : 6}
                     className="text-sm"
                     disabled={analyzing}
                   />
