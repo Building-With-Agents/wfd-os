@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.production
+.env.gary-private
 
 # Python
 __pycache__/
