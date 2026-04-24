@@ -16,6 +16,10 @@ import type {
   WorkdayFilters,
   StudentDetailPayload,
   StudentApplicationPayload,
+  CaseloadPayload,
+  CaseloadFilters,
+  ApplicationsListPayload,
+  ApplicationsFilters,
 } from "./types"
 
 const SERVER_BASE = process.env.RECRUITING_API_URL ?? "http://127.0.0.1:8012"
@@ -60,6 +64,14 @@ export function fetchJobMatches(jobId: number, limit = 10): Promise<JobMatchesPa
   return getJSON(`/jobs/${jobId}/matches?limit=${limit}`)
 }
 
+// Top-N job matches for a given student (student-first flip of
+// fetchJobMatches). Shape matches the backend's /students/{id}/matches
+// envelope which is NOT typed here yet — treated as unknown payload so
+// callers read fields defensively.
+export function fetchStudentMatches(studentId: string, limit = 10): Promise<unknown> {
+  return getJSON(`/students/${encodeURIComponent(studentId)}/matches?limit=${limit}`)
+}
+
 export function fetchStudent(studentId: string): Promise<StudentDetailPayload> {
   return getJSON(`/students/${studentId}`)
 }
@@ -69,6 +81,26 @@ export function fetchStudentApplication(
   jobId: number,
 ): Promise<StudentApplicationPayload> {
   return getJSON(`/students/${studentId}/applications/${jobId}`)
+}
+
+export function fetchCaseload(filters: CaseloadFilters, limit = 200): Promise<CaseloadPayload> {
+  const params = new URLSearchParams()
+  if (filters.tenant) params.set("tenant", filters.tenant)
+  if (filters.cohort) params.set("cohort", filters.cohort)
+  if (filters.tier) params.set("tier", filters.tier)
+  if (filters.min_match_score !== null) params.set("min_match_score", String(filters.min_match_score))
+  if (filters.q) params.set("q", filters.q)
+  params.set("limit", String(limit))
+  return getJSON(`/caseload?${params.toString()}`)
+}
+
+export function fetchApplications(filters: ApplicationsFilters, limit = 500): Promise<ApplicationsListPayload> {
+  const params = new URLSearchParams()
+  if (filters.status) params.set("status", filters.status)
+  if (filters.tenant) params.set("tenant", filters.tenant)
+  if (filters.student_id) params.set("student_id", filters.student_id)
+  params.set("limit", String(limit))
+  return getJSON(`/applications?${params.toString()}`)
 }
 
 export async function postApplication(body: CreateApplicationBody): Promise<ApplicationRow> {

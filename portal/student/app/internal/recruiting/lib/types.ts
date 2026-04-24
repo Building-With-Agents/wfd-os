@@ -173,3 +173,80 @@ export interface WorkdayFilters {
 export function emptyFilters(): WorkdayFilters {
   return { q: "", city: "", state: "", is_remote: null, seniority: "", employment_type: "" }
 }
+
+// ---------- /caseload (Dinah's case-manager home view) ----------
+
+export type Tier = "A" | "B" | "C"
+
+export interface CaseloadRow {
+  student_id: string
+  full_name: string
+  cohort_id: string | null
+  tenant: string
+  profile_completeness_score: number | null
+  tier: Tier
+  top_match_score: number | null
+  top_match_job_title: string | null
+  top_match_job_id: number | null
+  top_match_company: string | null
+  match_count: number
+  applications_count: number
+  updated_at: string | null
+  days_since_last_touch: number | null
+  pipeline_stage: string | null
+  pipeline_status: string | null
+}
+
+export interface CaseloadPayload {
+  rows: CaseloadRow[]
+  total: number
+}
+
+export interface CaseloadFilters {
+  tenant: string       // "", "CFA", "WSB"
+  cohort: string
+  tier: string         // "", "A", "B", "C"
+  min_match_score: number | null
+  q: string
+}
+
+export function emptyCaseloadFilters(): CaseloadFilters {
+  return { tenant: "", cohort: "", tier: "", min_match_score: null, q: "" }
+}
+
+// ---------- /applications (pipeline list view) ----------
+
+export interface ApplicationListRow {
+  id: string
+  student_id: string
+  student_name: string | null
+  student_cohort: string | null
+  job_id: number
+  job_title: string | null
+  job_company: string | null
+  job_location: string | null
+  status: string
+  owning_recruiter_id: string | null
+  initiated_by: string
+  created_at: string
+  updated_at: string
+  last_status_change_at: string | null
+  days_in_stage: number | null
+  tenant: string
+}
+
+export interface ApplicationsListPayload {
+  rows: ApplicationListRow[]
+  total: number
+}
+
+export interface ApplicationsFilters {
+  status: string       // "" = all
+  tenant: string
+  student_id: string
+  q: string
+}
+
+export function emptyApplicationsFilters(): ApplicationsFilters {
+  return { status: "", tenant: "", student_id: "", q: "" }
+}

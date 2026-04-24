@@ -317,6 +317,62 @@ def workday_stats():
 
 
 # ---------------------------------------------------------------------------
+# Caseload (case manager's student-first view)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/caseload")
+def caseload(
+    tenant: Optional[str] = Query(None, description="Tenant code: CFA or WSB"),
+    cohort: Optional[str] = None,
+    tier: Optional[str] = Query(None, description="A | B | C (by completeness)"),
+    min_match_score: Optional[float] = Query(None, ge=0.0, le=1.0),
+    q: Optional[str] = None,
+    limit: int = Query(200, le=500),
+):
+    """Dinah's home view: one row per student with their best match,
+    match count, application count, days-since-last-touch. Click a row
+    in the UI → drill into /students/{id} + /students/{id}/matches."""
+    filters = {
+        "tenant": tenant,
+        "cohort": cohort,
+        "tier": tier,
+        "min_match_score": min_match_score,
+        "q": q,
+    }
+    rows = _SOURCE.caseload(filters, limit=limit)
+    return {"rows": rows, "total": len(rows)}
+
+
+# ---------------------------------------------------------------------------
+# Applications pipeline list
+# ---------------------------------------------------------------------------
+
+
+@app.get("/applications")
+def list_applications(
+    status: Optional[str] = None,
+    student_id: Optional[str] = None,
+    job_id: Optional[int] = None,
+    owning_recruiter_id: Optional[str] = None,
+    tenant: Optional[str] = Query(None, description="Tenant code: CFA or WSB"),
+    limit: int = Query(500, le=1000),
+):
+    """All applications with student + job context. Filterable by status
+    (draft/submitted_for_review/approved/packaged/sent/delivered/rejected/
+    hired), student, job, or recruiter. Sorted newest-updated first."""
+    filters = {
+        "status": status,
+        "student_id": student_id,
+        "job_id": job_id,
+        "owning_recruiter_id": owning_recruiter_id,
+        "tenant": tenant,
+    }
+    rows = _SOURCE.list_applications(filters, limit=limit)
+    return {"rows": rows, "total": len(rows)}
+
+
+# ---------------------------------------------------------------------------
 # Main entry — python -m agents.job_board.api
 # ---------------------------------------------------------------------------
 

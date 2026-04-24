@@ -113,6 +113,12 @@ class DataSource(ABC):
     @abstractmethod
     def workday_stats(self) -> dict: ...
 
+    @abstractmethod
+    def caseload(self, filters: dict, limit: int = 200) -> list[dict]: ...
+
+    @abstractmethod
+    def list_applications(self, filters: dict, limit: int = 500) -> list[dict]: ...
+
 
 # ---------------------------------------------------------------------------
 # Postgres implementation
@@ -592,6 +598,121 @@ class PostgresDataSource(DataSource):
         }
 
 
+    # ---- caseload (Dinah's home view) -------------------------------------
+
+    def caseload(self, filters: dict, limit: int = 200) -> list[dict]:
+        """Student-first list for case-manager workflows. One row per
+        student with their top match + match count + application count +
+        days-since-last-touch. Mirrors the Finance cockpit pattern: dense
+        table → click → drill to student detail + full match list.
+
+        Filters: tenant (code — 'CFA'/'WSB'), cohort, tier ('A'/'B'/'C'),
+        min_match_score (0.0–1.0).
+        """
+        clauses, params = _build_caseload_filters(filters)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        # DISTINCT ON + ORDER BY pattern pulls the single best-ranked
+        # match per student. LEFT JOIN so students with no matches still
+        # appear (top_match_* columns come back NULL).
+        sql = f"""
+            WITH top_match AS (
+              SELECT DISTINCT ON (cm.student_id)
+                cm.student_id,
+                cm.job_id AS top_match_job_id,
+                cm.cosine_similarity AS top_match_score,
+                je.title AS top_match_job_title,
+                je.company AS top_match_company
+              FROM cohort_matches cm
+              LEFT JOIN jobs_enriched je ON je.id = cm.job_id
+              ORDER BY cm.student_id, cm.cosine_similarity DESC
+            ),
+            match_counts AS (
+              SELECT student_id, COUNT(*) AS match_count
+              FROM cohort_matches
+              GROUP BY student_id
+            ),
+            app_counts AS (
+              SELECT student_id, COUNT(*) AS applications_count
+              FROM applications
+              GROUP BY student_id
+            )
+            SELECT
+              s.id AS student_id,
+              s.full_name,
+              s.cohort_id,
+              t.code AS tenant,
+              s.profile_completeness_score,
+              CASE
+                WHEN s.profile_completeness_score >= 0.80 THEN 'A'
+                WHEN s.profile_completeness_score >= 0.50 THEN 'B'
+                ELSE 'C'
+              END AS tier,
+              tm.top_match_score,
+              tm.top_match_job_title,
+              tm.top_match_job_id,
+              tm.top_match_company,
+              COALESCE(mc.match_count, 0) AS match_count,
+              COALESCE(ac.applications_count, 0) AS applications_count,
+              s.updated_at,
+              EXTRACT(DAY FROM NOW() - s.updated_at)::int AS days_since_last_touch,
+              s.pipeline_stage,
+              s.pipeline_status
+            FROM students s
+            JOIN tenants t ON t.id = s.tenant_id
+            LEFT JOIN top_match tm ON tm.student_id = s.id
+            LEFT JOIN match_counts mc ON mc.student_id = s.id
+            LEFT JOIN app_counts ac ON ac.student_id = s.id
+            {where}
+            ORDER BY tm.top_match_score DESC NULLS LAST, s.full_name
+            LIMIT %s
+        """
+        with _conn() as conn, conn.cursor() as cur:
+            cur.execute(sql, params + [limit])
+            rows = _dictfetchall(cur)
+        return [_serialize(r) for r in rows]
+
+    # ---- applications list (pipeline view) --------------------------------
+
+    def list_applications(self, filters: dict, limit: int = 500) -> list[dict]:
+        """All applications with denormalized student + job context. Used
+        by the Applications pipeline view. Filters: status, student_id,
+        job_id, owning_recruiter_id, tenant (code)."""
+        clauses, params = _build_application_list_filters(filters)
+        where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+        sql = f"""
+            SELECT
+              a.id,
+              a.student_id,
+              s.full_name AS student_name,
+              s.cohort_id AS student_cohort,
+              a.job_id,
+              je.title AS job_title,
+              je.company AS job_company,
+              je.location AS job_location,
+              a.status,
+              a.owning_recruiter_id,
+              a.initiated_by,
+              a.created_at,
+              a.updated_at,
+              a.last_status_change_at,
+              EXTRACT(
+                DAY FROM NOW() - COALESCE(a.last_status_change_at, a.created_at)
+              )::int AS days_in_stage,
+              t.code AS tenant
+            FROM applications a
+            LEFT JOIN students s ON s.id = a.student_id
+            LEFT JOIN jobs_enriched je ON je.id = a.job_id
+            LEFT JOIN tenants t ON t.id = a.tenant_id
+            {where}
+            ORDER BY a.updated_at DESC NULLS LAST, a.created_at DESC
+            LIMIT %s
+        """
+        with _conn() as conn, conn.cursor() as cur:
+            cur.execute(sql, params + [limit])
+            rows = _dictfetchall(cur)
+        return [_serialize(r) for r in rows]
+
+
 def _count_jobs_with_matches() -> int:
     """Count jobs with at least one student match above COSINE_MATCH_THRESHOLD.
 
@@ -660,6 +781,60 @@ def _build_student_filters(filters: dict) -> tuple[list[str], list]:
         clauses.append("(full_name ILIKE %s OR email ILIKE %s OR institution ILIKE %s)")
         like = f"%{q}%"
         params.extend([like, like, like])
+    return clauses, params
+
+
+def _build_caseload_filters(filters: dict) -> tuple[list[str], list]:
+    """WHERE clauses for the caseload query. Tenant filter goes against
+    tenants.code ('CFA'/'WSB'), not the UUID, so callers can use the
+    human-readable code."""
+    clauses: list[str] = []
+    params: list = []
+    if filters.get("tenant"):
+        clauses.append("t.code = %s")
+        params.append(filters["tenant"])
+    if filters.get("cohort"):
+        clauses.append("s.cohort_id = %s")
+        params.append(filters["cohort"])
+    if filters.get("tier"):
+        # Re-evaluate the CASE expression in the WHERE clause. Cheaper
+        # than wrapping the whole query in a subquery.
+        clauses.append(
+            "CASE "
+            "WHEN s.profile_completeness_score >= 0.80 THEN 'A' "
+            "WHEN s.profile_completeness_score >= 0.50 THEN 'B' "
+            "ELSE 'C' END = %s"
+        )
+        params.append(filters["tier"])
+    if filters.get("min_match_score") is not None:
+        clauses.append("COALESCE(tm.top_match_score, 0) >= %s")
+        params.append(filters["min_match_score"])
+    q = filters.get("q")
+    if q:
+        clauses.append("(s.full_name ILIKE %s OR s.email ILIKE %s)")
+        like = f"%{q}%"
+        params.extend([like, like])
+    return clauses, params
+
+
+def _build_application_list_filters(filters: dict) -> tuple[list[str], list]:
+    clauses: list[str] = []
+    params: list = []
+    if filters.get("status"):
+        clauses.append("a.status = %s")
+        params.append(filters["status"])
+    if filters.get("student_id"):
+        clauses.append("a.student_id = %s::uuid")
+        params.append(filters["student_id"])
+    if filters.get("job_id") is not None:
+        clauses.append("a.job_id = %s")
+        params.append(filters["job_id"])
+    if filters.get("owning_recruiter_id"):
+        clauses.append("a.owning_recruiter_id = %s::uuid")
+        params.append(filters["owning_recruiter_id"])
+    if filters.get("tenant"):
+        clauses.append("t.code = %s")
+        params.append(filters["tenant"])
     return clauses, params
 
 
