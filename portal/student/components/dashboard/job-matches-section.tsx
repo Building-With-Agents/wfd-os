@@ -83,16 +83,27 @@ export function JobMatchesSection({ matches, onCardClick }: JobMatchesSectionPro
             />
           )
           if (!onCardClick) return card
+          // Can't wrap in <button> — the JobMatchCard already contains
+          // a <Button> (the inner CTA), and nested buttons trigger a
+          // React hydration error. Use div+role=button so the outer
+          // click target doesn't produce invalid HTML.
           return (
-            <button
+            <div
               key={match.job_id}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => onCardClick(match.job_id)}
-              className="text-left transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  onCardClick(match.job_id)
+                }
+              }}
+              className="cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               aria-label={`Open detail for ${match.title}`}
             >
               {card}
-            </button>
+            </div>
           )
         })}
       </div>
