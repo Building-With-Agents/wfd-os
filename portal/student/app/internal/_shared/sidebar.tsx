@@ -26,35 +26,75 @@ interface NavGroup {
   children?: NavItem[]
 }
 
-const NAV: NavGroup[] = [
+interface NavSection {
+  label: string     // section heading ("Agents", "External Portals")
+  groups: NavGroup[]
+}
+
+const NAV: NavSection[] = [
   {
-    label: "Marketing",
-    href: "/internal/marketing",
-    match: "/internal/marketing",
-  },
-  {
-    label: "Finance",
-    href: "/internal/finance",
-    match: "/internal/finance",
-  },
-  {
-    label: "Recruiting",
-    match: "/internal/recruiting",
-    children: [
-      { label: "Workday view", href: "/internal/recruiting/workday", match: "/internal/recruiting/workday" },
-      { label: "Caseload view", href: "/internal/recruiting/caseload", match: "/internal/recruiting/caseload" },
-      { label: "Applications", href: "/internal/recruiting/applications", match: "/internal/recruiting/applications" },
+    label: "Agents",
+    groups: [
+      {
+        label: "Marketing",
+        href: "/internal/marketing",
+        match: "/internal/marketing",
+      },
+      {
+        label: "Finance",
+        href: "/internal/finance",
+        match: "/internal/finance",
+      },
+      {
+        label: "Recruiting",
+        match: "/internal/recruiting",
+        children: [
+          { label: "Workday view", href: "/internal/recruiting/workday", match: "/internal/recruiting/workday" },
+          { label: "Caseload view", href: "/internal/recruiting/caseload", match: "/internal/recruiting/caseload" },
+          { label: "Applications", href: "/internal/recruiting/applications", match: "/internal/recruiting/applications" },
+        ],
+      },
+      {
+        label: "Career Services",
+        href: "/internal/career-services",
+        match: "/internal/career-services",
+      },
+      {
+        label: "Market Intel",
+        href: "/internal/market-intel",
+        match: "/internal/market-intel",
+      },
     ],
   },
   {
-    label: "Career Services",
-    href: "/internal/career-services",
-    match: "/internal/career-services",
-  },
-  {
-    label: "Market Intel",
-    href: "/internal/market-intel",
-    match: "/internal/market-intel",
+    label: "External portals",
+    groups: [
+      {
+        label: "Employer Portal",
+        href: "/internal/employer-portal",
+        match: "/internal/employer-portal",
+      },
+      {
+        label: "Talent Showcase",
+        href: "/internal/talent-showcase",
+        match: "/internal/talent-showcase",
+      },
+      {
+        label: "College Portal",
+        href: "/internal/college-portal",
+        match: "/internal/college-portal",
+      },
+      {
+        label: "Youth Portal",
+        href: "/internal/youth-portal",
+        match: "/internal/youth-portal",
+      },
+      {
+        label: "WJI Dashboard",
+        href: "/internal/wji-dashboard",
+        match: "/internal/wji-dashboard",
+      },
+    ],
   },
 ]
 
@@ -67,41 +107,50 @@ export function Sidebar() {
   const pathname = usePathname()
   return (
     <nav className="agent-sidebar" aria-label="Agent navigation">
-      <div className="agent-sidebar-header">Agents</div>
-      <ul className="agent-sidebar-list">
-        {NAV.map((group) => {
-          const groupActive = isActive(pathname, group.match)
-          const ParentEl = group.href ? Link : "div"
-          const parentProps = group.href ? { href: group.href } : {}
-          return (
-            <li key={group.label}>
-              <ParentEl
-                {...(parentProps as { href: string })}
-                className="agent-sidebar-item"
-                data-active={groupActive && !group.children ? "true" : "false"}
-                data-parent={group.children ? "true" : "false"}
-              >
-                {group.label}
-              </ParentEl>
-              {group.children && (
-                <ul className="agent-sidebar-sublist">
-                  {group.children.map((child) => (
-                    <li key={child.href}>
-                      <Link
-                        href={child.href}
-                        className="agent-sidebar-subitem"
-                        data-active={isActive(pathname, child.match) ? "true" : "false"}
-                      >
-                        {child.label}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          )
-        })}
-      </ul>
+      {NAV.map((section, sectionIdx) => (
+        <div key={section.label}>
+          <div
+            className="agent-sidebar-header"
+            style={sectionIdx > 0 ? { marginTop: "1.5rem" } : undefined}
+          >
+            {section.label}
+          </div>
+          <ul className="agent-sidebar-list">
+            {section.groups.map((group) => {
+              const groupActive = isActive(pathname, group.match)
+              const ParentEl = group.href ? Link : "div"
+              const parentProps = group.href ? { href: group.href } : {}
+              return (
+                <li key={group.label}>
+                  <ParentEl
+                    {...(parentProps as { href: string })}
+                    className="agent-sidebar-item"
+                    data-active={groupActive && !group.children ? "true" : "false"}
+                    data-parent={group.children ? "true" : "false"}
+                  >
+                    {group.label}
+                  </ParentEl>
+                  {group.children && (
+                    <ul className="agent-sidebar-sublist">
+                      {group.children.map((child) => (
+                        <li key={child.href}>
+                          <Link
+                            href={child.href}
+                            className="agent-sidebar-subitem"
+                            data-active={isActive(pathname, child.match) ? "true" : "false"}
+                          >
+                            {child.label}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      ))}
     </nav>
   )
 }
