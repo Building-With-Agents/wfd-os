@@ -63,6 +63,14 @@ const nextConfig = {
         source: "/api/showcase/:path*",
         destination: "http://localhost:8002/api/showcase/:path*",
       },
+      // Student Portal API (agents/portal/student_api.py on :8001). Serves
+      // the /student?id=<uuid> dashboard — profile, matches, gap, journey,
+      // showcase. Routes already sit under /api/student/* at the service,
+      // so this is a pass-through (no prefix strip).
+      {
+        source: "/api/student/:path*",
+        destination: "http://localhost:8001/api/student/:path*",
+      },
       // grant-compliance FastAPI runs on :8000. Its routes are at the
       // root of that service (/qb/status, /grants, /transactions, etc.)
       // — not under an /api prefix — so the rewrite strips our /api/grant-compliance

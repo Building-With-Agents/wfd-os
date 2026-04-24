@@ -92,6 +92,25 @@ class DataSource(ABC):
     def get_student_application_for_job(self, student_id: str, job_id: int) -> Optional[dict]: ...
 
     @abstractmethod
+    def get_cosine_for_pair(self, student_id: str, job_id: int) -> Optional[float]: ...
+
+    @abstractmethod
+    def get_cached_narrative(
+        self, student_id: str, job_id: int,
+        input_hash: str, max_age_days: int,
+    ) -> Optional[dict]: ...
+
+    @abstractmethod
+    def upsert_narrative(
+        self, student_id: str, job_id: int,
+        *,
+        verdict_line: str, narrative_text: str,
+        match_strengths: list, match_gaps: list, match_partial: list,
+        calibration_label: str, cosine_similarity: float,
+        input_hash: str,
+    ) -> dict: ...
+
+    @abstractmethod
     def workday_stats(self) -> dict: ...
 
 
@@ -401,6 +420,30 @@ class PostgresDataSource(DataSource):
             student["education"] = []
         return student
 
+    def get_cosine_for_pair(
+        self, student_id: str, job_id: int
+    ) -> Optional[float]:
+        """Cosine similarity for a single (student, job) pair. Runs the
+        same 1 - (e_s <=> e_j) expression the match lists use, but
+        targets one pair rather than the top-N. Returns None if either
+        side is missing from the embeddings table (shouldn't happen in
+        practice post-2D, but gives the caller a clean null rather
+        than an IndexError).
+        """
+        with _conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1 - (e_s.embedding <=> e_j.embedding) AS cosine
+                FROM embeddings e_s
+                CROSS JOIN embeddings e_j
+                WHERE e_s.entity_type = 'student'  AND e_s.entity_id = %s
+                  AND e_j.entity_type = 'jobs_enriched' AND e_j.entity_id = %s
+                """,
+                (student_id, str(job_id)),
+            )
+            row = cur.fetchone()
+        return float(row[0]) if row else None
+
     def get_student_application_for_job(
         self, student_id: str, job_id: int
     ) -> Optional[dict]:
@@ -423,6 +466,88 @@ class PostgresDataSource(DataSource):
             )
             rows = _dictfetchall(cur)
         return _serialize(rows[0]) if rows else None
+
+    # ---- match narrative cache (Phase 2G) ---------------------------------
+
+    def get_cached_narrative(
+        self, student_id: str, job_id: int,
+        input_hash: str, max_age_days: int,
+    ) -> Optional[dict]:
+        """Return the cached narrative row for (student, job) iff its
+        input_hash matches the current input AND it was generated within
+        the max_age_days window. Hash mismatch → inputs changed, must
+        regen. Age-only mismatch → we can afford to regen to pick up
+        prompt/model improvements.
+        """
+        with _conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, student_id, job_id, verdict_line, narrative_text,
+                       match_strengths, match_gaps, match_partial,
+                       calibration_label, cosine_similarity, input_hash,
+                       generated_at
+                FROM match_narratives
+                WHERE student_id = %s::uuid AND job_id = %s
+                  AND input_hash = %s
+                  AND generated_at > (NOW() - (%s || ' days')::interval)
+                """,
+                (student_id, job_id, input_hash, str(max_age_days)),
+            )
+            rows = _dictfetchall(cur)
+        return _serialize(rows[0]) if rows else None
+
+    def upsert_narrative(
+        self, student_id: str, job_id: int,
+        *,
+        verdict_line: str, narrative_text: str,
+        match_strengths: list, match_gaps: list, match_partial: list,
+        calibration_label: str, cosine_similarity: float,
+        input_hash: str,
+    ) -> dict:
+        """INSERT or UPDATE the single row for (student_id, job_id).
+        Keeps the row's id stable across regenerations so external
+        references (if any) don't dangle. Refreshes generated_at to NOW.
+        """
+        import json as _json
+        with _conn() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO match_narratives (
+                    student_id, job_id, verdict_line, narrative_text,
+                    match_strengths, match_gaps, match_partial,
+                    calibration_label, cosine_similarity, input_hash,
+                    generated_at
+                ) VALUES (
+                    %s::uuid, %s, %s, %s,
+                    %s::jsonb, %s::jsonb, %s::jsonb,
+                    %s, %s, %s, NOW()
+                )
+                ON CONFLICT (student_id, job_id) DO UPDATE SET
+                    verdict_line       = EXCLUDED.verdict_line,
+                    narrative_text     = EXCLUDED.narrative_text,
+                    match_strengths    = EXCLUDED.match_strengths,
+                    match_gaps         = EXCLUDED.match_gaps,
+                    match_partial      = EXCLUDED.match_partial,
+                    calibration_label  = EXCLUDED.calibration_label,
+                    cosine_similarity  = EXCLUDED.cosine_similarity,
+                    input_hash         = EXCLUDED.input_hash,
+                    generated_at       = NOW()
+                RETURNING id, student_id, job_id, verdict_line, narrative_text,
+                          match_strengths, match_gaps, match_partial,
+                          calibration_label, cosine_similarity, input_hash,
+                          generated_at
+                """,
+                (
+                    student_id, job_id, verdict_line, narrative_text,
+                    _json.dumps(match_strengths),
+                    _json.dumps(match_gaps),
+                    _json.dumps(match_partial),
+                    calibration_label, cosine_similarity, input_hash,
+                ),
+            )
+            row = _dictfetchall(cur)[0]
+            conn.commit()
+        return _serialize(row)
 
     # ---- applications -----------------------------------------------------
 

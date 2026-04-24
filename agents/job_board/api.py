@@ -69,6 +69,7 @@ except ImportError:  # pragma: no cover
     pass
 
 from agents.job_board.data_source import DataSource, default_source  # noqa: E402
+from agents.job_board import match_narrative as mn  # noqa: E402
 
 
 app = FastAPI(title="WFD OS Recruiting API", version="0.1.0")
@@ -195,6 +196,104 @@ def get_student_application_for_job(student_id: str, job_id: int):
     """
     row = _SOURCE.get_student_application_for_job(student_id, job_id)
     return {"application": row}
+
+
+MATCH_NARRATIVE_MAX_AGE_DAYS = 30
+
+
+@app.get("/students/{student_id}/match-narrative")
+def get_match_narrative(student_id: str, job_id: int):
+    """Phase 2G — return the LLM-generated recruiter's note for the
+    (student, job) pair. Cache by input_hash; regenerate when inputs
+    change or the cached row is older than MATCH_NARRATIVE_MAX_AGE_DAYS.
+
+    Response shape on success:
+      {
+        "verdict_line": str,
+        "narrative_text": str,
+        "match_strengths": [{area, evidence}],
+        "match_gaps": [{area, note}],
+        "match_partial": [],
+        "cosine_similarity": float,
+        "calibration_label": str,
+        "generated_at": isostring,
+        "cached": bool,
+      }
+
+    On generation failure, returns 200 with:
+      { "error": "narrative_generation_failed",
+        "cosine_similarity": float, "calibration_label": str }
+    so the UI can render a clean fallback without reading error codes.
+    """
+    student = _SOURCE.get_student(student_id)
+    if student is None:
+        raise HTTPException(status_code=404, detail=f"Student {student_id} not found")
+    job = _SOURCE.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    cosine = _SOURCE.get_cosine_for_pair(student_id, job_id)
+    if cosine is None:
+        # No embeddings on one side — can't calibrate. Surface cleanly.
+        return {
+            "error": "no_embedding",
+            "detail": "Missing embedding for student or job; can't score match.",
+        }
+    label = mn.calibration_label(cosine)
+    input_hash = mn.compute_input_hash(student, job)
+
+    # Cache hit — return fast without touching the LLM.
+    cached = _SOURCE.get_cached_narrative(
+        student_id, job_id, input_hash, MATCH_NARRATIVE_MAX_AGE_DAYS
+    )
+    if cached:
+        return {
+            "verdict_line": cached["verdict_line"],
+            "narrative_text": cached["narrative_text"],
+            "match_strengths": cached["match_strengths"] or [],
+            "match_gaps": cached["match_gaps"] or [],
+            "match_partial": cached["match_partial"] or [],
+            "cosine_similarity": float(cached["cosine_similarity"]),
+            "calibration_label": cached["calibration_label"],
+            "generated_at": cached["generated_at"],
+            "cached": True,
+        }
+
+    # Cache miss — compute + generate + persist.
+    overlap = mn.compute_overlap(student, job)
+    try:
+        narrative = mn.generate_narrative(student, job, overlap, cosine, label)
+    except mn.NarrativeError as e:
+        print(f"[match_narrative] generate failed student={student_id} "
+              f"job={job_id}: {e}", flush=True)
+        return {
+            "error": "narrative_generation_failed",
+            "cosine_similarity": cosine,
+            "calibration_label": label,
+        }
+
+    saved = _SOURCE.upsert_narrative(
+        student_id=student_id,
+        job_id=job_id,
+        verdict_line=narrative["verdict_line"],
+        narrative_text=narrative["narrative_text"],
+        match_strengths=overlap["strong_matches"],
+        match_gaps=overlap["gaps"],
+        match_partial=overlap["partial_matches"],
+        calibration_label=label,
+        cosine_similarity=cosine,
+        input_hash=input_hash,
+    )
+    return {
+        "verdict_line": saved["verdict_line"],
+        "narrative_text": saved["narrative_text"],
+        "match_strengths": saved["match_strengths"] or [],
+        "match_gaps": saved["match_gaps"] or [],
+        "match_partial": saved["match_partial"] or [],
+        "cosine_similarity": float(saved["cosine_similarity"]),
+        "calibration_label": saved["calibration_label"],
+        "generated_at": saved["generated_at"],
+        "cached": False,
+    }
 
 
 @app.post("/applications", status_code=201)
