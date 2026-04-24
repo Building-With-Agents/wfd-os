@@ -12,30 +12,131 @@ Endpoints:
 
 Run: uvicorn student_api:app --reload --port 8001
 """
-import sys, os, json
-from datetime import datetime, timezone
-from fastapi import FastAPI, HTTPException
+import json
+import os
+from datetime import datetime
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2
 import psycopg2.extras
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG
+
+from wfdos_common.auth import (
+    SessionMiddleware,
+    build_auth_router,
+    Session,
+    issue_session,
+    resolve_role,
+)
+from wfdos_common.config import settings
+from wfdos_common.errors import NotFoundError, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware, configure as configure_logging, get_logger
+
+configure_logging(service_name="student-api")
+log = get_logger(__name__)
 
 app = FastAPI(title="Waifinder Student Portal API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.auth.secret_key,
+    cookie_name=settings.auth.cookie_name,
+    max_age_seconds=settings.auth.session_ttl_seconds,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
+
+
+# -----------------------------------------------------------------------------
+# Auth — Gary's Phase 4 magic-link flow + a dev-only instant sign-in shortcut.
+# Student Portal API is chosen as the host because (a) it's already running with
+# SessionMiddleware mounted and (b) the allowlist-driven role resolution lives
+# here naturally. Session cookies issued here work across every service sharing
+# settings.auth.secret_key (laborpulse, showcase, consulting_api, cockpit).
+# -----------------------------------------------------------------------------
+
+app.include_router(build_auth_router())
+
+
+@app.get("/auth/dev-login")
+def dev_login(email: str, response: Response):
+    """DEV ONLY: instant sign-in that skips the magic-link email step.
+
+    Gated by the `DEV_AUTH_BYPASS=1` env var — returns 404 otherwise, so
+    this endpoint is inert in any deploy where the flag isn't set. Uses
+    Gary's Session + issue_session + allowlist end-to-end; only the
+    email dispatch is skipped. The email MUST be on one of the four
+    WFDOS_AUTH_*_ALLOWLIST env vars (admin / staff / workforce_development
+    / student) — unallowlisted emails still 403 so dev-mode can't
+    promote arbitrary users.
+
+    Usage:
+        GET /auth/dev-login?email=ritu@computingforall.org
+    Returns JSON + Set-Cookie on the response. Hit it from the browser
+    once, then every other /api/... call on localhost:3000 carries the
+    session cookie automatically.
+
+    Remove or disable (DEV_AUTH_BYPASS != 1) before any prod deploy.
+    """
+    if os.environ.get("DEV_AUTH_BYPASS") != "1":
+        raise HTTPException(status_code=404, detail="Not found")
+
+    email_norm = email.strip().lower()
+    role = resolve_role(
+        email_norm,
+        admin_csv=settings.auth.admin_allowlist,
+        staff_csv=settings.auth.staff_allowlist,
+        student_csv=settings.auth.student_allowlist,
+        workforce_development_csv=settings.auth.workforce_development_allowlist,
+    )
+    if role is None:
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                f"{email_norm} is not on any WFDOS_AUTH_*_ALLOWLIST. "
+                "Add it to .env and restart the service."
+            ),
+        )
+
+    sess = Session(email=email_norm, role=role, tenant_id=None)
+    token = issue_session(sess, secret_key=settings.auth.secret_key)
+    response.set_cookie(
+        key=settings.auth.cookie_name,
+        value=token,
+        max_age=settings.auth.session_ttl_seconds,
+        httponly=True,
+        secure=False,  # dev — http://localhost
+        samesite="lax",
+        path="/",
+    )
+    log.info("auth.dev_login", email=email_norm, role=role)
+    return {"status": "ok", "email": email_norm, "role": role}
+
 
 def get_conn():
-    return psycopg2.connect(**PG_CONFIG)
+    """Raw DBAPI connection from the wfdos_common.db engine pool.
+
+    Returns a psycopg2-compatible connection object so existing code
+    using `conn.cursor(...)`, `conn.commit()`, `conn.close()` keeps
+    working unchanged. Close() returns the connection to the pool
+    instead of actually closing it.
+
+    Migrated in #22c; previously `psycopg2.connect(**PG_CONFIG)` —
+    direct-connect every call with no pooling.
+    """
+    from wfdos_common.db import get_engine
+    return get_engine().raw_connection()
 
 
 def query(sql, params=None):
@@ -76,16 +177,17 @@ def get_profile(student_id: str):
     """, (student_id,))
 
     if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+        raise NotFoundError("student")
 
-    # Get skill count
-    skills = query("""
-        SELECT DISTINCT sk.skill_name
-        FROM student_skills ss
-        JOIN skills sk ON sk.skill_id = ss.skill_id
-        WHERE ss.student_id = %s
-        ORDER BY sk.skill_name
-    """, (student_id,))
+    # Get skill count — shared query lives in wfdos_common.db.queries (#22c)
+    # so the identical lookup in showcase_api.py:322 can use the same impl.
+    from wfdos_common.db import get_student_skills
+    conn = get_conn()
+    try:
+        skill_names = get_student_skills(conn, student_id)
+    finally:
+        conn.close()
+    skills = [{"skill_name": name} for name in skill_names]
 
     # Convert missing arrays to lists
     for key in ['missing_required', 'missing_preferred']:
@@ -462,7 +564,7 @@ def get_journey(student_id: str):
     """, (student_id,))
 
     if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+        raise NotFoundError("student")
 
     # Get journey records
     journeys = query("""
@@ -552,7 +654,7 @@ def get_showcase(student_id: str):
     """, (student_id,))
 
     if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+        raise NotFoundError("student")
 
     # Get skill count
     skill_count = query_one(
@@ -639,7 +741,7 @@ def chat(student_id: str, msg: ChatMessage):
                 "status": "ok",
             }
     except Exception as e:
-        print(f"[CHAT] Student agent call failed: {type(e).__name__}: {e}")
+        log.error("chat.student_agent.failed", error_type=type(e).__name__, error=str(e), exc_info=True)
 
     return {
         "response": "I'm having trouble connecting right now. Try again in a moment, or explore your dashboard for insights.",

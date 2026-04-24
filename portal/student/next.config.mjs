@@ -80,6 +80,17 @@ const nextConfig = {
         source: "/api/grant-compliance/:path*",
         destination: "http://localhost:8000/:path*",
       },
+      // Gary's magic-link auth routes (mounted on student_api.py on :8001):
+      //   POST /auth/login, GET /auth/verify, POST /auth/logout, GET /auth/me
+      //   PLUS GET /auth/dev-login (env-gated, DEV_AUTH_BYPASS=1 only).
+      // Session cookies set by these endpoints are shared across every
+      // backend using settings.auth.secret_key (laborpulse, showcase,
+      // consulting_api, cockpit_api) — sign in once, all services honor
+      // the same cookie.
+      {
+        source: "/auth/:path*",
+        destination: "http://localhost:8001/auth/:path*",
+      },
       // LaborPulse Q&A API (agents/laborpulse/api.py on :8015). The
       // default port in its docstring is 8012 but we moved it to 8015
       // to avoid colliding with the Recruiting/job_board service
