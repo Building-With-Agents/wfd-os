@@ -90,9 +90,24 @@ const NAV: NavSection[] = [
         match: "/internal/youth-portal",
       },
       {
+        label: "Careers",
+        href: "/internal/careers",
+        match: "/internal/careers",
+      },
+      {
+        label: "Coalition",
+        href: "/internal/coalition",
+        match: "/internal/coalition",
+      },
+      {
         label: "WJI Dashboard",
         href: "/internal/wji-dashboard",
         match: "/internal/wji-dashboard",
+      },
+      {
+        label: "Client Portal",
+        href: "/internal/client-portal",
+        match: "/internal/client-portal",
       },
     ],
   },
