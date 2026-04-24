@@ -84,7 +84,22 @@ Return ONLY valid JSON with these fields (use null for missing fields):
 }
 
 Be thorough. Extract ALL skills mentioned anywhere in the resume.
-For education, use the most recent or highest degree.
+
+For education: pick the student's CURRENT or most recent IN-PROGRESS
+enrollment. Prefer this priority:
+  1. A degree currently in progress (has a future or open-ended graduation
+     year, or is marked "present" / "expected").
+  2. The most recent completed degree at the highest level the student
+     has actually finished.
+  3. Only fall back to prior degrees (e.g. high school) when nothing more
+     recent exists.
+Do NOT pick aspirational entries the student has NOT started yet (e.g.
+"applying to" / "plans to enroll" / admitted but not started).
+If the student's email domain is an educational institution (e.g.
+miners.utep.edu, berkeley.edu, nyu.edu) and the resume lists that same
+institution as enrolled-there, prefer that one — it's a strong signal
+they're a current student there.
+
 Return ONLY the JSON object, no other text."""
 
 
@@ -154,79 +169,148 @@ def wsb_tenant_id(conn) -> str:
     return str(row[0])
 
 
-def insert_apprentice(conn, tenant_uuid: str, filename: str, parsed: dict, confidence: float) -> str:
-    """Create a new student row + skills + work experience. Returns the new UUID."""
+def upsert_apprentice(conn, tenant_uuid: str, filename: str, parsed: dict, confidence: float) -> tuple[str, str]:
+    """UPSERT a student row + skills + work experience, keyed by
+    (tenant_id, cohort_id, original_record_id=filename). Returns
+    (student_id, action) where action is 'INSERTED' or 'UPDATED'.
+
+    On UPDATE, overwrites all parse-derived fields (parser is
+    authoritative) and REBUILDS student_work_experience entries
+    (DELETE-then-INSERT). student_skills stay additive — ON CONFLICT
+    DO NOTHING makes re-runs a no-op for already-known skills.
+    """
     cur = conn.cursor()
     skills = parsed.get("skills") or []
     work_exp = parsed.get("work_experience") or []
     certs = parsed.get("certifications") or []
     data_quality = classify_data_quality(confidence)
 
-    # INSERT students (new row, not UPDATE)
+    legacy_payload = json.dumps({
+        "resume_local_path": f"data/cohort1_resumes/{filename}",
+        "resume_source": "sharepoint/cfatechsectorleadership/UTEP & Borderplex/Feb 23rd 2026 Cohort Resumes",
+        "resume_parsed_data": {"skills_extracted": skills, "work_count": len(work_exp)},
+        "certifications": certs,
+        "career_objective": parsed.get("career_objective"),
+    })
+    resolved_name = (parsed.get("full_name") or "")[:255] or filename.replace(".pdf", "")
+
+    # Check for existing row keyed by (tenant_id, cohort_id, original_record_id).
     cur.execute("""
-        INSERT INTO students (
-            id,
-            tenant_id,
-            full_name, email, phone,
-            city, state, zipcode,
-            institution, degree, field_of_study, graduation_year,
-            linkedin_url, github_url, portfolio_url,
-            work_authorization,
-            resume_parsed, parse_confidence_score,
-            showcase_eligible, showcase_active,
-            source_system, original_record_id, migration_date,
-            pipeline_status, data_quality,
-            cohort_id,
-            legacy_data,
-            created_at, updated_at
-        ) VALUES (
-            gen_random_uuid(),
-            %s,
-            %s, %s, %s,
-            %s, %s, %s,
-            %s, %s, %s, %s,
-            %s, %s, %s,
-            %s,
-            TRUE, %s,
-            FALSE, FALSE,
-            %s, %s, NOW(),
-            %s, %s,
-            %s,
-            %s::jsonb,
-            NOW(), NOW()
-        )
-        RETURNING id
-    """, (
-        tenant_uuid,
-        (parsed.get("full_name") or "")[:255] or filename.replace(".pdf", ""),
-        parsed.get("email"),
-        parsed.get("phone"),
-        parsed.get("city"),
-        parsed.get("state"),
-        parsed.get("zipcode"),
-        parsed.get("institution"),
-        parsed.get("degree"),
-        parsed.get("field_of_study"),
-        parsed.get("graduation_year"),
-        parsed.get("linkedin_url"),
-        parsed.get("github_url"),
-        parsed.get("portfolio_url"),
-        parsed.get("work_authorization"),
-        confidence,
-        SOURCE_SYSTEM,
-        filename,
-        PIPELINE_STATUS_NEW,
-        data_quality,
-        COHORT_ID,
-        json.dumps({
-            "resume_local_path": f"data/cohort1_resumes/{filename}",
-            "resume_source": "sharepoint/cfatechsectorleadership/UTEP & Borderplex/Feb 23rd 2026 Cohort Resumes",
-            "resume_parsed_data": {"skills_extracted": skills, "work_count": len(work_exp)},
-            "certifications": certs,
-            "career_objective": parsed.get("career_objective"),
-        }),
-    ))
-    student_id = str(cur.fetchone()[0])
+        SELECT id FROM students
+        WHERE tenant_id = %s AND cohort_id = %s AND original_record_id = %s
+    """, (tenant_uuid, COHORT_ID, filename))
+    existing = cur.fetchone()
+
+    if existing:
+        student_id = str(existing[0])
+        # OVERWRITE parse-derived fields. Leave human-curated fields
+        # (pipeline_stage, track, showcase_*, notes, etc.) alone.
+        cur.execute("""
+            UPDATE students SET
+                full_name            = %s,
+                email                = %s,
+                phone                = %s,
+                city                 = %s,
+                state                = %s,
+                zipcode              = %s,
+                institution          = %s,
+                degree               = %s,
+                field_of_study       = %s,
+                graduation_year      = %s,
+                linkedin_url         = %s,
+                github_url           = %s,
+                portfolio_url        = %s,
+                work_authorization   = %s,
+                resume_parsed        = TRUE,
+                parse_confidence_score = %s,
+                data_quality         = %s,
+                legacy_data          = %s::jsonb,
+                updated_at           = NOW()
+            WHERE id = %s
+        """, (
+            resolved_name,
+            parsed.get("email"),
+            parsed.get("phone"),
+            parsed.get("city"),
+            parsed.get("state"),
+            parsed.get("zipcode"),
+            parsed.get("institution"),
+            parsed.get("degree"),
+            parsed.get("field_of_study"),
+            parsed.get("graduation_year"),
+            parsed.get("linkedin_url"),
+            parsed.get("github_url"),
+            parsed.get("portfolio_url"),
+            parsed.get("work_authorization"),
+            confidence,
+            data_quality,
+            legacy_payload,
+            student_id,
+        ))
+        # Wipe work experience + re-insert fresh (avoid duplicates on re-run).
+        cur.execute("DELETE FROM student_work_experience WHERE student_id = %s", (student_id,))
+        action = "UPDATED"
+    else:
+        # INSERT new row.
+        cur.execute("""
+            INSERT INTO students (
+                id,
+                tenant_id,
+                full_name, email, phone,
+                city, state, zipcode,
+                institution, degree, field_of_study, graduation_year,
+                linkedin_url, github_url, portfolio_url,
+                work_authorization,
+                resume_parsed, parse_confidence_score,
+                showcase_eligible, showcase_active,
+                source_system, original_record_id, migration_date,
+                pipeline_status, data_quality,
+                cohort_id,
+                legacy_data,
+                created_at, updated_at
+            ) VALUES (
+                gen_random_uuid(),
+                %s,
+                %s, %s, %s,
+                %s, %s, %s,
+                %s, %s, %s, %s,
+                %s, %s, %s,
+                %s,
+                TRUE, %s,
+                FALSE, FALSE,
+                %s, %s, NOW(),
+                %s, %s,
+                %s,
+                %s::jsonb,
+                NOW(), NOW()
+            )
+            RETURNING id
+        """, (
+            tenant_uuid,
+            resolved_name,
+            parsed.get("email"),
+            parsed.get("phone"),
+            parsed.get("city"),
+            parsed.get("state"),
+            parsed.get("zipcode"),
+            parsed.get("institution"),
+            parsed.get("degree"),
+            parsed.get("field_of_study"),
+            parsed.get("graduation_year"),
+            parsed.get("linkedin_url"),
+            parsed.get("github_url"),
+            parsed.get("portfolio_url"),
+            parsed.get("work_authorization"),
+            confidence,
+            SOURCE_SYSTEM,
+            filename,
+            PIPELINE_STATUS_NEW,
+            data_quality,
+            COHORT_ID,
+            legacy_payload,
+        ))
+        student_id = str(cur.fetchone()[0])
+        action = "INSERTED"
 
     # student_skills — exact-match taxonomy lookup (same pattern as parse_resumes.py)
     for skill_name in (skills or [])[:50]:
@@ -238,7 +322,7 @@ def insert_apprentice(conn, tenant_uuid: str, filename: str, parsed: dict, confi
             ON CONFLICT DO NOTHING
         """, (student_id, skill_name.strip()))
 
-    # student_work_experience
+    # student_work_experience (fresh — already cleared above on UPDATE path)
     for exp in (work_exp or [])[:10]:
         if not (exp.get("company") or exp.get("title")):
             continue
@@ -257,7 +341,7 @@ def insert_apprentice(conn, tenant_uuid: str, filename: str, parsed: dict, confi
             bool(exp.get("is_current", False)),
         ))
 
-    return student_id
+    return student_id, action
 
 
 def ingested_count_for_cohort(conn) -> int:
@@ -288,18 +372,14 @@ def main() -> int:
     conn.autocommit = False
 
     already = ingested_count_for_cohort(conn)
-    if already > 0:
-        print(f"WARNING: {already} apprentices already ingested under cohort_id='{COHORT_ID}'.")
-        print("Re-running this script would create duplicates.")
-        print("If you want to re-ingest, DELETE existing cohort-1 rows first.")
-        conn.close()
-        return 5
-
     tenant_uuid = wsb_tenant_id(conn)
     print(f"WSB tenant_id: {tenant_uuid}")
     print(f"cohort_id:     {COHORT_ID}")
     print(f"source_system: {SOURCE_SYSTEM}")
     print(f"resumes found: {len(pdfs)}")
+    print(f"existing apprentices in cohort: {already}")
+    if already > 0:
+        print("-> re-parse mode: rows with matching original_record_id will be UPDATED in place (UUIDs preserved).")
     print()
 
     summary = []
@@ -318,14 +398,14 @@ def main() -> int:
 
             parsed = parse_pdf_with_gemini(pdf_bytes)
             conf = calculate_confidence(parsed)
-            student_id = insert_apprentice(conn, tenant_uuid, filename, parsed, conf)
+            student_id, action = upsert_apprentice(conn, tenant_uuid, filename, parsed, conf)
             conn.commit()
 
             skills_count = len(parsed.get("skills") or [])
             work_count = len(parsed.get("work_experience") or [])
             tier = "HIGH" if conf >= 0.8 else "MED" if conf >= 0.5 else "LOW"
             name = parsed.get("full_name") or filename
-            print(f"{progress} {tier} conf={conf} skills={skills_count} work={work_count}  {name}")
+            print(f"{progress} {action} {tier} conf={conf} skills={skills_count} work={work_count}  {name}")
             summary.append({
                 "file": filename,
                 "student_id": student_id,
