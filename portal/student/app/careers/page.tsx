@@ -1,9 +1,10 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   Compass, ArrowLeft, Upload, FileText, User, Mail, ArrowRight,
-  Search, Sparkles, CheckCircle2, AlertCircle,
+  Search, Sparkles, CheckCircle2, AlertCircle, Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -26,16 +27,30 @@ const ROLE_OPTIONS = [
   "Network Engineer", "QA Engineer", "Business Analyst",
 ]
 
+interface IntakeResult {
+  student_id: string
+  email: string
+  full_name: string
+  action: "created" | "existing"
+  skills_matched: number
+}
+
 export default function CareersPage() {
+  const router = useRouter()
   const [showIntakeForm, setShowIntakeForm] = useState(false)
   const [lookupEmail, setLookupEmail] = useState("")
   const [selectedSkills, setSelectedSkills] = useState<string[]>([])
   const [selectedRoles, setSelectedRoles] = useState<string[]>([])
   const [intakeName, setIntakeName] = useState("")
   const [intakeEmail, setIntakeEmail] = useState("")
-  const [submitted, setSubmitted] = useState(false)
+  const [submitted, setSubmitted] = useState<IntakeResult | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [uploadMessage, setUploadMessage] = useState<string | null>(null)
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
+  const [intakeError, setIntakeError] = useState<string | null>(null)
+  const [intakeLoading, setIntakeLoading] = useState(false)
+  const [lookupError, setLookupError] = useState<string | null>(null)
+  const [lookupLoading, setLookupLoading] = useState(false)
 
   const toggleSkill = (skill: string) => {
     setSelectedSkills(prev =>
@@ -49,24 +64,86 @@ export default function CareersPage() {
     )
   }
 
+  // Resume upload: we accept the file name + gently explain that resume
+  // parsing for CFA intake is done manually today. Points them at the
+  // structured form so they're not stuck. (The Phase A cohort-1 parser
+  // runs for WSB via a separate ingestion flow, not through this form.)
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
-    setUploadMessage("Processing your resume... This feature requires Anthropic API credits. Add $25 at console.anthropic.com to activate.")
+    const file = e.dataTransfer.files?.[0]
+    if (file) setUploadedFileName(file.name)
+    setUploadMessage(
+      "Thanks — we've noted your resume. Resume parsing for new intakes is manual today; please also fill out the quick form below so we can match you immediately."
+    )
+    setShowIntakeForm(true)
   }
 
-  const handleFileSelect = () => {
-    setUploadMessage("Processing your resume... This feature requires Anthropic API credits. Add $25 at console.anthropic.com to activate.")
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) setUploadedFileName(file.name)
+    setUploadMessage(
+      "Thanks — we've noted your resume. Resume parsing for new intakes is manual today; please also fill out the quick form below so we can match you immediately."
+    )
+    setShowIntakeForm(true)
   }
 
-  const handleIntakeSubmit = (e: React.FormEvent) => {
+  const handleIntakeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitted(true)
+    setIntakeError(null)
+    setIntakeLoading(true)
+    try {
+      const res = await fetch("/api/student/intake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: intakeName,
+          email: intakeEmail,
+          skills: selectedSkills,
+          target_roles: selectedRoles,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const msg =
+          (body as { error?: { message?: string } })?.error?.message ||
+          (body as { detail?: string })?.detail ||
+          `HTTP ${res.status}`
+        throw new Error(msg)
+      }
+      const data = (await res.json()) as IntakeResult
+      setSubmitted(data)
+    } catch (err) {
+      setIntakeError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setIntakeLoading(false)
+    }
   }
 
-  const handleLookup = () => {
+  const handleLookup = async () => {
     if (!lookupEmail) return
-    setUploadMessage(`Looking up ${lookupEmail}... This feature requires the student lookup API to be connected. Check back soon.`)
+    setLookupError(null)
+    setLookupLoading(true)
+    try {
+      const res = await fetch(
+        `/api/student/lookup?email=${encodeURIComponent(lookupEmail)}`
+      )
+      if (res.status === 404) {
+        setLookupError(
+          "We couldn't find a profile for that email. Use the form above to get started."
+        )
+        return
+      }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const data = (await res.json()) as { student_id: string; full_name: string }
+      router.push(`/student?id=${data.student_id}`)
+    } catch (err) {
+      setLookupError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLookupLoading(false)
+    }
   }
 
   return (
@@ -133,7 +210,9 @@ export default function CareersPage() {
                 <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
                   <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-500" />
                   <div>
-                    <p className="text-sm font-medium text-amber-800">Resume processing paused</p>
+                    <p className="text-sm font-medium text-amber-800">
+                      {uploadedFileName ? `Received: ${uploadedFileName}` : "Heads up"}
+                    </p>
                     <p className="text-sm text-amber-700">{uploadMessage}</p>
                   </div>
                 </div>
@@ -212,8 +291,24 @@ export default function CareersPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full gap-2">
-                Show me my matches <Sparkles className="h-4 w-4" />
+              {intakeError && (
+                <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                  <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                  <span>{intakeError}</span>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full gap-2" disabled={intakeLoading}>
+                {intakeLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creating your profile…
+                  </>
+                ) : (
+                  <>
+                    Show me my matches <Sparkles className="h-4 w-4" />
+                  </>
+                )}
               </Button>
 
               <button
@@ -230,22 +325,42 @@ export default function CareersPage() {
         {/* Success state */}
         {submitted && (
           <Card className="p-8 text-center">
-            <AlertCircle className="mx-auto mb-4 h-10 w-10 text-amber-500" />
-            <h2 className="text-xl font-bold text-foreground">Profile created!</h2>
+            <CheckCircle2 className="mx-auto mb-4 h-10 w-10 text-green-500" />
+            <h2 className="text-xl font-bold text-foreground">
+              {submitted.action === "existing"
+                ? `Welcome back, ${submitted.full_name.split(" ")[0]}`
+                : "Profile created!"}
+            </h2>
             <p className="mt-2 text-muted-foreground">
-              Your job matching and gap analysis requires Anthropic API credits to process.
+              {submitted.action === "existing"
+                ? "We already have a profile for this email — your dashboard is ready."
+                : `Your profile is in the CFA pipeline. ${submitted.skills_matched} skill${
+                    submitted.skills_matched === 1 ? "" : "s"
+                  } matched our taxonomy.`}
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Add $25 at console.anthropic.com to activate real-time matching.
-            </p>
+
             <div className="mt-6 space-y-2 text-left mx-auto max-w-sm">
-              {["Profile saved to CFA pipeline", "Skills recorded for matching",
-                "Job match engine queued (pending credits)", "Gap analysis queued (pending credits)"].map((step, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CheckCircle2 className={`h-4 w-4 ${i < 2 ? "text-green-500" : "text-amber-400"}`} /> {step}
-                </div>
-              ))}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 text-green-500" /> Profile saved
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 text-green-500" /> Skills recorded
+              </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <CheckCircle2 className="h-4 w-4 text-green-500" /> Ready to match against open roles
+              </div>
             </div>
+
+            <Button
+              className="mt-6 w-full gap-2"
+              onClick={() => router.push(`/student?id=${submitted.student_id}`)}
+            >
+              Open my dashboard <ArrowRight className="h-4 w-4" />
+            </Button>
+
+            <p className="mt-3 text-xs text-muted-foreground">
+              Bookmark it: <code className="text-foreground">/student?id={submitted.student_id.slice(0, 8)}…</code>
+            </p>
           </Card>
         )}
 
@@ -260,14 +375,25 @@ export default function CareersPage() {
               placeholder="Enter your email"
               value={lookupEmail}
               onChange={e => setLookupEmail(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleLookup()}
+              onKeyDown={e => e.key === "Enter" && !lookupLoading && handleLookup()}
+              disabled={lookupLoading}
             />
-            <Button variant="outline" onClick={handleLookup} className="gap-1 flex-shrink-0">
-              <Search className="h-4 w-4" /> Find my profile
+            <Button
+              variant="outline"
+              onClick={handleLookup}
+              className="gap-1 flex-shrink-0"
+              disabled={lookupLoading || !lookupEmail}
+            >
+              {lookupLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+              Find my profile
             </Button>
           </div>
-          {uploadMessage && lookupEmail && (
-            <p className="mt-2 text-xs text-amber-600">{uploadMessage}</p>
+          {lookupError && (
+            <p className="mx-auto mt-2 max-w-sm text-xs text-amber-700">{lookupError}</p>
           )}
         </div>
       </main>

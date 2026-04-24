@@ -124,6 +124,159 @@ def dev_login(email: str, response: Response):
     return {"status": "ok", "email": email_norm, "role": role}
 
 
+# =============================================================================
+# Public intake endpoints — used by /careers (the student-facing intake page).
+# Unauthenticated on purpose: new students haven't signed in yet, this is the
+# first touch. Keep the payload minimal and validate server-side.
+# =============================================================================
+
+
+class IntakeBody(BaseModel):
+    name: str
+    email: str
+    skills: list[str] = []
+    target_roles: list[str] = []
+
+
+@app.post("/api/student/intake")
+def student_intake(body: IntakeBody):
+    """Create a new student row from the /careers intake form, or return
+    the existing one if this email is already in the pipeline (idempotent
+    so resubmits don't duplicate). Tenant defaults to CFA — WSB intake
+    goes through the separate phase_a_parse_cohort1_resumes.py flow.
+
+    Returns the new/existing student_id so the frontend can redirect to
+    /student?id=<uuid> and show the user their own portal.
+    """
+    name = (body.name or "").strip()
+    email = (body.email or "").strip().lower()
+    if not name or "@" not in email:
+        raise HTTPException(status_code=400, detail="name and a valid email are required")
+
+    from psycopg2 import sql as _sql  # noqa: F401 — keeps intent clear
+
+    cfa_tenant_id_row = query_one("SELECT id FROM tenants WHERE code='CFA'")
+    if not cfa_tenant_id_row:
+        raise HTTPException(status_code=500, detail="CFA tenant not seeded; run migration 014")
+    tenant_uuid = str(cfa_tenant_id_row["id"])
+
+    # Idempotent check — duplicates collapse to the existing student.
+    existing = query_one(
+        "SELECT id, full_name FROM students WHERE LOWER(email) = %s AND tenant_id = %s::uuid",
+        (email, tenant_uuid),
+    )
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        if existing:
+            student_id = str(existing["id"])
+            action = "existing"
+        else:
+            cur.execute(
+                """
+                INSERT INTO students (
+                    id, tenant_id,
+                    full_name, email,
+                    pipeline_status, pipeline_stage,
+                    source_system,
+                    availability_status,
+                    resume_parsed, showcase_eligible, showcase_active,
+                    legacy_data,
+                    created_at, updated_at
+                ) VALUES (
+                    gen_random_uuid(), %s::uuid,
+                    %s, %s,
+                    'enrolled', 'intake',
+                    'careers-intake',
+                    'Available now',
+                    FALSE, FALSE, FALSE,
+                    %s::jsonb,
+                    NOW(), NOW()
+                )
+                RETURNING id
+                """,
+                (
+                    tenant_uuid,
+                    name,
+                    email,
+                    json.dumps({
+                        "intake_source": "/careers",
+                        "target_roles": body.target_roles,
+                    }),
+                ),
+            )
+            student_id = str(cur.fetchone()[0])
+            action = "created"
+
+        # Insert student_skills for any selected skills that match the taxonomy
+        # (exact case-insensitive match on skills.skill_name). Unknown skills
+        # are silently dropped — the intake form's fixed list should all match.
+        matched = 0
+        for skill_name in (body.skills or [])[:20]:  # cap for sanity
+            clean = skill_name.strip()
+            if not clean:
+                continue
+            cur.execute(
+                """
+                INSERT INTO student_skills (student_id, skill_id, source)
+                SELECT %s, skill_id, 'careers-intake'
+                FROM skills
+                WHERE LOWER(skill_name) = LOWER(%s)
+                ON CONFLICT DO NOTHING
+                RETURNING student_id
+                """,
+                (student_id, clean),
+            )
+            if cur.fetchone():
+                matched += 1
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    log.info(
+        "student.intake",
+        action=action,
+        email=email,
+        student_id=student_id,
+        skills_requested=len(body.skills or []),
+        skills_matched=matched,
+    )
+    return {
+        "student_id": student_id,
+        "email": email,
+        "full_name": name,
+        "action": action,  # "created" or "existing"
+        "skills_matched": matched,
+    }
+
+
+@app.get("/api/student/lookup")
+def student_lookup(email: str):
+    """Email-based lookup for the 'Already have an account?' flow on
+    /careers. Case-insensitive. 404 if not found so the frontend can
+    nudge the user to fill out the intake form instead."""
+    email_norm = (email or "").strip().lower()
+    if not email_norm or "@" not in email_norm:
+        raise HTTPException(status_code=400, detail="valid email required")
+
+    row = query_one(
+        "SELECT id, full_name FROM students WHERE LOWER(email) = %s LIMIT 1",
+        (email_norm,),
+    )
+    if not row:
+        raise NotFoundError("student")
+
+    return {
+        "student_id": str(row["id"]),
+        "full_name": row["full_name"],
+    }
+
+
 def get_conn():
     """Raw DBAPI connection from the wfdos_common.db engine pool.
 
