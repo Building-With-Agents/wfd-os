@@ -54,6 +54,95 @@ MAX_TOOL_ROUNDS = 5  # safety limit on consecutive tool calls
 
 
 # ---------------------------------------------------------------------------
+# Drill-scope enforcement — used by the Finance Cockpit drill chat surface.
+# See agents/finance/design/chat_spec.md §"Scope enforcement".
+# ---------------------------------------------------------------------------
+
+_DRILL_SCOPE_INSTRUCTION_TEMPLATE = """
+
+--- DRILL SCOPE ENFORCEMENT ---
+
+You are currently answering questions about the '{drill_title}' drill in the
+Finance Cockpit. The user's message is preceded by a [Context: {drill_title}]
+block containing the full drill payload as JSON. Answer only questions that
+can be answered from that payload.
+
+If the user asks about something outside this drill (other providers, other
+categories, general compliance questions, anything not in the payload),
+set out_of_scope=true in your response and say exactly:
+"That's outside this drill's scope. Try the broader chat panel for cross-cutting questions."
+Do not guess or draw on general knowledge beyond the drill's data.
+
+When you cite a fact, include the section id(s) in `sources` (the `id` field
+from the payload's sections array). If your answer spans multiple sections,
+list all relevant ids. If no specific section supports your answer, return an
+empty array.
+
+You MUST respond as JSON with this exact shape — no prose outside the JSON:
+{{"response": "<your plain-English answer>", "out_of_scope": <true|false>, "sources": ["<section_id>", ...]}}
+"""
+
+
+_DRILL_RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "response": {"type": "string"},
+        "out_of_scope": {"type": "boolean"},
+        "sources": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
+    },
+    "required": ["response", "out_of_scope"],
+}
+
+
+def _build_drill_context_block(drill_title: str | None, drill_payload: Any) -> str:
+    """Render a drill-payload block to prepend to the user message."""
+    title = drill_title or "drill"
+    return (
+        f"[Context: {title}]\n"
+        f"{json.dumps(drill_payload, indent=2, default=str)}\n\n"
+    )
+
+
+def _build_session_metadata(ctx: dict | None) -> dict | None:
+    """Build the `metadata` JSONB to store on agent_conversations.
+
+    Promotes well-known chat-surface keys (scope, drill_key, drill_title,
+    user) to top-level fields so the row is filterable in SQL. The raw
+    drill_payload is intentionally NOT persisted — it's large, it's
+    reconstructible from the cockpit API, and it would bloat the row on
+    every turn.
+    """
+    if not ctx:
+        return None
+    meta: dict[str, Any] = {}
+    for key in ("scope", "drill_key", "drill_title", "user"):
+        val = ctx.get(key)
+        if val is not None:
+            meta[key] = val
+    return meta or None
+
+
+def _parse_drill_response(raw_text: str) -> tuple[str, bool, list[str]]:
+    """Parse a drill-chat JSON response. Fall back to raw text if malformed."""
+    try:
+        parsed = json.loads(raw_text)
+    except (json.JSONDecodeError, TypeError):
+        return raw_text, False, []
+    if not isinstance(parsed, dict):
+        return raw_text, False, []
+    response = parsed.get("response")
+    if not isinstance(response, str):
+        response = raw_text
+    out_of_scope = bool(parsed.get("out_of_scope", False))
+    sources_raw = parsed.get("sources") or []
+    sources = [s for s in sources_raw if isinstance(s, str)] if isinstance(sources_raw, list) else []
+    return response, out_of_scope, sources
+
+
+# ---------------------------------------------------------------------------
 # Tool registry helpers
 # ---------------------------------------------------------------------------
 
@@ -269,12 +358,24 @@ class BaseAgent:
     ) -> dict:
         """Process one user message and return the agent's response.
 
+        The optional `context` dict enables drill-scoped chat for the Finance
+        Cockpit (see agents/finance/design/chat_spec.md). Recognized keys:
+          - scope: "drill" activates drill-scope enforcement (structured JSON
+            response, tools disabled, scope-guard appended to system prompt).
+          - drill_title: displayed in the context block.
+          - drill_payload: rendered as a [Context: ...] block prepended to
+            the user message.
+          - drill_key, user: forwarded to session metadata for filterability.
+
         Returns:
             {
                 "response": str,         # the text reply
                 "session_id": str,        # for continuity
                 "action": dict | None,    # structured action if any
                 "signals": list[dict],    # special signals detected
+                "suggestions": list[str] | None,
+                "out_of_scope": bool,     # drill chat only; false otherwise
+                "sources": list[str],     # drill chat only; [] otherwise
             }
         """
         # 1. Session management
@@ -289,16 +390,57 @@ class BaseAgent:
         else:
             history = []
 
-        # 2. Add user message
+        # 2. Drill-scope handling — decide up front whether this turn runs
+        #    under scope enforcement. Tools are disabled under drill scope
+        #    because Gemini can't combine tool-calling with structured
+        #    output in the same response.
+        ctx = context or {}
+        is_drill = ctx.get("scope") == "drill"
+        drill_title = ctx.get("drill_title")
+        drill_payload = ctx.get("drill_payload")
+
+        # What the model actually sees for this turn. Drill payload is
+        # prepended; the user's raw text follows.
+        if drill_payload is not None:
+            model_user_message = (
+                _build_drill_context_block(drill_title, drill_payload) + user_message
+            )
+        else:
+            model_user_message = user_message
+
+        # What we store in history is the raw user text, not the injected
+        # context. The payload can be reconstructed from the source; we keep
+        # history human-readable.
         history.append({"role": "user", "content": user_message})
 
         # 3. Build Gemini model + chat
-        gemini_tools = self._build_gemini_tools()
-        model = genai.GenerativeModel(
-            model_name=self.model_name,
-            system_instruction=self.system_prompt,
-            tools=gemini_tools,
-        )
+        effective_system_prompt = self.system_prompt
+        if is_drill:
+            effective_system_prompt = (
+                self.system_prompt
+                + _DRILL_SCOPE_INSTRUCTION_TEMPLATE.format(
+                    drill_title=drill_title or "this drill"
+                )
+            )
+
+        if is_drill:
+            gemini_tools = None  # tools incompatible with structured output
+            generation_config = {
+                "response_mime_type": "application/json",
+                "response_schema": _DRILL_RESPONSE_SCHEMA,
+            }
+        else:
+            gemini_tools = self._build_gemini_tools()
+            generation_config = None
+
+        model_kwargs: dict[str, Any] = {
+            "model_name": self.model_name,
+            "system_instruction": effective_system_prompt,
+            "tools": gemini_tools,
+        }
+        if generation_config is not None:
+            model_kwargs["generation_config"] = generation_config
+        model = genai.GenerativeModel(**model_kwargs)
 
         # Convert history to Gemini format
         gemini_history = []
@@ -314,22 +456,28 @@ class BaseAgent:
 
         try:
             chat = model.start_chat(history=gemini_history)
-            response = chat.send_message(user_message)
+            response = chat.send_message(model_user_message)
         except Exception as e:
             traceback.print_exc()
             error_msg = f"I'm having trouble connecting right now. Please try again in a moment. ({type(e).__name__})"
             history.append({"role": "assistant", "content": error_msg})
-            _save_session(session_id, self.agent_type, history, user_id, user_role)
+            _save_session(
+                session_id, self.agent_type, history, user_id, user_role,
+                metadata=_build_session_metadata(ctx),
+            )
             return {
                 "response": error_msg,
                 "session_id": session_id,
                 "action": None,
                 "signals": [],
+                "suggestions": None,
+                "out_of_scope": False,
+                "sources": [],
             }
 
-        # 4. Tool calling loop
+        # 4. Tool calling loop — skipped under drill scope (tools are off)
         rounds = 0
-        while rounds < MAX_TOOL_ROUNDS:
+        while rounds < MAX_TOOL_ROUNDS and not is_drill:
             # Check if the response contains a function call
             candidate = response.candidates[0] if response.candidates else None
             if not candidate:
@@ -400,6 +548,14 @@ class BaseAgent:
         if not response_text:
             response_text = "I'm here to help. Could you tell me more about what you need?"
 
+        # 5b. Under drill scope, parse the structured JSON envelope and
+        #     extract response/out_of_scope/sources. Broad chat leaves these
+        #     at their defaults.
+        out_of_scope = False
+        sources: list[str] = []
+        if is_drill:
+            response_text, out_of_scope, sources = _parse_drill_response(response_text)
+
         # 6. Detect special signals
         signals = _detect_signals(response_text)
         action = signals[0] if signals else None
@@ -420,7 +576,7 @@ class BaseAgent:
         _save_session(
             session_id, self.agent_type, history,
             user_id, user_role, outcome,
-            metadata={"context": context} if context else None,
+            metadata=_build_session_metadata(ctx),
         )
 
         return {
@@ -429,6 +585,8 @@ class BaseAgent:
             "action": action,
             "signals": signals,
             "suggestions": suggestions,
+            "out_of_scope": out_of_scope,
+            "sources": sources,
         }
 
     def extract_suggestions(self, response_text: str, history: list[dict]) -> list[str] | None:

@@ -153,6 +153,10 @@ class ChatResponse(BaseModel):
     action: Optional[dict] = None
     signals: Optional[list] = None
     suggestions: Optional[list[str]] = None
+    # Drill-chat surface (Finance Cockpit). Null for broad-chat and
+    # non-finance agents. See agents/finance/design/chat_spec.md.
+    out_of_scope: Optional[bool] = None
+    sources: Optional[list[str]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -181,6 +185,8 @@ async def chat(req: ChatRequest):
         action=result.get("action"),
         signals=result.get("signals"),
         suggestions=result.get("suggestions"),
+        out_of_scope=result.get("out_of_scope"),
+        sources=result.get("sources"),
     )
 
 
