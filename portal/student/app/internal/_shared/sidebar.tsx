@@ -67,52 +67,57 @@ const NAV: NavSection[] = [
     ],
   },
   {
+    // External portals link DIRECTLY at the real portal routes — no
+    // launcher middleman. Click "Employer Portal" and you land on
+    // /for-employers immediately. The dedicated launcher pages under
+    // /internal/*-portal/ were removed (see commit that introduced
+    // this change).
     label: "External portals",
     groups: [
       {
         label: "Employer Portal",
-        href: "/internal/employer-portal",
-        match: "/internal/employer-portal",
+        href: "/for-employers",
+        match: "/for-employers",
       },
       {
         label: "Talent Showcase",
-        href: "/internal/talent-showcase",
-        match: "/internal/talent-showcase",
+        href: "/showcase",
+        match: "/showcase",
       },
       {
         label: "College Portal",
-        href: "/internal/college-portal",
-        match: "/internal/college-portal",
+        href: "/college",
+        match: "/college",
       },
       {
         label: "Youth Portal",
-        href: "/internal/youth-portal",
-        match: "/internal/youth-portal",
+        href: "/youth",
+        match: "/youth",
       },
       {
         label: "Careers",
-        href: "/internal/careers",
-        match: "/internal/careers",
+        href: "/careers",
+        match: "/careers",
       },
       {
         label: "Coalition",
-        href: "/internal/coalition",
-        match: "/internal/coalition",
+        href: "/coalition",
+        match: "/coalition",
       },
       {
         label: "WJI Dashboard",
-        href: "/internal/wji-dashboard",
-        match: "/internal/wji-dashboard",
+        href: "/wji",
+        match: "/wji",
       },
       {
         label: "Client Portal",
-        href: "/internal/client-portal",
-        match: "/internal/client-portal",
+        href: "/client",
+        match: "/client",
       },
       {
         label: "AI Consulting",
-        href: "/internal/ai-consulting",
-        match: "/internal/ai-consulting",
+        href: "/cfa/ai-consulting",
+        match: "/cfa/ai-consulting",
       },
     ],
   },
