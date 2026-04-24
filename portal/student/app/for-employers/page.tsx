@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import {
   Compass, ArrowRight, Users, Briefcase, CheckCircle2,
   Search, Filter, Target, Zap, ExternalLink, GraduationCap,
@@ -8,6 +9,19 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+
+// Matches the shape returned by student_api.py::get_stats (routed via
+// next.config.mjs /api/stats -> :8001/api/stats). If fetch fails, the
+// Stats component falls back to hardcoded defaults so the page still
+// renders — same graceful-degradation pattern /coalition uses.
+interface PlatformStats {
+  total_students: number
+  parsed_students: number
+  job_listings: number
+  total_employers: number
+  skills_tracked: number
+  regions_count: number
+}
 
 function NavBar() {
   return (
@@ -67,16 +81,46 @@ function Hero() {
   )
 }
 
+// Fallback numbers used when /api/stats is unreachable — keeps the page
+// looking populated during backend outages. These should stay close to
+// the last-known live figures so reviewers don't see wildly wrong data
+// if the API blips.
+const FALLBACK_STATS: PlatformStats = {
+  total_students: 4727,
+  parsed_students: 160,
+  job_listings: 2700,
+  total_employers: 1577,
+  skills_tracked: 335,
+  regions_count: 3,
+}
+
 function Stats() {
+  const [stats, setStats] = useState<PlatformStats>(FALLBACK_STATS)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/stats")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setStats(data as PlatformStats)
+      })
+      .catch(() => {
+        // Silent — FALLBACK_STATS already rendered.
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const display = [
+    { value: stats.total_students.toLocaleString(), label: "students in pipeline" },
+    { value: stats.parsed_students.toLocaleString(), label: "job-ready candidates" },
+    { value: stats.skills_tracked.toLocaleString(), label: "skills tracked" },
+    { value: stats.total_employers.toLocaleString(), label: "employers in coalition" },
+  ]
+
   return (
     <section className="border-y border-border bg-card px-4 py-10">
       <div className="mx-auto grid max-w-4xl grid-cols-2 gap-8 sm:grid-cols-4">
-        {[
-          { value: "4,727", label: "students in pipeline" },
-          { value: "101", label: "job-ready candidates" },
-          { value: "5,061", label: "skills tracked" },
-          { value: "23", label: "avg skills per resume" },
-        ].map((s) => (
+        {display.map((s) => (
           <div key={s.label} className="text-center">
             <div className="text-2xl font-bold text-foreground sm:text-3xl">{s.value}</div>
             <p className="mt-1 text-sm text-muted-foreground">{s.label}</p>
