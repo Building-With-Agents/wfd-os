@@ -177,6 +177,7 @@ def _build_audit_gap_section(gap_response: dict) -> dict:
     """
     if not gap_response.get("engine_ok"):
         return {
+            "id": "open_gaps",
             "type": "prose",
             "title": "Open gaps",
             "body": (
@@ -191,6 +192,7 @@ def _build_audit_gap_section(gap_response: dict) -> dict:
             "Gap detection not yet available for this dimension."
         )
         return {
+            "id": "open_gaps",
             "type": "prose",
             "title": "Open gaps",
             "body": message,
@@ -200,6 +202,7 @@ def _build_audit_gap_section(gap_response: dict) -> dict:
     gaps = gap_response.get("gaps") or []
     if not gaps:
         return {
+            "id": "open_gaps",
             "type": "rows",
             "title": "Open gaps",
             "rows": [{"label": "No open gaps in this dimension.", "value": "✓"}],
@@ -235,6 +238,7 @@ def _build_audit_gap_section(gap_response: dict) -> dict:
         rows.append({"label": label, "value": value})
 
     return {
+        "id": "open_gaps",
         "type": "rows",
         "title": "Open gaps",
         "rows": rows,
@@ -463,9 +467,20 @@ def validate_drill(key: str, entry: dict) -> None:
         _require(isinstance(entry.get(f), str), ctx, f"{f} must be a string")
     sections = entry.get("sections")
     _require(isinstance(sections, list), ctx, "sections must be a list")
+    # Section ids must be present, non-empty strings, and unique within a
+    # drill. The drill-chat surface cites them as `sources: ["<id>", ...]`
+    # in its structured response; the frontend scrolls to the matching
+    # section. See agents/finance/design/chat_spec.md §"Section IDs".
+    seen_ids: set[str] = set()
     for i, section in enumerate(sections):
         sctx = f"{ctx}.sections[{i}]"
         _require(isinstance(section, dict), sctx, "section must be a dict")
+        sid = section.get("id")
+        _require(isinstance(sid, str) and sid, sctx,
+                 "id must be a non-empty string")
+        _require(sid not in seen_ids, sctx,
+                 f"duplicate section id within drill: {sid!r}")
+        seen_ids.add(sid)
         stype = section.get("type")
         _require(stype in SECTION_TYPES, sctx,
                  f"type must be one of {SECTION_TYPES}, got {stype!r}")
@@ -856,6 +871,7 @@ def _placements_table_section(fp: dict, quarter_labels: list) -> dict:
     """Per-quarter placements + payments table for a provider drill."""
     quarterly = _placements_per_quarter(fp, quarter_labels)
     return {
+        "id": "placements_table",
         "type": "table",
         "title": "Placements by quarter",
         "columns": [
@@ -896,6 +912,7 @@ def _placements_chart_section(fp: dict, quarter_labels: list,
                 else ("watch" if r["placements"] > 0 else "neutral"),
     } for r in quarterly]
     section = {
+        "id": "placements_chart",
         "type": "chart",
         "title": "Placements over time",
         "chart_type": "bar",
@@ -915,6 +932,7 @@ def _placements_chart_section(fp: dict, quarter_labels: list,
 def _cost_analysis_rows_section(fp: dict) -> dict:
     """Rows-type cost analysis — for providers in the green band."""
     return {
+        "id": "cost_analysis",
         "type": "rows",
         "title": "Cost Analysis",
         "rows": [
@@ -953,6 +971,7 @@ def _cost_analysis_verdict_section(fp: dict) -> dict:
     else:  # watch
         headline = f"True CPP ${fp['true_cpp']:,.0f} — in the amber band ($2.5k–$4k)."
     return {
+        "id": "cost_analysis",
         "type": "verdict",
         "tone": tone,
         "headline": headline,
@@ -963,6 +982,7 @@ def _cost_analysis_verdict_section(fp: dict) -> dict:
 def _action_items_section_for(related: list, title: str | None = None) -> dict:
     """Action-items-type section filtered to items that mention the entity."""
     return {
+        "id": "action_items",
         "type": "action_items",
         "title": title or f"Open action items ({len(related)})",
         "items": [{
@@ -977,6 +997,7 @@ def _contract_and_spend_section(budget_row: dict) -> dict:
     """Rows section for provider Contract & Spend — same layout as before
     but extracted for reuse across the migrated providers."""
     return {
+        "id": "contract_and_spend",
         "type": "rows",
         "title": "Contract & Spend",
         "rows": [
@@ -1036,6 +1057,7 @@ def build_drills(data: dict) -> dict:
             sections.append(_contract_and_spend_section(budget_row))
         elif name == "Recovery Operation (AIE + P&K)":
             sections.append({
+                "id": "contract_and_spend",
                 "type": "rows",
                 "title": "Recovery Operation — AI Engage + Pete & Kelly Vargo",
                 "rows": [
@@ -1086,6 +1108,7 @@ def build_drills(data: dict) -> dict:
                 "title": name,
                 "summary": p.get("notes", "")[:140],
                 "sections": [{
+                    "id": "contract_and_spend",
                     "type": "rows",
                     "title": "Contract & Spend",
                     "rows": [
@@ -1124,6 +1147,7 @@ def build_drills(data: dict) -> dict:
                 "tone": "watch",
             },
             "sections": [{
+                "id": "current_status",
                 "type": "rows",
                 "title": "Current Status",
                 "rows": rows,
@@ -1137,6 +1161,7 @@ def build_drills(data: dict) -> dict:
             "title": item["area"] if item["area"] else "(no area)",
             "summary": f"Owner: {item['owner']}",
             "sections": [{
+                "id": "action_description",
                 "type": "rows",
                 "title": "Full action description",
                 "rows": [{"label": "Action", "value": item["action"]}],
@@ -1183,6 +1208,7 @@ def build_drills(data: dict) -> dict:
             "summary": summary,
             "sections": [
                 {
+                    "id": "auditor_perspective",
                     "type": "rows",
                     "title": "What auditors look for",
                     "rows": [{
@@ -1219,6 +1245,7 @@ def build_drills(data: dict) -> dict:
         "summary": "All CFA-side operations — staff, overhead, and recovery contractors",
         "sections": [
             {
+                "id": "staff_overhead",
                 "type": "rows",
                 "title": f"Staff & overhead — ${summary['backbone_remaining']:,.0f} remaining",
                 "rows": [
@@ -1233,6 +1260,7 @@ def build_drills(data: dict) -> dict:
                 ],
             },
             {
+                "id": "recovery_contractors",
                 "type": "rows",
                 "title": f"Recovery contractors — ${summary['cfa_contractor_remaining']:,.0f} remaining",
                 "rows": [
@@ -1258,6 +1286,7 @@ def build_drills(data: dict) -> dict:
         "summary": f"PIP threshold ({placements['pip_threshold']}) cleared on April 6 · 255 to grant goal",
         "sections": [
             {
+                "id": "placements_sources",
                 "type": "rows",
                 "title": f"Where the {placements['confirmed_total']} came from",
                 "rows": [
@@ -1283,6 +1312,7 @@ def build_drills(data: dict) -> dict:
         "summary": "Q1 provider invoices paid by CFA · invoiced to ESD April 30",
         "sections": [
             {
+                "id": "outstanding_receivable",
                 "type": "rows",
                 "title": "Outstanding receivable from ESD",
                 "rows": [
@@ -1311,6 +1341,7 @@ def build_drills(data: dict) -> dict:
         "summary": "Filtered to severity = HIGH",
         "sections": [
             {
+                "id": "high_priority_items",
                 "type": "rows",
                 "title": "High-priority items from v3 reconciliation",
                 "rows": [
