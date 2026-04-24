@@ -109,6 +109,11 @@ const NAV: NavSection[] = [
         href: "/internal/client-portal",
         match: "/internal/client-portal",
       },
+      {
+        label: "AI Consulting",
+        href: "/internal/ai-consulting",
+        match: "/internal/ai-consulting",
+      },
     ],
   },
 ]
