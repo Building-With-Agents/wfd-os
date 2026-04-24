@@ -70,6 +70,7 @@ def get_profile(student_id: str):
                resume_parsed, parse_confidence_score,
                availability_status, work_authorization,
                data_quality, engagement_level, last_active_date,
+               legacy_data,
                created_at
         FROM students WHERE id = %s
     """, (student_id,))
@@ -96,6 +97,34 @@ def get_profile(student_id: str):
     student['skills'] = [s['skill_name'] for s in skills]
     student['skill_count'] = len(skills)
 
+    # --- Resume summary additions (for the Student Portal summary card) ---
+    # Pull career_objective and certifications out of legacy_data (the
+    # resume parser stores them there for cohort-1 WSB students).
+    legacy = student.get('legacy_data') or {}
+    if not isinstance(legacy, dict):
+        legacy = {}
+    student['career_objective'] = legacy.get('career_objective')
+    student['certifications'] = legacy.get('certifications') or []
+
+    # Work experience from student_work_experience (denormalized, sorted
+    # by start_date DESC — most recent first).
+    work_experience = query("""
+        SELECT company, title, start_date, end_date, is_current,
+               description
+        FROM student_work_experience
+        WHERE student_id = %s
+        ORDER BY COALESCE(start_date, '1900-01-01') DESC
+    """, (student_id,))
+    # Serialize dates.
+    for row in work_experience:
+        for k in ("start_date", "end_date"):
+            if row.get(k) is not None:
+                row[k] = row[k].isoformat()
+    student['work_experience'] = work_experience
+
+    # legacy_data is large + noisy; strip before return.
+    student.pop('legacy_data', None)
+
     # Serialize datetimes
     for k, v in student.items():
         if isinstance(v, datetime):
@@ -109,7 +138,62 @@ def get_profile(student_id: str):
 # ============================================================
 @app.get("/api/student/{student_id}/matches")
 def get_matches(student_id: str):
-    """Top job matches using embedding similarity."""
+    """Top job matches. Prefers pre-computed cohort_matches rows (produced
+    by the Phase B pipeline for tenant-scoped cohorts) when any exist for
+    this student; otherwise falls back to on-the-fly embedding similarity
+    against job_listings (legacy Lightcast pool)."""
+
+    # Fast path: did Phase B already compute matches for this student?
+    # If yes, return them — same shape the frontend expects.
+    cohort = query("""
+        SELECT cm.job_id,
+               cm.cosine_similarity,
+               cm.match_rank,
+               je.title,
+               je.company,
+               je.city,
+               je.state,
+               je.is_remote,
+               je.skills_required
+        FROM cohort_matches cm
+        JOIN jobs_enriched je ON je.id = cm.job_id
+        WHERE cm.student_id = %s
+        ORDER BY cm.cosine_similarity DESC
+        LIMIT 3
+    """, (student_id,))
+
+    if cohort:
+        # Get the student's skills to compute matched / missing per-row.
+        student_skill_rows = query(
+            "SELECT LOWER(sk.skill_name) AS s FROM student_skills ss "
+            "JOIN skills sk ON sk.skill_id = ss.skill_id WHERE ss.student_id = %s",
+            (student_id,),
+        )
+        student_skill_set = {r['s'] for r in student_skill_rows}
+
+        matches = []
+        for r in cohort:
+            job_skills = [s.strip() for s in (r.get('skills_required') or []) if s]
+            job_skill_lc = {s.lower() for s in job_skills}
+            matched = sorted(student_skill_set & job_skill_lc)[:10]
+            missing = sorted(job_skill_lc - student_skill_set)[:5]
+            matches.append({
+                "job_id": str(r['job_id']),
+                "title": r['title'],
+                "company": r['company'],
+                "city": r['city'],
+                "state": r['state'],
+                "salary_min": None,
+                "salary_max": None,
+                "match_score": round(float(r['cosine_similarity']) * 100, 1),
+                "matched_skills": matched,
+                "missing_skills": missing,
+                "total_job_skills": len(job_skills),
+                "match_source": "cohort_matches",
+            })
+        return {"matches": matches}
+
+    # Fallback: on-the-fly embedding match against legacy job_listings.
     # Get student skills + embeddings
     student_skills = query("""
         SELECT DISTINCT sk.skill_name, sk.embedding_vector::text as vec
@@ -188,6 +272,113 @@ def get_matches(student_id: str):
 
     scored.sort(key=lambda x: -x['match_score'])
     return {"matches": scored[:3]}
+
+
+# ============================================================
+# GET /api/student/{student_id}/gap-detail/{job_id}
+# ============================================================
+@app.get("/api/student/{student_id}/gap-detail/{job_id}")
+def get_gap_detail(student_id: str, job_id: int):
+    """Detailed per-(student, job) gap view for the Student Portal drill:
+    LLM narrative + structured strengths/gaps/verdict + career pathway
+    (the student's other top matches as context for progression).
+
+    Reads from match_narratives + gap_analyses + jobs_enriched + cohort_matches
+    — all populated by the Phase B pipeline. Assumes the (student, job) pair
+    exists in cohort_matches; returns 404 otherwise."""
+
+    # The job + match core
+    core = query_one("""
+        SELECT je.id AS job_id, je.title, je.company, je.city, je.state,
+               je.is_remote, je.skills_required, je.job_description,
+               cm.cosine_similarity, cm.match_rank
+        FROM jobs_enriched je
+        JOIN cohort_matches cm ON cm.job_id = je.id AND cm.student_id = %s
+        WHERE je.id = %s
+    """, (student_id, job_id))
+
+    if not core:
+        raise NotFoundError("cohort_match")
+
+    # The LLM narrative (Priority 1 per spec)
+    narrative = query_one("""
+        SELECT verdict_line, narrative_text,
+               match_strengths, match_gaps, match_partial,
+               calibration_label, cosine_similarity, generated_at
+        FROM match_narratives
+        WHERE student_id = %s AND job_id = %s
+    """, (student_id, job_id))
+
+    # Gap analysis for this specific (student, job) pair. The
+    # gap_analyses table stores target_role as a string rather than an
+    # FK id (target_job_listing_id is nullable and not populated by
+    # Phase B4), so match by title-equality via jobs_enriched.
+    gap = query_one("""
+        SELECT ga.id, ga.target_role, ga.gap_score, ga.missing_skills,
+               ga.recommendations, ga.analyzed_at
+        FROM gap_analyses ga
+        WHERE ga.student_id = %s
+          AND ga.target_role = (SELECT title FROM jobs_enriched WHERE id = %s)
+        ORDER BY ga.analyzed_at DESC
+        LIMIT 1
+    """, (student_id, job_id))
+
+    # Career pathway — the student's other matches, for progression context
+    pathway = query("""
+        SELECT cm.job_id, cm.cosine_similarity, cm.match_rank,
+               je.title, je.company, je.city, je.state,
+               mn.verdict_line, mn.calibration_label,
+               ga.gap_score,
+               ga.missing_skills
+        FROM cohort_matches cm
+        JOIN jobs_enriched je ON je.id = cm.job_id
+        LEFT JOIN match_narratives mn
+               ON mn.student_id = cm.student_id AND mn.job_id = cm.job_id
+        LEFT JOIN gap_analyses ga
+               ON ga.student_id = cm.student_id AND ga.target_role = je.title
+        WHERE cm.student_id = %s AND cm.job_id <> %s
+        ORDER BY cm.cosine_similarity DESC
+        LIMIT 5
+    """, (student_id, job_id))
+
+    # Serialize datetimes + floats
+    def ser(row):
+        if not row:
+            return row
+        for k, v in row.items():
+            if isinstance(v, datetime):
+                row[k] = v.isoformat()
+            elif hasattr(v, "quantize"):  # Decimal
+                row[k] = float(v)
+        return row
+
+    ser(core)
+    if core:
+        # cosine_similarity Decimal → float
+        if core.get('cosine_similarity') is not None:
+            core['cosine_similarity'] = float(core['cosine_similarity'])
+    ser(narrative) if narrative else None
+    if narrative and narrative.get('cosine_similarity') is not None:
+        narrative['cosine_similarity'] = float(narrative['cosine_similarity'])
+    ser(gap) if gap else None
+    if gap and gap.get('gap_score') is not None:
+        gap['gap_score'] = float(gap['gap_score'])
+
+    pathway_out = []
+    for p in pathway:
+        ser(p)
+        if p.get('cosine_similarity') is not None:
+            p['cosine_similarity'] = float(p['cosine_similarity'])
+        if p.get('gap_score') is not None:
+            p['gap_score'] = float(p['gap_score'])
+        pathway_out.append(p)
+
+    return {
+        "core": core,
+        "narrative": narrative,
+        "gap_analysis": gap,
+        "career_pathway": pathway_out,
+    }
 
 
 # ============================================================
