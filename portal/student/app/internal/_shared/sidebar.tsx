@@ -60,6 +60,16 @@ const NAV: NavSection[] = [
         match: "/internal/career-services",
       },
       {
+        label: "BD",
+        href: "/internal/bd",
+        match: "/internal/bd",
+      },
+      {
+        label: "Jessica",
+        href: "/internal/jessica",
+        match: "/internal/jessica",
+      },
+      {
         label: "Market Intel",
         href: "/internal/market-intel",
         match: "/internal/market-intel",
