@@ -5,12 +5,26 @@ import { useRouter } from "next/navigation"
 import {
   Compass, ArrowLeft, Upload, FileText, User, Mail, ArrowRight,
   Search, Sparkles, CheckCircle2, AlertCircle, Loader2,
+  Target, TrendingUp, XCircle, BookOpen,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+
+// Matches the shape returned by /api/student/quick-gap-analysis
+interface QuickAnalysisResult {
+  job_title: string | null
+  match_score: number
+  verdict: string
+  matched_skills: string[]
+  missing_skills: string[]
+  partial_matches: string[]
+  narrative: string
+  growth_tips: string[]
+}
 
 const SKILL_OPTIONS = [
   "Python", "JavaScript", "Java", "SQL", "HTML/CSS", "React",
@@ -52,6 +66,16 @@ export default function CareersPage() {
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
 
+  // Quick gap-analysis state (the "try it before you sign up" flow).
+  // analysisResult carries forward to intake — if set when the user
+  // clicks Save, it's included in the POST body so the backend
+  // persists a gap_analyses row against the new student.
+  const [jdText, setJdText] = useState("")
+  const [resumeText, setResumeText] = useState("")
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const [analysisResult, setAnalysisResult] = useState<QuickAnalysisResult | null>(null)
+
   const toggleSkill = (skill: string) => {
     setSelectedSkills(prev =>
       prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]
@@ -88,6 +112,73 @@ export default function CareersPage() {
     setShowIntakeForm(true)
   }
 
+  const handleAnalyze = async () => {
+    setAnalysisError(null)
+    setAnalyzing(true)
+    setAnalysisResult(null)
+    try {
+      const res = await fetch("/api/student/quick-gap-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resume_text: resumeText,
+          job_description: jdText,
+        }),
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const msg =
+          (body as { error?: { message?: string } })?.error?.message ||
+          (body as { detail?: string })?.detail ||
+          `HTTP ${res.status}`
+        throw new Error(msg)
+      }
+      const data = (await res.json()) as QuickAnalysisResult
+      setAnalysisResult(data)
+    } catch (err) {
+      setAnalysisError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  // Option B behavior: carry the analysis into the intake form. Pre-
+  // select any matched/partial skills that exist in SKILL_OPTIONS so
+  // the form is partway filled when the user lands there; the actual
+  // analysis JSON rides along on submit and gets persisted as a
+  // gap_analyses row by the backend.
+  const handleSaveAnalysisAndSignup = () => {
+    if (!analysisResult) return
+    const preSelected = new Set<string>()
+    for (const s of [...analysisResult.matched_skills, ...analysisResult.partial_matches]) {
+      // Exact match first, then substring fallback (e.g., "Python 3" -> "Python")
+      const exact = SKILL_OPTIONS.find((opt) => opt.toLowerCase() === s.toLowerCase())
+      if (exact) {
+        preSelected.add(exact)
+        continue
+      }
+      for (const opt of SKILL_OPTIONS) {
+        if (s.toLowerCase().includes(opt.toLowerCase())) {
+          preSelected.add(opt)
+          break
+        }
+      }
+    }
+    // Union with what the user might have already picked (usually none)
+    setSelectedSkills((prev) => Array.from(new Set([...prev, ...preSelected])))
+    setShowIntakeForm(true)
+    // Scroll the form into view after it mounts
+    setTimeout(() => {
+      const el = document.getElementById("intake-form-section")
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+    }, 50)
+  }
+
+  const handleAnalyzeAnother = () => {
+    setAnalysisResult(null)
+    setAnalysisError(null)
+  }
+
   const handleIntakeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIntakeError(null)
@@ -101,6 +192,9 @@ export default function CareersPage() {
           email: intakeEmail,
           skills: selectedSkills,
           target_roles: selectedRoles,
+          // Carry the quick analysis (if any) so the backend persists it
+          // as a gap_analyses row — it shows up on the student's portal.
+          quick_analysis: analysisResult || undefined,
         }),
       })
       if (!res.ok) {
@@ -176,6 +270,230 @@ export default function CareersPage() {
           </p>
         </div>
 
+        {/* QUICK GAP CHECK — the "VALUE BEFORE ASK" hook.
+            Visible until the user has submitted an intake. Lets a
+            prospective student paste a real job they found + a short
+            summary of their skills, and get an honest match score +
+            specific gaps + growth tips — with NO signup required. If
+            they like what they see, the "Save this analysis" button
+            carries the result into the intake form so the analysis
+            is persisted on their portal after sign-up. */}
+        {!submitted && (
+          <Card className="mb-6 border-primary/30 bg-primary/5 p-6">
+            <div className="mb-3 flex items-center gap-2">
+              <Target className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold text-foreground">
+                Try it — see your fit in 30 seconds
+              </h2>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Paste a job you found (LinkedIn, Indeed, company career page — anywhere)
+              and a quick summary of your skills. We'll tell you how you match, what's
+              missing, and what to work on. No signup needed.
+            </p>
+
+            {!analysisResult && (
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
+                    Job description
+                  </label>
+                  <Textarea
+                    value={jdText}
+                    onChange={(e) => setJdText(e.target.value)}
+                    placeholder={
+                      "Paste the full job description here — responsibilities, required skills, nice-to-haves…"
+                    }
+                    rows={6}
+                    className="text-sm"
+                    disabled={analyzing}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {jdText.length.toLocaleString()} / 10,000 characters
+                  </p>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-foreground">
+                    Your resume or skills summary
+                  </label>
+                  <Textarea
+                    value={resumeText}
+                    onChange={(e) => setResumeText(e.target.value)}
+                    placeholder={
+                      "Paste your resume, or just jot down your skills and most recent experience — a paragraph is plenty."
+                    }
+                    rows={5}
+                    className="text-sm"
+                    disabled={analyzing}
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {resumeText.length.toLocaleString()} / 10,000 characters
+                  </p>
+                </div>
+
+                {analysisError && (
+                  <div className="flex items-start gap-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
+                    <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                    <span>{analysisError}</span>
+                  </div>
+                )}
+
+                <Button
+                  onClick={handleAnalyze}
+                  disabled={analyzing || jdText.length < 50 || resumeText.length < 50}
+                  className="w-full gap-2"
+                >
+                  {analyzing ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Analyzing…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Analyze my match
+                    </>
+                  )}
+                </Button>
+                {(jdText.length > 0 && jdText.length < 50) ||
+                (resumeText.length > 0 && resumeText.length < 50) ? (
+                  <p className="text-center text-xs text-muted-foreground">
+                    Need at least 50 characters in each field.
+                  </p>
+                ) : null}
+              </div>
+            )}
+
+            {analysisResult && (
+              <div className="space-y-4">
+                {/* Score + verdict header */}
+                <div className="flex items-center justify-between rounded-lg border bg-background p-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Your match
+                    </div>
+                    <div className="mt-1 text-sm font-medium text-foreground">
+                      {analysisResult.job_title ?? "This role"}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-bold text-foreground">
+                      {analysisResult.match_score}%
+                    </div>
+                    <Badge
+                      variant="secondary"
+                      className={
+                        analysisResult.match_score >= 70
+                          ? "bg-green-100 text-green-900"
+                          : analysisResult.match_score >= 50
+                            ? "bg-blue-100 text-blue-900"
+                            : analysisResult.match_score >= 30
+                              ? "bg-amber-100 text-amber-900"
+                              : "bg-red-100 text-red-900"
+                      }
+                    >
+                      {analysisResult.verdict}
+                    </Badge>
+                  </div>
+                </div>
+
+                {/* Narrative */}
+                {analysisResult.narrative && (
+                  <div className="rounded-lg bg-background p-4 text-sm leading-relaxed text-foreground">
+                    {analysisResult.narrative}
+                  </div>
+                )}
+
+                {/* Matched */}
+                {analysisResult.matched_skills.length > 0 && (
+                  <div>
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-green-700">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      Skills you have ({analysisResult.matched_skills.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {analysisResult.matched_skills.map((s) => (
+                        <Badge key={s} className="bg-green-100 text-green-900 hover:bg-green-100">
+                          {s}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Partial matches */}
+                {analysisResult.partial_matches.length > 0 && (
+                  <div>
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-blue-700">
+                      <TrendingUp className="h-3.5 w-3.5" />
+                      Adjacent / transferable ({analysisResult.partial_matches.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {analysisResult.partial_matches.map((s) => (
+                        <Badge key={s} variant="secondary" className="bg-blue-100 text-blue-900 hover:bg-blue-100">
+                          {s}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Gaps */}
+                {analysisResult.missing_skills.length > 0 && (
+                  <div>
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-800">
+                      <XCircle className="h-3.5 w-3.5" />
+                      Gaps to close ({analysisResult.missing_skills.length})
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {analysisResult.missing_skills.map((s) => (
+                        <Badge key={s} variant="outline" className="border-amber-300 bg-amber-50 text-amber-900">
+                          {s}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Growth tips */}
+                {analysisResult.growth_tips.length > 0 && (
+                  <div>
+                    <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-foreground">
+                      <BookOpen className="h-3.5 w-3.5" />
+                      What to work on
+                    </div>
+                    <ul className="space-y-1 rounded-lg border bg-background p-3">
+                      {analysisResult.growth_tips.map((tip, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm text-foreground">
+                          <span className="mt-1 inline-block h-1.5 w-1.5 flex-shrink-0 rounded-full bg-primary" />
+                          <span>{tip}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button onClick={handleSaveAnalysisAndSignup} className="flex-1 gap-2">
+                    <User className="h-4 w-4" />
+                    Save this analysis &mdash; create profile
+                  </Button>
+                  <Button variant="outline" onClick={handleAnalyzeAnother}>
+                    Try another job
+                  </Button>
+                </div>
+
+                <p className="text-center text-xs text-muted-foreground">
+                  Creating a profile saves this analysis to your dashboard and surfaces
+                  more matches from CFA's job pipeline automatically.
+                </p>
+              </div>
+            )}
+          </Card>
+        )}
+
         {!showIntakeForm && !submitted && (
           <div className="space-y-6">
             {/* Path 1: Resume Upload */}
@@ -233,11 +551,22 @@ export default function CareersPage() {
 
         {/* Intake Form (no resume path) */}
         {showIntakeForm && !submitted && (
-          <Card className="p-6">
+          <Card id="intake-form-section" className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <User className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-semibold text-foreground">Tell us about yourself</h2>
             </div>
+            {analysisResult && (
+              <div className="mb-4 flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+                <span className="text-foreground">
+                  We pre-selected <strong>{selectedSkills.length}</strong>{" "}
+                  {selectedSkills.length === 1 ? "skill" : "skills"} from your gap
+                  analysis. Your analysis will be saved to your dashboard when you
+                  submit.
+                </span>
+              </div>
+            )}
 
             <form onSubmit={handleIntakeSubmit} className="space-y-5">
               <div className="grid gap-3 sm:grid-cols-2">

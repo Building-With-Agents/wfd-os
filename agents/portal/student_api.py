@@ -131,11 +131,135 @@ def dev_login(email: str, response: Response):
 # =============================================================================
 
 
+class QuickAnalysisBody(BaseModel):
+    resume_text: str
+    job_description: str
+
+
+class QuickAnalysisResult(BaseModel):
+    """What Gemini returns — mirrors the prompt's JSON schema."""
+    job_title: str | None = None
+    match_score: int
+    verdict: str
+    matched_skills: list[str] = []
+    missing_skills: list[str] = []
+    partial_matches: list[str] = []
+    narrative: str
+    growth_tips: list[str] = []
+
+
 class IntakeBody(BaseModel):
     name: str
     email: str
     skills: list[str] = []
     target_roles: list[str] = []
+    # Optional: attach a prior quick-gap-analysis result so it gets
+    # persisted as a gap_analyses row against the new student. Enables
+    # the "save this analysis — create profile" flow on /careers.
+    quick_analysis: QuickAnalysisResult | None = None
+
+
+_QUICK_ANALYSIS_PROMPT = """You are a career advisor analyzing a candidate's fit for a specific job.
+
+CANDIDATE RESUME / SKILLS SUMMARY:
+{resume_text}
+
+JOB DESCRIPTION:
+{job_description}
+
+Return ONLY valid JSON with this exact structure, no markdown fences, no commentary:
+
+{{
+  "job_title": "inferred job title from the JD (short form)",
+  "match_score": 0,
+  "verdict": "Strong fit" or "Match" or "Weak match" or "Not a fit",
+  "matched_skills": [],
+  "missing_skills": [],
+  "partial_matches": [],
+  "narrative": "2-3 sentence plain-English explanation of the candidate's fit",
+  "growth_tips": []
+}}
+
+Rules:
+- match_score is an integer 0-100 reflecting genuine overlap (70+ strong, 50-69 decent, 30-49 weak, <30 bad).
+- matched_skills: specific skills/technologies the candidate HAS that the job EXPLICITLY wants.
+- missing_skills: specific skills/technologies the job WANTS that the resume doesn't show.
+- partial_matches: related-but-not-exact (e.g., "React Native" when job wants "React").
+- growth_tips: 2-4 specific, actionable things to work on. Plain English. No jargon like "upskill" or "competency".
+- Use exact skill / technology names from the candidate and job. Don't invent generic fluff.
+- Narrative: speak TO the candidate ("You're well-positioned…"), not ABOUT them.
+
+Return ONLY the JSON."""
+
+
+@app.post("/api/student/quick-gap-analysis")
+def quick_gap_analysis(body: QuickAnalysisBody):
+    """Pre-signup value delivery: candidate pastes a job + their resume,
+    we return a match score + skill gaps + growth tips. Stateless — the
+    analysis isn't persisted here. To persist, the client passes the
+    result back as `quick_analysis` on /api/student/intake, which writes
+    it as a gap_analyses row against the new student."""
+
+    resume_text = (body.resume_text or "").strip()
+    jd_text = (body.job_description or "").strip()
+    if len(resume_text) < 50:
+        raise HTTPException(status_code=400, detail="Resume text is too short — paste at least a short skills summary.")
+    if len(jd_text) < 50:
+        raise HTTPException(status_code=400, detail="Job description is too short — paste at least a paragraph.")
+    # Hard caps — prevent abuse + keep Gemini cost bounded.
+    if len(resume_text) > 10000 or len(jd_text) > 10000:
+        raise HTTPException(status_code=400, detail="Input too large — cap each field at 10,000 characters.")
+
+    # Gemini call. NOTE: policy debt — per CLAUDE.md .cursor/rules/llm-provider.mdc
+    # we should route through wfdos_common.llm (Azure OpenAI default). This direct
+    # google.generativeai call matches the existing pattern in phase_a scripts +
+    # verdict_generator; should be swapped together in a focused LLM-adapter pass.
+    import os as _os
+    import google.generativeai as _genai  # type: ignore
+
+    api_key = _os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Gap-analysis service temporarily unavailable (GEMINI_API_KEY not set).",
+        )
+    _genai.configure(api_key=api_key)
+    model_name = _os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+    prompt = _QUICK_ANALYSIS_PROMPT.format(
+        resume_text=resume_text,
+        job_description=jd_text,
+    )
+
+    try:
+        model = _genai.GenerativeModel(model_name)
+        resp = model.generate_content(prompt)
+        text = (resp.text or "").strip()
+        # Strip markdown fences if the model added any.
+        if text.startswith("```"):
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1])
+        data = json.loads(text)
+    except json.JSONDecodeError as je:
+        log.error("quick_gap.json_decode_failed", error=str(je))
+        raise HTTPException(status_code=502, detail="Couldn't parse the analysis response — please try again.")
+    except Exception as e:
+        log.error("quick_gap.llm_call_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Analysis failed: {e}")
+
+    # Light validation + normalization so the frontend gets consistent shape.
+    out = {
+        "job_title": data.get("job_title") or None,
+        "match_score": int(data.get("match_score") or 0),
+        "verdict": data.get("verdict") or "Match",
+        "matched_skills": data.get("matched_skills") or [],
+        "missing_skills": data.get("missing_skills") or [],
+        "partial_matches": data.get("partial_matches") or [],
+        "narrative": data.get("narrative") or "",
+        "growth_tips": data.get("growth_tips") or [],
+    }
+    log.info("quick_gap.ok", match_score=out["match_score"], gaps=len(out["missing_skills"]))
+    return out
 
 
 @app.post("/api/student/intake")
@@ -231,6 +355,46 @@ def student_intake(body: IntakeBody):
             if cur.fetchone():
                 matched += 1
 
+        # Persist the quick-gap-analysis result (if supplied from /careers)
+        # as a gap_analyses row, so it shows up on the student's dashboard
+        # immediately under "Gap Analysis". We only do this on the CREATED
+        # path — re-submitting an intake for an existing student shouldn't
+        # overwrite their existing analyses.
+        gap_persisted = False
+        if body.quick_analysis is not None and action == "created":
+            qa = body.quick_analysis
+            cur.execute(
+                """
+                INSERT INTO gap_analyses (
+                    id, student_id, tenant_id,
+                    target_role, target_job_listing_id,
+                    gap_score, missing_skills,
+                    recommendations, analyzed_at
+                ) VALUES (
+                    gen_random_uuid(), %s, %s::uuid,
+                    %s, NULL,
+                    %s, %s,
+                    %s::jsonb, NOW()
+                )
+                """,
+                (
+                    student_id,
+                    tenant_uuid,
+                    qa.job_title or "Pasted job description",
+                    float(qa.match_score),
+                    qa.missing_skills,
+                    json.dumps({
+                        "source": "careers-quick-gap",
+                        "verdict": qa.verdict,
+                        "narrative": qa.narrative,
+                        "matched_skills": qa.matched_skills,
+                        "partial_matches": qa.partial_matches,
+                        "growth_tips": qa.growth_tips,
+                    }),
+                ),
+            )
+            gap_persisted = True
+
         conn.commit()
     except Exception:
         conn.rollback()
@@ -245,6 +409,7 @@ def student_intake(body: IntakeBody):
         student_id=student_id,
         skills_requested=len(body.skills or []),
         skills_matched=matched,
+        gap_persisted=gap_persisted,
     )
     return {
         "student_id": student_id,
@@ -252,6 +417,7 @@ def student_intake(body: IntakeBody):
         "full_name": name,
         "action": action,  # "created" or "existing"
         "skills_matched": matched,
+        "gap_persisted": gap_persisted,
     }
 
 
