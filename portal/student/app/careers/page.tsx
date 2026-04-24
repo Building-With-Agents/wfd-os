@@ -76,6 +76,10 @@ export default function CareersPage() {
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [analysisResult, setAnalysisResult] = useState<QuickAnalysisResult | null>(null)
 
+  // Resume upload parse state
+  const [parsingResume, setParsingResume] = useState(false)
+  const [parseError, setParseError] = useState<string | null>(null)
+
   const toggleSkill = (skill: string) => {
     setSelectedSkills(prev =>
       prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]
@@ -88,28 +92,57 @@ export default function CareersPage() {
     )
   }
 
-  // Resume upload: we accept the file name + gently explain that resume
-  // parsing for CFA intake is done manually today. Points them at the
-  // structured form so they're not stuck. (The Phase A cohort-1 parser
-  // runs for WSB via a separate ingestion flow, not through this form.)
+  // Resume upload: parse the file on the server (Gemini for PDFs,
+  // python-docx for DOCX, plain decode for TXT) and drop the extracted
+  // text into the quick-gap-analysis "resume" textarea. The user can
+  // then add a JD and click Analyze — no copy-paste dance.
+  const uploadAndParseResume = async (file: File) => {
+    setUploadedFileName(file.name)
+    setUploadMessage(null)
+    setParseError(null)
+    setParsingResume(true)
+    try {
+      const form = new FormData()
+      form.append("file", file)
+      const res = await fetch("/api/student/parse-resume", {
+        method: "POST",
+        body: form,
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const msg =
+          (body as { error?: { message?: string } })?.error?.message ||
+          (body as { detail?: string })?.detail ||
+          `HTTP ${res.status}`
+        throw new Error(msg)
+      }
+      const data = (await res.json()) as { text: string; chars_extracted: number }
+      setResumeText(data.text)
+      setUploadMessage(
+        `Parsed ${data.chars_extracted.toLocaleString()} characters from your resume. Paste a job description above to see your match.`
+      )
+      // Scroll up so the user sees their resume in the quick-gap card.
+      setTimeout(() => {
+        const el = document.getElementById("quick-gap-card")
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 50)
+    } catch (err) {
+      setParseError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setParsingResume(false)
+    }
+  }
+
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setIsDragOver(false)
     const file = e.dataTransfer.files?.[0]
-    if (file) setUploadedFileName(file.name)
-    setUploadMessage(
-      "Thanks — we've noted your resume. Resume parsing for new intakes is manual today; please also fill out the quick form below so we can match you immediately."
-    )
-    setShowIntakeForm(true)
+    if (file) void uploadAndParseResume(file)
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) setUploadedFileName(file.name)
-    setUploadMessage(
-      "Thanks — we've noted your resume. Resume parsing for new intakes is manual today; please also fill out the quick form below so we can match you immediately."
-    )
-    setShowIntakeForm(true)
+    if (file) void uploadAndParseResume(file)
   }
 
   const handleAnalyze = async () => {
@@ -279,7 +312,7 @@ export default function CareersPage() {
             carries the result into the intake form so the analysis
             is persisted on their portal after sign-up. */}
         {!submitted && (
-          <Card className="mb-6 border-primary/30 bg-primary/5 p-6">
+          <Card id="quick-gap-card" className="mb-6 border-primary/30 bg-primary/5 p-6">
             <div className="mb-3 flex items-center gap-2">
               <Target className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-semibold text-foreground">
@@ -511,27 +544,62 @@ export default function CareersPage() {
                   isDragOver ? "border-primary bg-primary/5" : "border-muted-foreground/25 bg-muted/20"
                 }`}
               >
-                <FileText className="mb-3 h-10 w-10 text-muted-foreground/50" />
-                <p className="text-sm font-medium text-foreground">
-                  Drag and drop your resume here
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground">PDF or Word document</p>
-                <label>
-                  <input type="file" accept=".pdf,.docx,.doc" className="hidden" onChange={handleFileSelect} />
-                  <Button variant="outline" size="sm" className="mt-4 gap-1 cursor-pointer" asChild>
-                    <span><Upload className="h-3.5 w-3.5" /> Or click to browse</span>
-                  </Button>
-                </label>
+                {parsingResume ? (
+                  <>
+                    <Loader2 className="mb-3 h-10 w-10 animate-spin text-primary" />
+                    <p className="text-sm font-medium text-foreground">
+                      Reading {uploadedFileName ?? "your resume"}…
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Extracting text (a few seconds)
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="mb-3 h-10 w-10 text-muted-foreground/50" />
+                    <p className="text-sm font-medium text-foreground">
+                      Drag and drop your resume here
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">PDF, DOCX, or TXT</p>
+                    <label>
+                      <input
+                        type="file"
+                        accept=".pdf,.docx,.txt"
+                        className="hidden"
+                        onChange={handleFileSelect}
+                        disabled={parsingResume}
+                      />
+                      <Button variant="outline" size="sm" className="mt-4 gap-1 cursor-pointer" asChild>
+                        <span><Upload className="h-3.5 w-3.5" /> Or click to browse</span>
+                      </Button>
+                    </label>
+                  </>
+                )}
               </div>
 
-              {uploadMessage && (
-                <div className="mt-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
-                  <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-500" />
+              {parseError && (
+                <div className="mt-4 flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4">
+                  <AlertCircle className="mt-0.5 h-5 w-5 flex-shrink-0 text-destructive" />
                   <div>
-                    <p className="text-sm font-medium text-amber-800">
-                      {uploadedFileName ? `Received: ${uploadedFileName}` : "Heads up"}
+                    <p className="text-sm font-medium text-destructive">
+                      Couldn&apos;t parse {uploadedFileName ?? "that file"}
                     </p>
-                    <p className="text-sm text-amber-700">{uploadMessage}</p>
+                    <p className="mt-1 text-sm text-destructive/80">{parseError}</p>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Try another file, or paste your resume text into the box above.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {uploadMessage && !parsingResume && !parseError && (
+                <div className="mt-4 flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600" />
+                  <div>
+                    <p className="text-sm font-medium text-green-900">
+                      {uploadedFileName ? `Parsed ${uploadedFileName}` : "Resume parsed"}
+                    </p>
+                    <p className="mt-0.5 text-sm text-green-800">{uploadMessage}</p>
                   </div>
                 </div>
               )}

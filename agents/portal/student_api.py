@@ -15,7 +15,7 @@ Run: uvicorn student_api:app --reload --port 8001
 import json
 import os
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Response
+from fastapi import FastAPI, HTTPException, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2
@@ -190,6 +190,144 @@ Rules:
 - Narrative: speak TO the candidate ("You're well-positioned…"), not ABOUT them.
 
 Return ONLY the JSON."""
+
+
+# Cap: 8 MB is plenty for a typical 2-3 page resume and keeps Gemini
+# call sizes bounded. Raise if you start seeing legitimate rejects.
+_RESUME_MAX_BYTES = 8 * 1024 * 1024
+
+
+@app.post("/api/student/parse-resume")
+async def parse_resume(file: UploadFile = File(...)):
+    """Public pre-signup endpoint — accept a resume PDF or DOCX, return the
+    extracted plain text. Consumer (the /careers page's 'Upload your resume'
+    drop zone) drops the text into the quick-gap-analysis textarea so the
+    user doesn't have to copy-paste.
+
+    Not a structured parse — returns raw text only. The full extraction
+    (institution, degree, skills, etc.) is what scripts/phase_a_parse_cohort1_resumes.py
+    does for committed cohort students; this endpoint is the lighter
+    browser-upload path for prospects.
+
+    Size-capped at 8MB, stateless (no DB writes, no file storage).
+    PDF -> Gemini inline_data. DOCX -> python-docx local extraction.
+    """
+    filename = (file.filename or "resume").strip()
+    lower = filename.lower()
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty file.")
+    if len(content) > _RESUME_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large ({len(content):,} bytes). Max {_RESUME_MAX_BYTES:,}.",
+        )
+
+    # Pick extraction path by extension (content-type header is unreliable
+    # across browsers + drag-drop paths).
+    text: str
+    method: str
+    try:
+        if lower.endswith(".pdf"):
+            text = _extract_text_from_pdf_via_gemini(content)
+            method = "gemini-pdf"
+        elif lower.endswith(".docx"):
+            text = _extract_text_from_docx(content)
+            method = "python-docx"
+        elif lower.endswith(".doc"):
+            # Legacy .doc (not .docx) — python-docx doesn't support it.
+            # Reject with a clear message rather than producing garbage.
+            raise HTTPException(
+                status_code=415,
+                detail="Legacy .doc not supported — please save as .docx or PDF and retry.",
+            )
+        elif lower.endswith(".txt"):
+            text = content.decode("utf-8", errors="replace")
+            method = "plain-text"
+        else:
+            raise HTTPException(
+                status_code=415,
+                detail="Unsupported file type — use PDF, DOCX, or TXT.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("parse_resume.extract_failed", filename=filename, error=str(e), exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Couldn't extract text: {e}")
+
+    text_clean = (text or "").strip()
+    if len(text_clean) < 30:
+        raise HTTPException(
+            status_code=422,
+            detail="Extracted text is very short — file may be scanned/image-based. Paste your skills manually instead.",
+        )
+    # Cap at 10,000 chars to match the quick-gap-analysis input limit.
+    if len(text_clean) > 10000:
+        text_clean = text_clean[:10000]
+
+    log.info(
+        "parse_resume.ok",
+        filename=filename,
+        bytes=len(content),
+        chars_extracted=len(text_clean),
+        method=method,
+    )
+    return {
+        "filename": filename,
+        "bytes_received": len(content),
+        "method": method,
+        "text": text_clean,
+        "chars_extracted": len(text_clean),
+    }
+
+
+def _extract_text_from_pdf_via_gemini(pdf_bytes: bytes) -> str:
+    """Ask Gemini for raw text only — not structured extraction. Matches
+    the inline_data pattern used by scripts/phase_a_parse_cohort1_resumes.py."""
+    import base64 as _base64
+    import google.generativeai as _genai  # type: ignore
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY not set")
+    _genai.configure(api_key=api_key)
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+    pdf_b64 = _base64.standard_b64encode(pdf_bytes).decode("utf-8")
+    model = _genai.GenerativeModel(model_name)
+    prompt = (
+        "Extract the raw text content from this resume PDF verbatim. "
+        "Preserve section headers (EDUCATION, EXPERIENCE, SKILLS, etc.) "
+        "and line breaks between entries. Do NOT summarize or reformat. "
+        "Return ONLY the extracted text, no commentary."
+    )
+    resp = model.generate_content([
+        {"mime_type": "application/pdf", "data": pdf_b64},
+        prompt,
+    ])
+    return (resp.text or "").strip()
+
+
+def _extract_text_from_docx(docx_bytes: bytes) -> str:
+    """Local extraction via python-docx — no LLM needed for structured
+    Word documents. Fast and free; doesn't need Gemini."""
+    import io as _io
+    from docx import Document  # type: ignore
+    doc = Document(_io.BytesIO(docx_bytes))
+    paragraphs: list[str] = []
+    for p in doc.paragraphs:
+        t = p.text.strip()
+        if t:
+            paragraphs.append(t)
+    # Also pull text from any tables (resumes sometimes put skills in tables).
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                t = cell.text.strip()
+                if t:
+                    paragraphs.append(t)
+    return "\n".join(paragraphs)
 
 
 @app.post("/api/student/quick-gap-analysis")
