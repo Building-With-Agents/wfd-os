@@ -59,6 +59,7 @@ except ImportError:  # pragma: no cover — dotenv is a dev-only convenience
 from agents.finance.audit_activity_labels import render_entries as render_activity_entries  # noqa: E402
 from agents.finance.audit_dimension_display import display_name_for_role  # noqa: E402
 from agents.finance.data_source import DataSource, default_source  # noqa: E402
+from agents.finance.discussion_prompts import generate_discussion_prompts  # noqa: E402
 from agents.finance.verdict_generator import generate_verdict  # noqa: E402
 
 
@@ -552,7 +553,11 @@ _TAB_HANDLERS = {
 def drill(drill_key: str):
     """Polymorphic drill content. Lookup into the registry built by
     build_drills(). The :path converter lets keys like
-    'category:GJC Contractors — Training Providers' route cleanly."""
+    'category:GJC Contractors — Training Providers' route cleanly.
+
+    Augments the baked entry with a `discussion_prompts` array — three
+    seeded prompts for the drill-chat surface, generated server-side per
+    agents/finance/design/chat_spec.md §"Seeded prompts" (Surface 2)."""
     data = _data()
     entry = data["drills"].get(drill_key)
     if entry is None:
@@ -560,7 +565,10 @@ def drill(drill_key: str):
             status_code=404,
             detail=f"No drill content for key: {drill_key!r}",
         )
-    return entry
+    return {
+        **entry,
+        "discussion_prompts": generate_discussion_prompts(drill_key, entry),
+    }
 
 
 # ---- Refresh -------------------------------------------------------------
