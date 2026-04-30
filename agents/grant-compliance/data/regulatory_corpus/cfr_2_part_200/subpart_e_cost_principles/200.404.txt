@@ -1,0 +1,81 @@
+========================================================================
+CITATION:        2 CFR 200.404
+TITLE:           Reasonable costs
+SUBPART:         E — Cost Principles
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.404
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           §200.404 is the "reasonable cost" standard — one of the four cost-allowability
+                 tests (allowable, allocable, reasonable, consistent treatment). The substance
+                 of §200.404 has been stable across the 2014 / 2020 / 2024 revisions; the
+                 2024 final rule made minor language adjustments. The "prudent person" test
+                 in (a) is the operative auditor standard.
+                 Cross-reference: §200.403 (Factors affecting allowability of costs), §200.405
+                 (Allocable costs), §200.420-.476 (Selected items of cost — the explicit
+                 unallowable / partially-allowable list).
+                 Verify exact wording at the SOURCE_URL above before citing in formal work.
+========================================================================
+
+§ 200.404  Reasonable costs.
+
+A cost is reasonable if, in its nature and amount, it does not exceed
+that which would be incurred by a prudent person under the circumstances
+prevailing at the time the decision was made to incur the cost. The
+question of reasonableness is particularly important when the
+non-Federal entity is predominantly federally-funded. In determining
+reasonableness of a given cost, consideration must be given to:
+
+(a) Whether the cost is of a type generally recognized as ordinary and
+necessary for the operation of the non-Federal entity or the proper and
+efficient performance of the Federal award.
+
+(b) The restraints or requirements imposed by such factors as: sound
+business practices; arm's-length bargaining; Federal, state, local,
+tribal, and other laws and regulations; and terms and conditions of
+the Federal award.
+
+(c) Market prices for comparable goods or services for the geographic
+area.
+
+(d) Whether the individuals concerned acted with prudence in the
+circumstances considering their responsibilities to the non-Federal
+entity, its employees, where applicable its students or membership,
+the public at large, and the Federal Government.
+
+(e) Whether the non-Federal entity significantly deviates from its
+established practices and policies regarding the incurrence of costs,
+which may unjustifiably increase the Federal award's cost.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- §200.404 is the qualitative rule that complements quantitative thresholds.
+  A cost can satisfy a competition / procurement-method / dollar-threshold
+  rule and STILL fail the §200.404 reasonableness test if the price was
+  not what a prudent person would pay.
+- The "prudent person under the circumstances prevailing at the time"
+  language matters: reasonableness is judged at the time the decision
+  was made, with the information then available. Hindsight is not the
+  standard.
+- Documentation of reasonableness for above-threshold contracts typically
+  takes the form of:
+  - Cost or price analysis under §200.324 (independent cost estimate
+    before bids; analysis of competing offers; or cost analysis of a
+    sole-source proposal's individual cost elements)
+  - For sole-source / no-price-competition: market-rate research showing
+    comparable services in the geographic area
+  - For continuing relationships (e.g., a long-running contractor):
+    written rationale that the price tracks comparable arm's-length
+    rates, not just past internal rates
+- The five factors (a)-(e) are non-exclusive — auditors may consider
+  others. The agent should treat the listed factors as the documentation
+  baseline, not the ceiling.
+- For CFA-specific application: the ~$3K-per-placement rates paid to
+  training providers, the AI Engage / Pete Vargo recovery rates, and
+  any above-threshold strategic-partner contracts all need a documented
+  reasonableness analysis under §200.404. The form of that analysis
+  is what §200.324 specifies (cost or price analysis); the test that
+  the analysis must support is what §200.404 specifies.
+========================================================================

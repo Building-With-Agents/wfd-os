@@ -1,0 +1,326 @@
+# Audit Readiness Tab — Design Spec (v1.2)
+
+## What changed from v1
+
+v1 of this spec was drafted before the existing implementation was discovered. It proposed a 7-sub-tab structure with separate views for PBC Tracker, Firms & Engagement, Documents, Findings & Gaps, Reports, and Time & Effort.
+
+The discovered reality is better than the proposal. On `feature/finance-cockpit` there is already a complete UI with:
+- Verdict box with tone-aware styling
+- Three stat cards (Overall Readiness, Documentation Gap, T&E Certifications)
+- Audit Dimensions table (six dimensions, "What auditors look for" column, readiness %, owner)
+- Drillable dimension rows backed by a working drill-panel system
+- Recent Activity feed (placeholder)
+
+The dimensions approach is architecturally superior to the sub-tab approach because it aligns with how Single Audit firms actually structure their testing — by compliance area with named owners, not by document type.
+
+v1.2 preserves the existing UI entirely. The work is all backend: replace hardcoded values with computed values, and fill in the "Open gaps" placeholder in drill panels with real gap lists.
+
+v1 is preserved in git history for anyone who wants to see the evolution.
+
+---
+
+## Purpose
+
+A live operational view of CFA's Single Audit posture. Answers one question at all times: **"Are we audit-ready right now, and if not, what's wrong?"**
+
+Everything shown must be backed by real data from the compliance engine, cockpit backend, and supporting sources. No hardcoded percentages. No sample numbers dressed as live data.
+
+---
+
+## Current state (2026-04-23)
+
+The tab at `/internal/finance` → "Audit Readiness" is a visual mock. All values come from hardcoded Python literals in `_tab_audit` at `agents/finance/cockpit_api.py:422`. The function accepts but ignores its `data` argument. `build_drills()` at `agents/finance/design/cockpit_data.py:832` generates drill panels per dimension with real "What auditors look for" copy but a placeholder "Open gaps" row ("Full gap detail pending first audit-readiness sweep"). The Recent Activity feed at `components/cockpit-shell/activity-feed.tsx` is a hardcoded `const FEED = [...]` array.
+
+The type contract, the dispatcher, the styling, the error surfaces (`<TabError>`, `<DrillPanel>`), the drillable-row pattern, and the React components are all production-quality and working. The deficit is entirely in data sourcing.
+
+Additionally: the six dimensions' `{id, title, owner, readiness, tone}` values are hardcoded in two places — `_tab_audit` and the `audit_dimensions` literal in `build_drills()`. They currently agree by coincidence, not by design. Any future update must touch both. This duplication must be eliminated as part of the real-data rewrite.
+
+---
+
+## The six audit dimensions
+
+These stay as-is. They are well-chosen and map cleanly to 2 CFR 200 compliance areas:
+
+1. **Allowable costs** (`allowable_costs`) — Every transaction maps to an allowable category
+2. **Transaction documentation** (`transaction_documentation`) — Vendor invoices, receipts, approvals on file
+3. **Time & effort certifications** (`time_effort`) — Quarterly attestations from federally-funded staff
+4. **Procurement & competition** (`procurement`) — Competitive process or sole-source justification per contract
+5. **Subrecipient monitoring** (`subrecipient_monitoring`) — Risk assessment, monitoring, follow-up per provider
+6. **Performance reporting accuracy** (`performance_reporting`) — Reported placements reconcilable to source data
+
+Each dimension maps to specific 2 CFR 200 sections (see mapping table below).
+
+---
+
+## What needs to change
+
+### Change 1 — Replace `_tab_audit` with computed values
+
+Function location: `agents/finance/cockpit_api.py:422`.
+
+Current behavior: returns hardcoded Python literals for verdict, three stats, and six dimensions.
+
+New behavior: computes values from real sources.
+
+**Stat 1 — Overall Readiness (`stats.overall`).** Weighted average of the six dimension readiness percentages. Weights to be defined; a defensible default is equal weighting. Whatever the formula is, it must be documented and stable. Never a literal. The "Across N of 6 audit dimensions" subcopy dynamically reflects how many dimensions are computable (currently 2 of 6 in v1.2). Computed dimensions with `readiness_pct: null` (e.g., engine has no scan data yet) are excluded from the average and from the count.
+
+**Stat 2 — Documentation Gap (`stats.doc_gap`).** Count of transactions above the de minimis threshold ($2,500) that lack linked invoice documentation. Source: compliance engine's `transactions_without_documentation(threshold_cents=250_000)` method (added in step 1.5). Populated by the QB `Attachable` sync pathway. Per the diagnostic at `scripts/transaction_documentation_linkage.md`, no linkage field exists on the current `Transaction` model; step 1.5 adds it.
+
+**Stat 3 — T&E Certifications (`stats.te_certs`).** Ratio of completed quarterly certifications to expected certifications since grant start. Both numerator and denominator depend on Employee↔Grant assignment data which does not exist in the engine in v1.2. As with the time_effort dimension, this stat is a placeholder in v1.2: returns `null` with a status flag, displayed as "Not yet tracked" or equivalent. Becomes computable in v1.3+ when Employee↔Grant data model is added.
+
+**Verdict.** LLM-generated based on the three stats + dimension percentages + identified top gap. Must cite the specific dimension that drives the "biggest gap" phrasing. One LLM call per tab load; cached for some interval (e.g., 5 minutes) to avoid repeated generation.
+
+**Dimensions.** Each dimension's readiness % computed per dimension-specific rules:
+
+| Dimension | Computation | Status in v1.2 |
+|---|---|---|
+| Allowable costs | 100 × (1 − distinct transactions with unresolved Subpart E flags / scanned-recently transactions). Numerator counts distinct transactions, not raw flag count, so a transaction with multiple flags counts once. Ensures percentage stays in [0, 100]. "Scanned-recently" means `last_scanned_at >= now() - scan_freshness_days` (default 7 days). | Computed |
+| Transaction documentation | 100 × (1 − transactions_without_documentation / transactions_above_threshold). | Computed |
+| Time & effort certifications | 100 × (completed_certifications / expected_certifications). Requires Employee↔Grant assignment data not present in current model. | Placeholder (None) |
+| Procurement & competition | Requires procurement records data model not present in current engine. | Placeholder (None) |
+| Subrecipient monitoring | Requires subrecipient risk assessment data model not present in current engine. | Placeholder (None) |
+| Performance reporting accuracy | Requires WSAC reconciliation data model not present in current engine. | Placeholder (None) |
+
+Four of six dimensions return `None` (placeholder) in v1.2 because the underlying data models do not exist in the compliance engine. This is intentional — showing hardcoded percentages for dimensions where we have no data is dishonest. The placeholder dimensions become future work (v1.3+) as the data models are added.
+
+Owner assignments stay as currently hardcoded (Krista, Ritu, Bethany · Gage, etc.) until a real ownership-assignment mechanism is added.
+
+### Three-state dimension status
+
+The `GET /compliance/dimensions` endpoint distinguishes three states per dimension via two fields:
+
+- `status: "computed"` + `readiness_pct: <integer>` — formula exists and produced a value. Display the percentage.
+- `status: "computed"` + `readiness_pct: null` — formula exists but no data yet (e.g., scanner hasn't run, no transactions above threshold). Display "Awaiting first scan" or equivalent.
+- `status: "placeholder"` + `readiness_pct: null` — no formula exists in v1.2 (deferred to v1.3+ pending data model additions). Display "Readiness measurement not yet available for this dimension."
+
+The cockpit must distinguish all three states. Treating "computed but null" the same as "placeholder" loses the useful "you need to run a scan" signal.
+
+### Three-layer verdict fallback
+
+The cockpit's verdict generation uses three layers of fallback:
+
+1. **LLM happy path:** Engine reachable, LLM call succeeds. Verdict is editorially generated 2-4 sentences grounded in current data. `source: "llm"`.
+2. **Data-driven fallback:** Engine reachable, LLM call fails (missing API key, timeout, parse error, quota exceeded). Verdict is deterministically built from stats — honest but mechanical (e.g., "35% audit-ready across 2 of 6 measured dimensions. Lowest readiness: transaction_documentation at 12%."). `source: "static_fallback"`. Prevents LLM flakes from crashing the audit tab.
+3. **Static fallback:** Engine unreachable entirely. Verdict shows the static "Audit readiness data is currently unavailable. Verify the compliance engine is running." per spec §v1.2.6. `source: "static_fallback"`.
+
+The UI may surface the `source` field via a small badge (e.g., distinguishing LLM-generated from mechanical fallback) in a future iteration. The wire payload includes the field today; rendering it is optional.
+
+### Engine-unreachable handling
+
+When the cockpit cannot reach the compliance engine, the audit tab must render a degraded but coherent state, distinct from both placeholder and computed-with-null. The cockpit synthesizes a fallback payload with these properties:
+
+- **Dimensions:** all six rendered with `tone: "neutral"` and a clear "Engine unreachable — readiness data not available" message in drill summaries. Existing pattern from step 2 cockpit-side.
+- **Stats:** `overall_readiness_pct: null`, `doc_gap_count: null`, `te_certs_status: "engine_unreachable"`. The cockpit's own internal payload carries an `engine_status: "unreachable"` flag that the UI uses to render distinguishing visual treatment (e.g., a small "engine offline" badge near the verdict box).
+- **Verdict box:** falls back to a static "Audit readiness data is currently unavailable. Verify the compliance engine is running." message. No LLM call attempted.
+
+The distinction between `placeholder` (no formula in v1.2) and `engine_unreachable` (formula exists, engine is down) is meaningful to the user. A placeholder dimension is a roadmap item; an unreachable engine is an operational issue with a different remediation path. The UI must visually distinguish these states.
+
+### Defensive percentage clamping
+
+All computed percentages are clamped to [0, 100] before being returned by the endpoint. This is defensive — under normal operation the formulas are bounded, but momentary inconsistencies (e.g., between scan completion and flag resolution) could produce out-of-range values that would render badly in the UI. Clamping ensures the wire payload always validates.
+
+### Change 2 — Replace "Open gaps" placeholder with real gap lists
+
+Current state: each `audit:*` drill panel has a real "What auditors look for" row and a placeholder "Open gaps" row identical across all six dimensions ("Full gap detail pending first audit-readiness sweep").
+
+New state: each computed dimension's drill panel shows a list of actual open gaps. Each placeholder dimension's drill panel shows an honest explanation of why no gap list exists yet, pointing at the data model gap.
+
+**Per-dimension gap definitions:**
+
+- **Allowable costs:** Each unresolved Subpart E compliance flag is a gap. Each gap displays: rule citation (e.g., "§200.438"), flag message, source transaction summary (vendor name, amount in dollars, txn date), severity, raised date. Sorted by severity desc, then raised date desc.
+- **Transaction documentation:** Each transaction above threshold without attachment is a gap. Each gap displays: vendor name, amount, txn date, qb_id (for cross-reference), the threshold itself for context. Sorted by amount desc.
+- **Time & effort:** Placeholder dimension. Drill panel shows: "Gap detection not yet available. When Employee↔Grant assignment data is added (v1.3+), this drill will show employees who lack required quarterly certifications for the current and prior closed periods."
+- **Procurement & competition:** Placeholder dimension. Drill panel shows: "Gap detection not yet available. When procurement record tracking is added (v1.3+), this drill will show contracts above threshold lacking documented competitive process or sole-source justification."
+- **Subrecipient monitoring:** Placeholder dimension. Drill panel shows: "Gap detection not yet available. When subrecipient risk assessment tracking is added (v1.3+), this drill will show subrecipients lacking current risk assessment, monitoring records, or audit follow-up."
+- **Performance reporting:** Placeholder dimension. Drill panel shows: "Gap detection not yet available. When WSAC reconciliation tracking is added (v1.3+), this drill will show reported placements not reconcilable to source data."
+
+**Endpoint shape: lazy per-dimension fetch.** Add `GET /compliance/dimensions/{dimension_id}/gaps` to the engine. Drill panels are user-action-driven (clicked) so gap data is fetched lazily, not bundled into the main `/compliance/dimensions` response. Keeps the initial response compact and aligns with the cockpit's existing drill-fetch pattern.
+
+Response shape:
+
+```json
+{
+  "dimension_id": "allowable_costs",
+  "status": "computed",
+  "gap_count": 4,
+  "gaps": [
+    {
+      "type": "compliance_flag",
+      "id": "...",
+      "title": "...",
+      "detail": "...",
+      "metadata": {...}
+    }
+  ],
+  "computed_at": "2026-04-23T..."
+}
+```
+
+For placeholder dimensions: `gaps: []`, `gap_count: 0`, plus a `placeholder_message: "..."` field carrying the honest explanation.
+
+Engine-unreachable fallback for drill panels: when the cockpit's drill fetch fails, render the existing `<DrillPanel>` error state ("Engine unreachable") rather than synthesizing fake gaps.
+
+### Change 3 — Replace hardcoded Recent Activity feed with compliance audit log
+
+Current state: hardcoded `const FEED = [...]` in `portal/student/app/internal/finance/components/cockpit-shell/activity-feed.tsx` with 6 sample entries.
+
+New state: feed renders real entries from the compliance engine's `audit_log` table.
+
+**Scope decisions for v1.2:**
+
+- **Section header renamed** from "Recent Activity" to "Recent Compliance Activity" to set correct expectations. The feed is bounded to compliance-engine events; it does not surface placement validation work, invoice approvals, or other operational events that aren't already captured in the engine's audit log. Those are deferred to v1.3+ when their source systems are connected.
+- **Data source:** compliance engine `audit_log` table only.
+- **Time horizon:** last 7 days, capped at 50 entries, sorted newest first.
+- **Engine-unreachable handling:** consistent with other tabs — feed shows "Compliance engine unavailable — recent activity not available" rather than synthesized fake entries.
+
+**Endpoint shape:** new `GET /compliance/activity?days=7&limit=50` on the engine. Returns normalized entries:
+
+```json
+{
+  "entries": [
+    {
+      "actor": "krista@cfa.org",
+      "action": "flag.resolve",
+      "target_summary": "Vendor X $1,500 entertainment flag",
+      "occurred_at": "2026-04-23T15:30:00Z",
+      "metadata": { ... }
+    }
+  ],
+  "computed_at": "2026-04-23T15:30:00Z"
+}
+```
+
+Cockpit-side: eager fetch in `extract_all()` (consistent with steps 2-4 pattern), small label translation module that maps audit_log action types to human-readable text (e.g., `flag.resolve` → "Resolved compliance flag on..."). Action types not covered by the label module fall back to a generic "{actor} performed {action}" rendering.
+
+Two-commit sequence: engine-side first, cockpit-side wiring as follow-up.
+
+### Change 4 — Eliminate duplicated dimension values
+
+The six audit dimensions currently have their `{id, title, owner, readiness, tone}` values hardcoded in two places: `_tab_audit` at `cockpit_api.py:422` and the `audit_dimensions` literal in `build_drills()` at `cockpit_data.py:832`. Currently the values agree; synchronization is manual, not structural.
+
+As part of the `_tab_audit` and `build_drills()` rewrite in changes 1 and 2, these should draw from a single canonical source — either a shared module or a computed result — so future updates cannot cause drift.
+
+### Change 5 — Archive or remove the orphaned fixture
+
+Location: `portal/student/app/internal/finance/lib/cockpit-fixture.json`.
+
+Current state: 4,196 lines, committed to git, referenced nowhere in code. Appears to be a snapshot from an earlier prototype. Its audit drill content is richer than what `build_drills()` produces.
+
+Options:
+- **Archive:** Rename to `cockpit-fixture.reference.json.archived` and add a README note explaining it is not consumed but preserved as a reference for the richer drill content it contains.
+- **Delete:** Remove entirely; git history preserves it for anyone who needs to reference.
+
+Either approach is acceptable. Skim first to determine if its drill structure is useful as a template for v1.2 implementation before deciding.
+
+---
+
+## Dimension-to-regulation mapping
+
+Each dimension traces to specific 2 CFR 200 citations. This is what the drill panels should show under "What auditors look for" and what the gap list is tested against.
+
+| Dimension | 2 CFR 200 citation(s) | Compliance Supplement relevance |
+|---|---|---|
+| Allowable costs | §§200.403–200.405, 200.420–200.476 | Cost principles, unallowable costs |
+| Transaction documentation | §200.302, §200.334 | Financial management, record retention |
+| Time & effort certifications | §200.430(i) | Personnel compensation support |
+| Procurement & competition | §§200.317–200.327 | Procurement standards |
+| Subrecipient monitoring | §§200.331–200.333 | Subrecipient monitoring requirements |
+| Performance reporting accuracy | §§200.328–200.329 | Performance reporting |
+
+This mapping should be encoded as structured data in the compliance engine (similar to how `unallowable_costs.py` encodes Subpart E rules), so drill panels can cite the regulation live.
+
+---
+
+## Data flow
+
+```
+[Next.js UI at :3000]
+    ↓ (calls via /api/finance/* rewrite)
+[Cockpit backend at :8013]
+    ↓ (calls via /api/grant-compliance/* rewrite)
+[Compliance engine at :8000]
+    ↓
+[grant_compliance Postgres schema]
+```
+
+For the Audit Readiness tab:
+
+The compliance engine computes its own dimension readiness percentages and exposes them via `GET /compliance/dimensions`. The cockpit backend orchestrates by calling this endpoint, combining with its own data sources (firms, future PBC items), and assembling the tab payload for the UI.
+
+---
+
+## Out of scope for v1.2
+
+Preserved from v1. Still out of scope:
+
+- SEFA generation
+- Federal Audit Clearinghouse submission
+- Bulk document redaction for sharing with auditor
+- Rule editor (rules are code-managed until review process is in place)
+- Multi-tenant isolation (handled by wfdos-common refactor)
+- Email monitoring for auditor correspondence
+
+Also explicitly out of scope for v1.2:
+
+- Replacing or restructuring the existing AuditTab React component
+- Adding sub-tabs below the dimensions table
+- Building a separate Firms & Engagement tab (can be added later as a drill-down or separate concern)
+- Building a separate PBC Tracker tab (PBC items become a data source for computing dimension readiness; they do not need a dedicated tab)
+
+---
+
+## Implementation order
+
+1. **Dimension-to-regulation mapping.** Encode the table above as structured data in the compliance engine. Use the same pattern as `unallowable_costs.py`. This becomes the foundation for drill panel citations.
+
+1.5. **Add documentation linkage to Transaction model.** Add an `attachment_count: int` column (default 0) to the compliance engine's `Transaction` table. Add a `sync_attachables(db, client)` step to the QB sync pathway that queries QB's `Attachable` entity and updates `attachment_count` for each transaction. Add an Alembic migration for the new column. Add a method `transactions_without_documentation(threshold_cents: int) -> int` to the data access layer. This step unblocks the Documentation Gap stat in step 3.
+
+2. **Compute dimension percentages on the engine, expose via endpoint.** On `feature/compliance-engine-extract`: add `Transaction.last_scanned_at` column + migration + sync hook. Add `transactions_above_threshold_total` helper. Add computation functions for `allowable_costs` and `transaction_documentation`. Add `GET /compliance/dimensions` endpoint returning all six dimensions with computed percentages where computable, `None` where placeholder. Two-commit sequence: engine-side here, cockpit-side wiring on `feature/finance-cockpit` as a follow-up.
+
+3. **Compute the three stat cards.** Engine-side: extend `/compliance/dimensions` response (or add a sibling `/compliance/stats` endpoint) to include the three stat values: `overall_readiness_pct` (computed from dimension percentages, equal-weighted average of computed dimensions only), `doc_gap_count` (from `transactions_without_documentation`), `te_certs_status` (placeholder in v1.2). Cockpit-side: replace the three hardcoded `StatCard` literals in `_tab_audit` with values from the engine response. Two-commit sequence: engine-side first, cockpit-side wiring as follow-up. Same pattern as step 2.
+
+4. **Lazy-load real gap lists per dimension.** Engine-side: add `GET /compliance/dimensions/{dimension_id}/gaps` endpoint. For computed dimensions, returns actual gap data from compliance flags (allowable_costs) or transactions-without-attachment query (transaction_documentation). For placeholder dimensions, returns empty gaps with an honest `placeholder_message`. Cockpit-side: update `build_drills()` for `audit:*` keys to either proxy through to the engine endpoint or remove from the static drill registry and let the cockpit's drill system fetch on click. Two-commit sequence: engine-side first, cockpit-side wiring as follow-up.
+
+5. **LLM-generated verdict, cockpit-side only.** The verdict box content is generated by an LLM call on the cockpit side (no engine involvement). Reuses the existing `agents/assistant/` LLM infrastructure. Single-commit step. Inputs to the LLM: current dimension states, three stat values, identification of the top gap (lowest computable readiness percentage), and engine_status flag. Output: 2-4 sentence editorial verdict matching the existing tone. Cached for 5 minutes scoped to the cockpit's data refresh cycle. Engine-unreachable case bypasses the LLM and renders the static fallback message per spec §v1.2.6.
+
+6. **Recent Activity feed.** Add `/cockpit/activity` endpoint. Replace hardcoded feed with fetched data.
+
+7. **Archive or remove orphaned fixture.** Based on decision in Change 5.
+
+Each step should stop and report before continuing.
+
+---
+
+## Acceptance tests
+
+For v1.2 to be considered implemented:
+
+1. Navigate to `/internal/finance` → Audit Readiness. Verify all three stat cards, six dimension percentages, and verdict text change in response to underlying data changes (e.g., resolving a flag should nudge "Allowable costs" readiness, adding a certification should move T&E from 0/9 to 1/9).
+
+2. Click each of the six dimensions. Verify drill panel shows: dimension name, readiness %, owner, "What auditors look for" text, relevant 2 CFR 200 citation, and a list of actual open gaps (not the placeholder).
+
+3. Grep the codebase for any remaining hardcoded literal in `_tab_audit` or `build_drills()` for `audit:*` keys. Expected result: zero matches.
+
+4. Recent Activity feed shows events from the last N days in chronological order, with source attribution.
+
+5. Verdict LLM generation cites a specific dimension by name ("Biggest gap is X") where X is the dimension with the lowest readiness percentage.
+
+6. Grep the codebase for the six dimension IDs (`allowable_costs`, `transaction_documentation`, `time_effort`, `procurement`, `subrecipient_monitoring`, `performance_reporting`). Each should appear in exactly one canonical definition location, with all other references being imports or lookups.
+
+7. Either the orphaned `cockpit-fixture.json` has been archived with a clear rename and README note, or it has been removed from the repo (git history preserves it).
+
+---
+
+## Version history
+
+- **v1 — 2026-04-23 — Initial spec (speculative).** Drafted before existing implementation was inspected. Proposed 4 cards + 7 sub-tabs. Replaced by v1.2 after reconciliation diagnostic revealed existing Audit Readiness tab is more built than v1 assumed.
+- **v1.1 — 2026-04-23 — Path A committed.** Two-service architecture confirmed. Superseded by v1.2.
+- **v1.2 — 2026-04-23 — Reconciled with existing implementation.** Preserves the existing UI (verdict + 3 stat cards + 6-dimension table + drillable rows). Work is backend-only: replace hardcoded values with computed values, replace placeholder "Open gaps" with real gap lists, replace hardcoded activity feed with fetched events. Drops v1's speculative sub-tab structure. Incorporates duplication-elimination requirement (Change 4) and orphaned-fixture cleanup (Change 5) based on the drill panel inventory diagnostic.
+- **v1.2.2 — 2026-04-23 — Documentation linkage path resolved.** Diagnostic confirmed no field exists on `Transaction` model and QB sync does not capture attachment data. Step 1.5 added to implementation order: add `attachment_count` column, `sync_attachables` step, Alembic migration. Documentation Gap computation specified.
+- **v1.2.3 — 2026-04-23 — Step 2 scope decisions.** Diagnostic on data-model gaps determined that four of six dimensions (time_effort, procurement, subrecipient_monitoring, performance_reporting) require data models not present in the engine and are deferred to v1.3+. Two dimensions (allowable_costs, transaction_documentation) are computed in v1.2 — allowable_costs requires adding Transaction.last_scanned_at for an honest denominator. Computation location decided: engine computes, cockpit orchestrates (B1). Branch split decided: engine-side commit first on feature/compliance-engine-extract, cockpit-side wiring as follow-up commit on feature/finance-cockpit.
+- **v1.2.4 — 2026-04-23 — Engine-side step 2 implementation decisions captured.** Allowable costs formula clarified to use distinct-flagged-transactions in numerator (prevents pct < 0 with multi-flag transactions). Three-state dimension status (`computed` with value, `computed` with null, `placeholder` with null) documented for cockpit consumption. Defensive percentage clamping documented.
+- **v1.2.5 — 2026-04-23 — Step 3 scope decisions.** T&E Certifications stat card joins time_effort dimension as a v1.2 placeholder pending Employee↔Grant data model. Overall Readiness aggregates only computed dimensions with non-null percentages; subcopy reflects dynamic count. Documentation Gap is computable now, unblocked from step 1.5.
+- **v1.2.6 — 2026-04-23 — Engine-unreachable handling specified for step 3 cockpit-side.** When the cockpit cannot reach the compliance engine, all stats render in a distinct "engine unreachable" state separate from both computed and placeholder. Verdict box shows a static message. Cockpit-internal `engine_status` flag drives visual differentiation. Also: noted that the spec's seven-step implementation order reflects current scope after collapse of stale step 3 in v1.2.5; eight-step historical form preserved only in git history.
+- **v1.2.7 — 2026-04-23 — Step 4 scope decisions.** Per-dimension gap definitions specified. Endpoint shape: lazy per-dimension fetch via `GET /compliance/dimensions/{id}/gaps` rather than bundling gaps into the main dimensions response. Honest placeholder messages defined for the four dimensions without computed gap detection.
+- **v1.2.8 — 2026-04-23 — Step 5 LLM verdict location decided.** Verdict generation lives on the cockpit side, not the engine. Verdict is presentation logic; the engine stays deterministic except for the existing `/compliance/flags/{id}/explain` endpoint. Cockpit reuses existing `agents/assistant/` LLM infrastructure. Single-commit step (no two-commit sequence required).
+- **v1.2.9 — 2026-04-23 — Step 6 scope decisions and three-layer verdict fallback documented.** Recent Activity feed scope locked to compliance audit log only; section header renamed to "Recent Compliance Activity"; 7-day / 50-entry cap; two-commit sequence (engine-side new endpoint, cockpit-side wiring + label translation module). Verdict fallback formalized as three layers (LLM, data-driven, static) per step 5 implementation deviation in commit 670ff43.

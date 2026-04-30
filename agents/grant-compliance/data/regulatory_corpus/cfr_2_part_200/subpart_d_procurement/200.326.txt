@@ -1,0 +1,61 @@
+========================================================================
+CITATION:        2 CFR 200.326
+TITLE:           Bonding requirements
+SUBPART:         D — Post Federal Award Requirements (Procurement Standards)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.326
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           Bonding requirements apply specifically to construction or facility-improvement
+                 contracts exceeding the SAT. Most CFA K8341 procurement is service-based, so
+                 §200.326 has limited direct CFA applicability — but the section is in scope
+                 because the regulatory corpus must be complete and any future K8341
+                 construction-adjacent procurement (build-out, leasehold improvements) would
+                 trigger it.
+                 Verify exact wording at the SOURCE_URL above before citing in formal work.
+========================================================================
+
+§ 200.326  Bonding requirements.
+
+For construction or facility improvement contracts or subcontracts
+exceeding the Simplified Acquisition Threshold, the Federal awarding
+agency or pass-through entity may accept the bonding policy and
+requirements of the non-Federal entity provided that the Federal
+awarding agency or pass-through entity has made a determination that
+the Federal interest is adequately protected. If such a determination
+has not been made, the minimum requirements must be as follows:
+
+(a) A bid guarantee from each bidder equivalent to five percent of the
+bid price. The "bid guarantee" must consist of a firm commitment such
+as a bid bond, certified check, or other negotiable instrument
+accompanying a bid as assurance that the bidder will, upon acceptance of
+the bid, execute such contractual documents as may be required within
+the time specified.
+
+(b) A performance bond on the part of the contractor for 100 percent of
+the contract price. A "performance bond" is one executed in connection
+with a contract to secure fulfillment of all the contractor's
+obligations under such contract.
+
+(c) A payment bond on the part of the contractor for 100 percent of the
+contract price. A "payment bond" is one executed in connection with a
+contract to assure payment as required by law of all persons supplying
+labor and material in the execution of the work provided for in the
+contract.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- §200.326 applies ONLY to construction or facility-improvement contracts
+  above the SAT ($250,000). For CFA K8341 — primarily training and
+  consulting services — direct applicability is currently zero.
+- If CFA were to undertake any construction-adjacent procurement under
+  K8341 above $250,000, §200.326 would apply unless ESD (the pass-through
+  entity) has formally accepted CFA's own bonding policy and made a
+  Federal-interest-protected determination.
+- The section is included in the corpus for completeness; the agent may
+  flag this section as "no current application" when emitting the
+  K8341-specific requirements set, while still keeping the section
+  available for Mode B Q&A about edge cases.
+========================================================================

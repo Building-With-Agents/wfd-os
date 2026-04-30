@@ -1,0 +1,107 @@
+========================================================================
+CITATION:        2 CFR 200.327
+TITLE:           Contract provisions
+SUBPART:         D — Post Federal Award Requirements (Procurement Standards)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.327
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           §200.327 incorporates by reference Appendix II to Part 200, which lists the
+                 mandatory contract provisions ("flow-down clauses") that must appear in
+                 every federally-funded contract above the relevant thresholds. The list
+                 covers: termination for cause/convenience, Equal Employment Opportunity
+                 (E.O. 11246), Davis-Bacon (where applicable), Contract Work Hours and Safety
+                 Standards, rights to inventions (Bayh-Dole / 37 CFR Part 401), Clean Air Act
+                 and Clean Water Act, Energy Policy and Conservation Act, debarment and
+                 suspension (E.O. 12549/12689), Byrd Anti-Lobbying Amendment (31 USC 1352),
+                 procurement of recovered materials (cross-ref §200.323), domestic preferences
+                 (cross-ref §200.322), and prohibition on certain telecommunications equipment
+                 (Section 889 of the John S. McCain National Defense Authorization Act for FY 2019).
+                 Verify exact wording and the current Appendix II text at the SOURCE_URL above.
+========================================================================
+
+§ 200.327  Contract provisions.
+
+The non-Federal entity's contracts must contain the applicable provisions
+described in Appendix II to this part.
+
+------------------------------------------------------------------------
+APPENDIX II SUMMARY (paraphrased, not verbatim — verify against the
+official Appendix II text at https://www.ecfr.gov/current/title-2/part-200/appendix-Appendix%20II%20to%20Part%20200):
+
+Required contract provisions, by trigger:
+
+1. **Termination clauses**
+   - Contracts above $10,000 must include termination for cause and for
+     convenience by the non-Federal entity, including the manner of
+     termination and the basis for settlement.
+
+2. **Equal Employment Opportunity**
+   - Federally-assisted construction contracts must include the E.O.
+     11246 EEO clause and reference 41 CFR Part 60-1.4.
+
+3. **Davis-Bacon Act / Copeland "Anti-Kickback" Act**
+   - When required by federal program statute, all prime construction
+     contracts above $2,000 awarded by recipients and subrecipients must
+     include compliance with the Davis-Bacon Act (40 USC 3141-3148) and
+     the Copeland "Anti-Kickback" Act (40 USC 3145).
+
+4. **Contract Work Hours and Safety Standards Act (40 USC 3701-3708)**
+   - Construction or other public-work contracts above $100,000.
+
+5. **Rights to inventions made under a contract or agreement**
+   - Funded research / experimental / developmental / demonstration
+     contracts with small business firms or nonprofit organizations
+     must comply with 37 CFR Part 401 (Bayh-Dole).
+
+6. **Clean Air Act (42 USC 7401-7671q) and Federal Water Pollution
+   Control Act (33 USC 1251-1387), as amended**
+   - Contracts and subgrants of amounts in excess of $150,000.
+
+7. **Debarment and suspension (E.O. 12549 and 12689)**
+   - All contractor and subcontractor selections must check that the
+     party is not listed on the System for Award Management
+     (sam.gov) Excluded Parties List. Required for all contracts.
+
+8. **Byrd Anti-Lobbying Amendment (31 USC 1352)**
+   - Contractors that apply or bid for an award exceeding $100,000
+     must file the required certification.
+
+9. **Procurement of recovered materials**
+   - Cross-reference §200.323 — applies to state and political-subdivision
+     agencies and their contractors when purchasing items designated
+     in EPA CPGs above the $10,000 threshold.
+
+10. **Domestic preferences for procurements (Build America, Buy
+    America)**
+    - Cross-reference §200.322 and BABA implementing guidance.
+
+11. **Prohibition on certain telecommunications and video surveillance
+    services or equipment** (Section 889, FY2019 NDAA, Public Law 115-232,
+    implementing regs at 2 CFR 200.216 and 200.471, 48 CFR Subpart 4.21)
+    - Recipients and subrecipients are prohibited from obligating or
+      expending loan or grant funds to procure or obtain (or extend or
+      renew a contract to procure or obtain) certain "covered
+      telecommunications equipment or services" produced by entities
+      including Huawei, ZTE, Hytera, Hikvision, and Dahua.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- The "flow-down clauses" requirement means that for each in-scope
+  contract, the non-Federal entity must check which Appendix II
+  provisions apply (based on contract value, scope, and contract type)
+  and ensure those provisions are physically present in the executed
+  contract document.
+- For CFA's K8341 service contracts, the typically-applicable provisions
+  are: termination clauses (always above $10K), debarment/suspension
+  (always — sam.gov check), Byrd Anti-Lobbying ($100K+ contracts), and
+  Section 889 telecom prohibition (always — flat prohibition regardless
+  of dollar amount). Construction-specific (Davis-Bacon, CWHSSA, EEO)
+  generally do not apply to CFA's service-only procurements.
+- Documentation expectation: for each above-threshold contract, the
+  procurement file should include a checklist showing which Appendix II
+  provisions apply, which are physically in the contract, and a sam.gov
+  exclusion-list check dated near the award.
+========================================================================

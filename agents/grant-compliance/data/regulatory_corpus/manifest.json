@@ -1,0 +1,208 @@
+{
+  "$schema": "./manifest.schema.json",
+  "version": "2024-10-01-final-rule",
+  "last_updated": "2026-04-30",
+  "regulatory_basis": {
+    "cfr_amendment": "89 FR 30046 (April 22, 2024 final rule)",
+    "cfr_effective": "2024-10-01",
+    "compliance_supplement_year": 2025
+  },
+  "verification_statuses": {
+    "verbatim": "Body text reproduced exactly from the cited official source (eCFR or govinfo.gov). The agent may quote this content directly when emitting citations.",
+    "structured-paraphrase": "Body text reflects the regulation's substance, paragraph structure, dollar thresholds, and defined terms accurately to the post-2024-final-rule text, but exact wording may diverge from the official source. The agent should describe requirements but should NOT quote the body as the regulation's exact words. A human should verify against the official source before treating any agent-emitted quotation as authoritative.",
+    "mixed-verbatim-paraphrase": "Some paragraphs are verbatim and clearly delimited with [VERBATIM_START] / [VERBATIM_END] markers in the body; the rest is structured-paraphrase. The agent's prompts (in prompts.py) read these markers and apply the verbatim or paraphrase rule per paragraph.",
+    "skeleton": "Body intentionally documents what content should exist; populated from the official source as a v1.1 task. The agent is instructed to refuse to cite skeleton files. Mode B questions about a skeleton-area topic must surface an explicit out-of-scope-of-current-corpus caveat."
+  },
+  "v1_1_followups": [
+    {
+      "id": "populate_omb_compliance_supplement_2025",
+      "priority": "high",
+      "description": "Populate omb_compliance_supplement_2025/part_4_11.300_economic_development_cluster.txt from the published 2025 OMB Compliance Supplement PDF. Required before the June 2026 ESD-WMU annual monitoring engagement so the agent can emit 11.307-program-specific Special Tests and Provisions, not just the 2 CFR 200 baseline."
+    },
+    {
+      "id": "upgrade_remaining_cfr_files_to_verbatim",
+      "priority": "medium",
+      "description": "13 CFR files (§§200.317, 200.320–200.327, 200.331–200.333, 200.404) are currently structured-paraphrase. Upgrade each to verbatim by fetching from govinfo.gov XML or eCFR and replacing the body. README has the step-by-step protocol. Per the spec's v1 acceptance, paraphrase is acceptable; verbatim is the v1.1 quality bar."
+    }
+  ],
+  "documents": [
+    {
+      "id": "cfr_200_317",
+      "citation": "2 CFR 200.317",
+      "title": "Procurements by states",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.317.txt",
+      "compliance_areas": ["procurement_standards"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.317"
+    },
+    {
+      "id": "cfr_200_318",
+      "citation": "2 CFR 200.318",
+      "title": "General procurement standards",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.318.txt",
+      "compliance_areas": ["procurement_standards", "conflict_of_interest", "standards_of_conduct"],
+      "subpart": "D",
+      "verification": "mixed-verbatim-paraphrase",
+      "verbatim_paragraphs": ["c", "c.1", "c.2"],
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.318",
+      "verbatim_source": "https://www.govinfo.gov/content/pkg/CFR-2024-title2-vol1/xml/CFR-2024-title2-vol1-sec200-318.xml",
+      "verbatim_fetched_at": "2026-04-30"
+    },
+    {
+      "id": "cfr_200_319",
+      "citation": "2 CFR 200.319",
+      "title": "Competition",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.319.txt",
+      "compliance_areas": ["full_and_open_competition", "procurement_standards"],
+      "subpart": "D",
+      "verification": "verbatim",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.319",
+      "verbatim_source": "https://www.govinfo.gov/content/pkg/CFR-2024-title2-vol1/xml/CFR-2024-title2-vol1-sec200-319.xml",
+      "verbatim_fetched_at": "2026-04-30"
+    },
+    {
+      "id": "cfr_200_320",
+      "citation": "2 CFR 200.320",
+      "title": "Methods of procurement to be followed",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.320.txt",
+      "compliance_areas": ["procurement_standards"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.320"
+    },
+    {
+      "id": "cfr_200_321",
+      "citation": "2 CFR 200.321",
+      "title": "Contracting with small businesses, minority businesses, women's business enterprises, labor surplus area firms, and veteran-owned businesses",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.321.txt",
+      "compliance_areas": ["procurement_standards"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.321"
+    },
+    {
+      "id": "cfr_200_322",
+      "citation": "2 CFR 200.322",
+      "title": "Domestic preferences for procurements",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.322.txt",
+      "compliance_areas": ["procurement_standards"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.322"
+    },
+    {
+      "id": "cfr_200_323",
+      "citation": "2 CFR 200.323",
+      "title": "Procurement of recovered materials",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.323.txt",
+      "compliance_areas": ["procurement_standards"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.323"
+    },
+    {
+      "id": "cfr_200_324",
+      "citation": "2 CFR 200.324",
+      "title": "Contract cost and price",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.324.txt",
+      "compliance_areas": ["cost_reasonableness", "procurement_standards"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.324"
+    },
+    {
+      "id": "cfr_200_325",
+      "citation": "2 CFR 200.325",
+      "title": "Federal awarding agency or pass-through entity review",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.325.txt",
+      "compliance_areas": ["procurement_standards"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.325"
+    },
+    {
+      "id": "cfr_200_326",
+      "citation": "2 CFR 200.326",
+      "title": "Bonding requirements",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.326.txt",
+      "compliance_areas": ["procurement_standards"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.326"
+    },
+    {
+      "id": "cfr_200_327",
+      "citation": "2 CFR 200.327",
+      "title": "Contract provisions",
+      "path": "cfr_2_part_200/subpart_d_procurement/200.327.txt",
+      "compliance_areas": ["procurement_standards"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.327"
+    },
+    {
+      "id": "cfr_200_331",
+      "citation": "2 CFR 200.331",
+      "title": "Subrecipient and contractor determinations",
+      "path": "cfr_2_part_200/subpart_d_subrecipient/200.331.txt",
+      "compliance_areas": ["classification_200_331"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.331"
+    },
+    {
+      "id": "cfr_200_332",
+      "citation": "2 CFR 200.332",
+      "title": "Requirements for pass-through entities",
+      "path": "cfr_2_part_200/subpart_d_subrecipient/200.332.txt",
+      "compliance_areas": ["subrecipient_monitoring"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.332"
+    },
+    {
+      "id": "cfr_200_333",
+      "citation": "2 CFR 200.333",
+      "title": "Fixed amount subawards",
+      "path": "cfr_2_part_200/subpart_d_subrecipient/200.333.txt",
+      "compliance_areas": ["subrecipient_monitoring"],
+      "subpart": "D",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.333"
+    },
+    {
+      "id": "cfr_200_404",
+      "citation": "2 CFR 200.404",
+      "title": "Reasonable costs",
+      "path": "cfr_2_part_200/subpart_e_cost_principles/200.404.txt",
+      "compliance_areas": ["cost_reasonableness"],
+      "subpart": "E",
+      "verification": "structured-paraphrase",
+      "source_url": "https://www.ecfr.gov/current/title-2/section-200.404"
+    },
+    {
+      "id": "omb_cs_2025_part4_11_300",
+      "citation": "2025 OMB Compliance Supplement, Part 4-11.300",
+      "title": "Economic Development Cluster — Cluster of Programs (Assistance Listings 11.300, 11.307)",
+      "path": "omb_compliance_supplement_2025/part_4_11.300_economic_development_cluster.txt",
+      "compliance_areas": [
+        "procurement_standards",
+        "subrecipient_monitoring",
+        "classification_200_331"
+      ],
+      "subpart": null,
+      "verification": "skeleton",
+      "source_url": "https://www.whitehouse.gov/omb/management/office-federal-financial-management/"
+    }
+  ],
+  "compliance_area_index": {
+    "procurement_standards": ["cfr_200_317", "cfr_200_318", "cfr_200_319", "cfr_200_320", "cfr_200_321", "cfr_200_322", "cfr_200_323", "cfr_200_324", "cfr_200_325", "cfr_200_326", "cfr_200_327", "omb_cs_2025_part4_11_300"],
+    "full_and_open_competition": ["cfr_200_319"],
+    "cost_reasonableness": ["cfr_200_324", "cfr_200_404"],
+    "classification_200_331": ["cfr_200_331", "omb_cs_2025_part4_11_300"],
+    "subrecipient_monitoring": ["cfr_200_332", "cfr_200_333", "omb_cs_2025_part4_11_300"],
+    "conflict_of_interest": ["cfr_200_318"],
+    "standards_of_conduct": ["cfr_200_318"]
+  }
+}

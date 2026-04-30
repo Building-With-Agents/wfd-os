@@ -1,0 +1,178 @@
+========================================================================
+CITATION:        2 CFR 200.332
+TITLE:           Requirements for pass-through entities
+SUBPART:         D — Post Federal Award Requirements (Subrecipient Monitoring and Management)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.332
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           §200.332 is the keystone subrecipient-monitoring section. It mandates a
+                 risk-based monitoring approach: every pass-through entity must (i) issue
+                 properly-formed subawards with all required information, (ii) evaluate each
+                 subrecipient's risk of noncompliance, (iii) monitor each subrecipient's
+                 activities at a level proportionate to risk, (iv) verify the subrecipient
+                 has been audited as required by Subpart F, and (v) consider taking
+                 enforcement action when a subrecipient has audit findings or other
+                 noncompliance. The 2024 final rule strengthened the monitoring expectations
+                 around documenting risk assessment and remediation activities.
+                 Verify exact wording at the SOURCE_URL above before citing in formal work.
+========================================================================
+
+§ 200.332  Requirements for pass-through entities.
+
+All pass-through entities must:
+
+(a) IDENTIFY EVERY SUBAWARD with the following information at the time
+of the subaward and, if any of these data elements change, include the
+changes in subsequent subaward modifications. When some of this
+information is not available, the pass-through entity must provide the
+best information available to describe the Federal award and subaward.
+Required information includes:
+
+  (1) Federal award identification.
+    (i) Subrecipient name (which must match the name associated with
+    its unique entity identifier);
+    (ii) Subrecipient's unique entity identifier;
+    (iii) Federal Award Identification Number (FAIN);
+    (iv) Federal award date (see the definition of Federal award date
+    in § 200.1) of award to the recipient by the Federal agency;
+    (v) Subaward Period of Performance Start and End Date;
+    (vi) Subaward Budget Period Start and End Date;
+    (vii) Amount of Federal Funds Obligated by this action by the
+    pass-through entity to the subrecipient;
+    (viii) Total Amount of Federal Funds Obligated to the subrecipient
+    by the pass-through entity including the current financial
+    obligation;
+    (ix) Total Amount of the Federal Award committed to the subrecipient
+    by the pass-through entity;
+    (x) Federal award project description, as required to be responsive
+    to the Federal Funding Accountability and Transparency Act (FFATA);
+    (xi) Name of Federal awarding agency, pass-through entity, and
+    contact information for awarding official of the pass-through entity;
+    (xii) Assistance Listings number and Title (the pass-through entity
+    must identify the dollar amount made available under each Federal
+    award and the Assistance Listings number at time of disbursement);
+    (xiii) Identification of whether the award is R&D; and
+    (xiv) Indirect cost rate for the Federal award (including if the
+    de minimis rate is charged) per § 200.414.
+
+  (2) All requirements imposed by the pass-through entity on the
+  subrecipient so that the Federal award is used in accordance with
+  Federal statutes, regulations, and the terms and conditions of the
+  Federal award;
+
+  (3) Any additional requirements that the pass-through entity imposes
+  on the subrecipient in order for the pass-through entity to meet its
+  own responsibility to the Federal awarding agency including
+  identification of any required financial and performance reports;
+
+  (4) An approved federally recognized indirect cost rate negotiated
+  between the subrecipient and the Federal Government or, if no such
+  rate exists, either a rate negotiated between the pass-through entity
+  and the subrecipient (in compliance with this part), or a de minimis
+  indirect cost rate as defined in § 200.414(f);
+
+  (5) A requirement that the subrecipient permit the pass-through entity
+  and auditors to have access to the subrecipient's records and
+  financial statements as necessary for the pass-through entity to meet
+  the requirements of this part; and
+
+  (6) Appropriate terms and conditions concerning closeout of the
+  subaward.
+
+(b) EVALUATE each subrecipient's risk of noncompliance with Federal
+statutes, regulations, and the terms and conditions of the subaward for
+purposes of determining the appropriate subrecipient monitoring
+described in paragraphs (d) and (e) of this section, which may include
+consideration of such factors as:
+
+  (1) The subrecipient's prior experience with the same or similar
+  subawards;
+  (2) The results of previous audits including whether or not the
+  subrecipient receives a Single Audit in accordance with Subpart F of
+  this part, and the extent to which the same or similar subaward has
+  been audited as a major program;
+  (3) Whether the subrecipient has new personnel or new or substantially
+  changed systems; and
+  (4) The extent and results of Federal awarding agency monitoring (e.g.,
+  if the subrecipient also receives Federal awards directly from a
+  Federal awarding agency).
+
+(c) CONSIDER imposing specific subaward conditions upon a subrecipient,
+if appropriate, as described in § 200.208.
+
+(d) MONITOR THE ACTIVITIES of the subrecipient as necessary to ensure
+that the subaward is used for authorized purposes, in compliance with
+Federal statutes, regulations, and the terms and conditions of the
+subaward; and that subaward performance goals are achieved. Pass-through
+entity monitoring of the subrecipient must include:
+
+  (1) Reviewing financial and performance reports required by the
+  pass-through entity.
+  (2) Following-up and ensuring that the subrecipient takes timely and
+  appropriate action on all deficiencies pertaining to the Federal
+  award provided to the subrecipient from the pass-through entity
+  detected through audits, on-site reviews, and written confirmation
+  from the subrecipient, highlighting the status of actions planned or
+  taken to address Single Audit findings related to the particular
+  subaward.
+  (3) Issuing a management decision for applicable audit findings
+  pertaining only to the Federal award provided to the subrecipient
+  from the pass-through entity as required by § 200.521.
+  (4) The pass-through entity is responsible for resolving audit
+  findings specifically related to the subaward and not responsible for
+  resolving cross-cutting findings. If a subrecipient has a current
+  Single Audit report posted in the Federal Audit Clearinghouse and has
+  not otherwise been excluded from receipt of Federal funding, the
+  pass-through entity may rely on the subrecipient's cognizant audit
+  agency or cognizant oversight agency to perform audit follow-up and
+  make management decisions related to cross-cutting findings.
+
+(e) DEPENDING UPON THE PASS-THROUGH ENTITY'S ASSESSMENT OF RISK posed
+by the subrecipient (as described in paragraph (b) of this section),
+the following monitoring tools may be useful for the pass-through
+entity to ensure proper accountability and compliance with program
+requirements and achievement of performance goals:
+
+  (1) Providing subrecipients with training and technical assistance on
+  program-related matters; and
+  (2) Performing on-site reviews of the subrecipient's program operations;
+  (3) Arranging for agreed-upon-procedures engagements as described in
+  § 200.425.
+
+(f) VERIFY THAT EVERY SUBRECIPIENT IS AUDITED AS REQUIRED by Subpart F
+of this part when it is expected that the subrecipient's Federal awards
+expended during the respective fiscal year equaled or exceeded the
+threshold set forth in § 200.501.
+
+(g) CONSIDER WHETHER THE RESULTS OF THE SUBRECIPIENT'S AUDITS, on-site
+reviews, or other monitoring indicate conditions that necessitate
+adjustments to the pass-through entity's own records.
+
+(h) CONSIDER TAKING ENFORCEMENT ACTION against noncompliant
+subrecipients as described in § 200.339 of this part and in program
+regulations.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- §200.332 is itself a "what the pass-through entity must do" specification.
+  CFA's role in the K8341 chain is recipient (with ESD as pass-through),
+  but CFA is also a pass-through entity for any subawards it makes
+  (e.g., to the GJC training providers if those are classified as
+  subrecipients per §200.331).
+- For each party CFA classifies as a subrecipient under §200.331,
+  §200.332 requires CFA to have on file:
+  (a) The subaward agreement with all 14 paragraph (a)(1) data
+      elements identified.
+  (b) A documented risk assessment per (b).
+  (c) A monitoring plan proportionate to risk per (d) and (e).
+  (d) Evidence the subrecipient was audited under Subpart F if
+      required (or that they were below the audit threshold).
+  (e) Records of any management decisions on subrecipient audit
+      findings related to CFA's subaward.
+- This is the most documentation-intensive section in the agent's
+  scope. Expect Mode A to emit ~6-12 distinct requirement records
+  per subrecipient just from §200.332.
+========================================================================

@@ -1,0 +1,72 @@
+{
+  "accounts": [
+    {"Id": "1", "Name": "Bank of America Operating", "AccountType": "Bank"},
+    {"Id": "60", "Name": "Salaries Expense", "AccountType": "Expense"},
+    {"Id": "61", "Name": "Office Supplies", "AccountType": "Expense"},
+    {"Id": "62", "Name": "Travel", "AccountType": "Expense"},
+    {"Id": "63", "Name": "Entertainment", "AccountType": "Expense"},
+    {"Id": "64", "Name": "Meals", "AccountType": "Expense"},
+    {"Id": "65", "Name": "Professional Fees", "AccountType": "Expense"}
+  ],
+  "classes": [
+    {"Id": "C1", "FullyQualifiedName": "Federal:CHI"},
+    {"Id": "C2", "FullyQualifiedName": "Foundation:Peer"},
+    {"Id": "C3", "FullyQualifiedName": "Unrestricted"}
+  ],
+  "transactions": [
+    {
+      "_qb_type": "Bill",
+      "Id": "1001",
+      "TxnDate": "2025-09-15",
+      "TotalAmt": 4250.00,
+      "VendorRef": {"name": "Office Depot"},
+      "PrivateNote": "Printer paper, pens, sticky notes for both program offices",
+      "Line": [{"AccountBasedExpenseLineDetail": {"ClassRef": {"name": "Federal:CHI"}}}]
+    },
+    {
+      "_qb_type": "Purchase",
+      "Id": "1002",
+      "TxnDate": "2025-10-02",
+      "TotalAmt": 1875.50,
+      "EntityRef": {"name": "Delta Airlines"},
+      "PrivateNote": "Conference travel - peer support training conference, 2 staff",
+      "Line": [{"AccountBasedExpenseLineDetail": {"ClassRef": {"name": "Foundation:Peer"}}}]
+    },
+    {
+      "_qb_type": "Bill",
+      "Id": "1003",
+      "TxnDate": "2025-10-18",
+      "TotalAmt": 320.00,
+      "VendorRef": {"name": "Whole Foods"},
+      "PrivateNote": "Wine and cheese for donor cultivation event",
+      "Line": []
+    },
+    {
+      "_qb_type": "Purchase",
+      "Id": "1004",
+      "TxnDate": "2025-11-05",
+      "TotalAmt": 12500.00,
+      "EntityRef": {"name": "Capitol Strategies LLC"},
+      "PrivateNote": "Lobbying services Q4 - state legislative outreach",
+      "Line": []
+    },
+    {
+      "_qb_type": "Bill",
+      "Id": "1005",
+      "TxnDate": "2025-11-20",
+      "TotalAmt": 8400.00,
+      "VendorRef": {"name": "Acme HR Consulting"},
+      "PrivateNote": "Recruitment advertising for clinical staff position",
+      "Line": [{"AccountBasedExpenseLineDetail": {"ClassRef": {"name": "Federal:CHI"}}}]
+    },
+    {
+      "_qb_type": "Bill",
+      "Id": "1006",
+      "TxnDate": "2026-10-15",
+      "TotalAmt": 1200.00,
+      "VendorRef": {"name": "Office Depot"},
+      "PrivateNote": "Supplies - this charge is dated AFTER the federal grant ends",
+      "Line": [{"AccountBasedExpenseLineDetail": {"ClassRef": {"name": "Federal:CHI"}}}]
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+========================================================================
+CITATION:        2 CFR 200.322
+TITLE:           Domestic preferences for procurements
+SUBPART:         D — Post Federal Award Requirements (Procurement Standards)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.322
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           Implements the Buy America preference for iron, steel, manufactured products,
+                 and construction materials in projects involving infrastructure. The Build
+                 America Buy America Act of 2021 (BABA) layered additional requirements;
+                 for federal financial assistance for infrastructure projects, BABA-implementing
+                 OMB guidance applies in addition to §200.322. Most CFA K8341 procurement is
+                 service-based (training providers, contractors) rather than infrastructure,
+                 so this section's practical applicability to CFA is narrow but the requirement
+                 applies whenever an iron / steel / manufactured-product / construction-material
+                 purchase is made under the award.
+                 Verify exact wording at the SOURCE_URL above before citing in formal work.
+========================================================================
+
+§ 200.322  Domestic preferences for procurements.
+
+(a) As appropriate and to the extent consistent with law, the non-Federal
+entity should, to the greatest extent practicable under a Federal award,
+provide a preference for the purchase, acquisition, or use of goods,
+products, or materials produced in the United States (including but not
+limited to iron, aluminum, steel, cement, and other manufactured
+products). The requirements of this section must be included in all
+subawards including all contracts and purchase orders for work or
+products under this award.
+
+(b) FOR PURPOSES OF THIS SECTION:
+
+  (1) "Produced in the United States" means, for iron and steel
+  products, that all manufacturing processes, from the initial melting
+  stage through the application of coatings, occurred in the United
+  States.
+  (2) "Manufactured products" means items and construction materials
+  composed in whole or in part of non-ferrous metals such as aluminum;
+  plastics and polymer-based products such as polyvinyl chloride pipe;
+  aggregates such as concrete; glass, including optical fiber; and
+  lumber.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- §200.322 is most directly relevant for procurement of physical goods
+  and infrastructure construction materials. For CFA's K8341 grant —
+  which is dominated by training-provider contracts and recovery
+  consulting contracts (services) — direct §200.322 applicability is
+  limited.
+- Where CFA does purchase manufactured goods or construction materials
+  under K8341 (e.g., laptops or office equipment if any qualify under
+  the budget), the preference applies and documentation should record
+  that the preference was considered.
+- The Build America Buy America Act (BABA, 41 USC 8301 note) layers
+  additional iron/steel/manufactured-product/construction-material
+  requirements for infrastructure projects funded by federal financial
+  assistance. BABA implementation guidance is OMB M-22-11 and
+  successor guidance — outside the §200.322 text but relevant to any
+  infrastructure scope.
+========================================================================

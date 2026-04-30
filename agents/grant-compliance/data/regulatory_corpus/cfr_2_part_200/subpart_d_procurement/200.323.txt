@@ -1,0 +1,46 @@
+========================================================================
+CITATION:        2 CFR 200.323
+TITLE:           Procurement of recovered materials
+SUBPART:         D — Post Federal Award Requirements (Procurement Standards)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.323
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           Cross-references section 6002 of the Solid Waste Disposal Act and EPA's
+                 Comprehensive Procurement Guidelines (CPG) at 40 CFR Part 247.
+                 Verify exact wording at the SOURCE_URL above before citing in formal work.
+========================================================================
+
+§ 200.323  Procurement of recovered materials.
+
+A non-Federal entity that is a state agency or agency of a political
+subdivision of a state and its contractors must comply with section
+6002 of the Solid Waste Disposal Act, as amended by the Resource
+Conservation and Recovery Act. The requirements of Section 6002 include
+procuring only items designated in guidelines of the Environmental
+Protection Agency (EPA) at 40 CFR Part 247 that contain the highest
+percentage of recovered materials practicable, consistent with
+maintaining a satisfactory level of competition, where the purchase price
+of the item exceeds $10,000 or the value of the quantity acquired during
+the preceding fiscal year exceeded $10,000; procuring solid waste
+management services in a manner that maximizes energy and resource
+recovery; and establishing an affirmative procurement program for
+procurement of recovered materials identified in the EPA guidelines.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- §200.323 directly applies only to "state agencies or agencies of a
+  political subdivision of a state." CFA, as a 501(c)(3) nonprofit
+  recipient, is not a state agency, so §200.323 does NOT directly
+  obligate CFA.
+- However, the K8341 award flows through Washington's Employment
+  Security Department (ESD) — a state agency. ESD's own procurement
+  obligations under §200.323 may flow down via the K8341 contract
+  terms. Verify the K8341 contract before excluding §200.323 from
+  CFA's documentation requirements.
+- Practical CFA scope: very narrow. Consumables, office supplies, or
+  other items whose purchase price exceeds $10,000 in aggregate would
+  be the relevant trigger.
+========================================================================

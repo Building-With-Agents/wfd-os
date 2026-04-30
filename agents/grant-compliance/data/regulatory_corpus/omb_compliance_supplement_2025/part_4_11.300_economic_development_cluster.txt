@@ -1,0 +1,166 @@
+========================================================================
+CITATION:        2025 OMB Compliance Supplement, Part 4-11.300
+TITLE:           Economic Development Cluster (Assistance Listing 11.307 — Economic Adjustment Assistance)
+SUBPART:         (Compliance Supplement, not CFR)
+PART:            Part 4 — Agency Program Requirements
+SOURCE_URL:      https://www.whitehouse.gov/omb/management/office-federal-financial-management/
+                 (locate the most recent annual Compliance Supplement; the 2025 Supplement is
+                 typically posted at https://www.whitehouse.gov/wp-content/uploads/2025/[N]/2025-OMB-Compliance-Supplement.pdf
+                 or via OMB Memorandum M-25-XX. Navigate to Part 4, Department of Commerce
+                 section, Assistance Listing 11.307.)
+EFFECTIVE_DATE:  (annual; effective for audits of fiscal years beginning after the Supplement's publication date)
+VERIFICATION:    skeleton
+LAST_UPDATED:    2026-04-30
+NOTES:           THIS FILE IS A SKELETON. The agent module's `corpus.py` reads the VERIFICATION
+                 field and the agent's prompt will refuse to cite skeleton files as authoritative.
+                 The body below documents the structural template the file SHOULD hold once a
+                 human populates it from the official 2025 OMB Compliance Supplement PDF.
+                 The OMB Compliance Supplement is the audit framework used by Single Audit
+                 examiners to evaluate compliance with federal grant programs. Each program
+                 (or cluster of programs) gets a Part 4 entry following a fixed structural
+                 template. Populate this skeleton by:
+                   1. Download the 2025 OMB Compliance Supplement PDF from whitehouse.gov.
+                   2. Navigate to Part 4, Department of Commerce, Assistance Listing 11.307
+                      (which is part of the Economic Development Cluster, header §11.300).
+                   3. Transcribe the relevant subsections into the body below.
+                   4. Replace this NOTES block with provenance for the populated text.
+                   5. Update VERIFICATION from "skeleton" to "verbatim" (or "structured-paraphrase"
+                      if transcription is summarized rather than exact).
+                   6. Update manifest.json to match.
+========================================================================
+
+PART 4-11.300 — ECONOMIC DEVELOPMENT CLUSTER
+============================================
+
+CLUSTER COMPOSITION
+-------------------
+The Economic Development Cluster (header section 11.300 in the OMB
+Compliance Supplement Part 4) typically includes:
+
+  - 11.300 Investments for Public Works and Economic Development
+    Facilities
+  - 11.307 Economic Adjustment Assistance  ← THIS IS K8341'S LISTING
+
+K8341 is funded under Assistance Listing 11.307 (Economic Adjustment
+Assistance), administered by the Department of Commerce's Economic
+Development Administration (EDA). The Compliance Supplement's Part 4
+entry for 11.307 (within the 11.300 cluster) is the audit framework
+Single Audit examiners apply.
+
+------------------------------------------------------------------------
+
+I.  PROGRAM OBJECTIVES
+======================
+
+[POPULATE FROM 2025 SUPPLEMENT — typical content: a one-paragraph
+description of the EDA Economic Adjustment Assistance program's
+statutory purpose and current funding priorities.]
+
+------------------------------------------------------------------------
+
+II. PROGRAM PROCEDURES
+======================
+
+[POPULATE FROM 2025 SUPPLEMENT — typical content: how the program is
+administered (formula vs. discretionary, application process, allowable
+project types, period of performance norms).]
+
+------------------------------------------------------------------------
+
+III. COMPLIANCE REQUIREMENTS
+============================
+
+The Compliance Supplement Part 4 organizes requirements as a matrix
+across compliance-requirement categories. The 2024 Compliance Supplement
+condensed the historical 12-item matrix into 6 compliance requirements:
+
+  A. Activities Allowed or Unallowed
+  B. Allowable Costs/Cost Principles
+  C. Cash Management
+  E. Eligibility
+  F. Equipment and Real Property Management
+  G. Matching, Level of Effort, Earmarking
+  H. Period of Performance
+  I. Procurement and Suspension and Debarment
+  J. Program Income
+  L. Reporting
+  M. Subrecipient Monitoring
+  N. Special Tests and Provisions
+
+(The 2024 supplement consolidated some of these — e.g., Period of
+Performance and Cash Management are now generally addressed under the
+applicable cost-principles language. Verify the 2025 Supplement's
+specific organization.)
+
+For each compliance-requirement category that applies to Assistance
+Listing 11.307, the Supplement typically specifies:
+
+  - [POPULATE] What the regulatory and program-specific compliance
+    obligations are
+  - [POPULATE] What the auditor must test (the audit procedures)
+  - [POPULATE] What evidence the auditor expects the recipient to
+    produce
+
+The compliance-area mapping the agent uses (procurement_standards,
+subrecipient_monitoring, classification_200_331, cost_reasonableness)
+maps onto Supplement categories A, B, I, and M most directly.
+
+------------------------------------------------------------------------
+
+IV. SPECIAL TESTS AND PROVISIONS (11.307-SPECIFIC)
+==================================================
+
+[POPULATE FROM 2025 SUPPLEMENT — typical content: program-specific
+audit procedures unique to the EDA Economic Adjustment Assistance
+program, often including beneficiary eligibility verification, project
+performance reporting against grant-specific outcome metrics, and
+specific subrecipient classification expectations for projects
+involving partner organizations.]
+
+The 11.307-specific Special Tests are the section the Compliance
+Requirements Agent MOST needs because they capture program-specific
+audit expectations that aren't in 2 CFR 200 generally. Until this
+file is populated, the agent's output for 11.307-specific compliance
+will be limited to the 2 CFR 200 baseline.
+
+------------------------------------------------------------------------
+
+V. KEY DEFINITIONS (11.307-specific)
+====================================
+
+[POPULATE FROM 2025 SUPPLEMENT — typical content: program-specific
+definitions for terms like "eligible area," "economic adjustment,"
+"matching share," etc.]
+
+------------------------------------------------------------------------
+
+VI. RELEVANT STATUTES, REGULATIONS, AND OMB CIRCULARS
+=====================================================
+
+[POPULATE FROM 2025 SUPPLEMENT — typical content: cross-references to
+the Public Works and Economic Development Act of 1965 (42 USC 3121 et
+seq.), 13 CFR Chapter III (EDA's program regulations), and any
+program-specific OMB circulars or memoranda.]
+
+------------------------------------------------------------------------
+
+APPLICABILITY NOTES (not part of the Supplement; for the agent's use)
+
+- This file's body is INTENTIONALLY EMPTY of citable text. The agent's
+  Mode A prompt instructs the model to NOT generate requirements
+  derived from skeleton files. Until populated, the agent's K8341
+  requirements set will reflect the 2 CFR 200 baseline only.
+- Mode B Q&A questions about 11.307-specific compliance will be
+  answered with an explicit "out-of-scope-of-current-corpus" caveat
+  per the spec's honesty discipline.
+- The most consequential gap this skeleton represents: the Supplement's
+  Special Tests and Provisions for 11.307 typically capture the
+  program-specific audit framework that pass-through monitors (ESD-WMU
+  in CFA's case) apply during their compliance reviews. Populating
+  this file from the 2025 Supplement is the highest-value corpus
+  upgrade pending.
+- Populate by: downloading the 2025 OMB Compliance Supplement PDF
+  (typically published April-June each year by OMB), navigating to
+  Part 4, finding Section 11.300 / 11.307, and transcribing the
+  relevant text into the appropriate sections above.
+========================================================================

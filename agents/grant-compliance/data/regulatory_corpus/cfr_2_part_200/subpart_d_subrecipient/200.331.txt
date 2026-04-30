@@ -1,0 +1,97 @@
+========================================================================
+CITATION:        2 CFR 200.331
+TITLE:           Subrecipient and contractor determinations
+SUBPART:         D — Post Federal Award Requirements (Subrecipient Monitoring and Management)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.331
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           §200.331 is the canonical "subrecipient vs contractor" determination test.
+                 The substance-over-form principle in (c) is the governing rule: the legal
+                 instrument's label (subaward / subgrant / contract / purchase order) is
+                 NOT determinative — the listed factors are. The 2024 final rule made the
+                 factor lists more explicit but preserved the substance-over-form test.
+                 This is the foundation for §200.332 (pass-through entity requirements);
+                 §200.332 obligations apply ONLY to those parties classified as subrecipients
+                 under §200.331.
+                 Verify exact wording at the SOURCE_URL above before citing in formal work.
+========================================================================
+
+§ 200.331  Subrecipient and contractor determinations.
+
+The non-Federal entity may concurrently receive Federal awards as a
+recipient, a subrecipient, and a contractor, depending on the substance
+of its agreements with Federal awarding agencies and pass-through
+entities. Therefore, a pass-through entity must make case-by-case
+determinations whether each agreement it makes for the disbursement of
+Federal program funds casts the party receiving the funds in the role
+of a subrecipient or a contractor. The Federal awarding agency may
+supply and require recipients to comply with additional guidance to
+support these determinations provided such guidance does not conflict
+with this section.
+
+(a) SUBRECIPIENTS. A subaward is for the purpose of carrying out a
+portion of a Federal award and creates a Federal assistance relationship
+with the subrecipient. See the definition of subaward in § 200.1.
+Characteristics which support the classification of the non-Federal
+entity as a subrecipient include when the non-Federal entity:
+
+  (1) Determines who is eligible to receive what Federal assistance;
+  (2) Has its performance measured in relation to whether objectives
+  of a Federal program were met;
+  (3) Has responsibility for programmatic decision-making;
+  (4) Is responsible for adherence to applicable Federal program
+  requirements specified in the Federal award; and
+  (5) In accordance with its agreement, uses the Federal funds to carry
+  out a program for a public purpose specified in authorizing statute,
+  as opposed to providing goods or services for the benefit of the
+  pass-through entity.
+
+(b) CONTRACTORS. A contract is for the purpose of obtaining goods and
+services for the non-Federal entity's own use and creates a procurement
+relationship with the contractor. See the definition of contract in
+§ 200.1. Characteristics indicative of a procurement relationship between
+the non-Federal entity and a contractor are when the contractor:
+
+  (1) Provides the goods and services within normal business operations;
+  (2) Provides similar goods or services to many different purchasers;
+  (3) Normally operates in a competitive environment;
+  (4) Provides goods or services that are ancillary to the operation of
+  the Federal program; and
+  (5) Is not subject to compliance requirements of the Federal program
+  as a result of the agreement, though similar requirements may apply
+  for other reasons.
+
+(c) USE OF JUDGMENT IN MAKING DETERMINATIONS. In determining whether an
+agreement between a pass-through entity and another non-Federal entity
+casts the latter as a subrecipient or a contractor, the substance of
+the relationship is more important than the form of the agreement. All
+of the characteristics listed above may not be present in all cases,
+and the pass-through entity must use judgment in classifying each
+agreement as a subaward or a procurement contract.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- The factor lists in (a) and (b) are NOT scoring tests. Auditors look
+  at the totality of the relationship. A party can have one or two
+  "subrecipient" characteristics and still be classified as a contractor
+  if the substance of the relationship is procurement.
+- For CFA's K8341 grant: the GJC training providers (Ada, Per Scholas,
+  Year Up, Vets2Tech, Code Day, NCESD, PNW CCG, Riipen, Apprenti) are
+  the canonical subrecipient candidates — they determine eligibility
+  for their participants, their performance is measured against grant
+  objectives (placements), and they're subject to the K8341 program's
+  compliance requirements.
+- AI Engage and the recovery contractors (Pete Vargo, Kelly Vargo)
+  appear to be contractors under §200.331(b) — they provide CFA with
+  recovery / outreach services within their normal business operations,
+  not running their own portion of the program. The classification
+  should be documented per (c) with the substance-of-relationship
+  reasoning written down.
+- The CLASSIFICATION DOCUMENTATION expected in Krista's audit-readiness
+  files: a written determination per party paid through the grant,
+  explaining which subset of factors led to the classification. Absence
+  of this documentation is a classic Single Audit finding.
+========================================================================
