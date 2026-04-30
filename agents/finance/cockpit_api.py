@@ -551,6 +551,95 @@ def _tab_audit(data: dict) -> dict:
     }
 
 
+def _tab_compliance(data: dict) -> dict:
+    """Compliance Requirements tab payload — proxies the engine's
+    GET /compliance/requirements/current.
+
+    Engine-side data lives in the grant_compliance.compliance_requirements_sets
+    + compliance_requirements tables, populated by the Compliance Requirements
+    Agent (Mode A run). When the engine is unreachable or no current set
+    exists for K8341, this handler returns a degraded payload with
+    engine_status set so the React UI can render a visually distinct
+    degraded state (matching the audit-tab pattern in §v1.2.6).
+
+    Spec: agents/finance/design/compliance_requirements_display_spec.md.
+    Engine implementation: agents/grant-compliance/src/grant_compliance/
+    compliance_requirements_agent/ (engine commit 4c1a566 on
+    feature/compliance-engine-extract).
+    """
+    import httpx
+
+    # Engine URL is overridable via env so dev environments where :8000 is
+    # taken by another service (e.g., the Waifinder marketing site) can run
+    # the engine on a free port. Default is the canonical 8000.
+    engine_base = os.environ.get("GRANT_COMPLIANCE_ENGINE_URL", "http://127.0.0.1:8000").rstrip("/")
+    timeout_seconds = 8.0
+
+    # Resolve K8341's grant_id by listing grants and matching award_number.
+    # Hardcoded UUID would be brittle (changes on DB rebuild). The lookup
+    # adds one HTTP call to tab-load latency; acceptable for v1.
+    try:
+        resp = httpx.get(f"{engine_base}/grants", timeout=timeout_seconds)
+        resp.raise_for_status()
+        grants = resp.json()
+        target = next(
+            (g for g in grants if g.get("award_number") == "K8341"),
+            None,
+        )
+        if target is None:
+            return {
+                "tab": "compliance",
+                "current_set": None,
+                "engine_status": "no_set_yet",
+                "engine_error": "K8341 grant not found in engine database. "
+                "Seed the grant before generating a requirements set.",
+            }
+        grant_id = target["id"]
+    except Exception as exc:  # noqa: BLE001 — graceful degradation
+        return {
+            "tab": "compliance",
+            "current_set": None,
+            "engine_status": "unreachable",
+            "engine_error": f"Engine /grants fetch failed: {type(exc).__name__}: {exc}",
+        }
+
+    # Fetch the current requirements set.
+    try:
+        resp = httpx.get(
+            f"{engine_base}/compliance/requirements/current",
+            params={"grant_id": grant_id},
+            timeout=timeout_seconds,
+        )
+        if resp.status_code == 404:
+            return {
+                "tab": "compliance",
+                "current_set": None,
+                "engine_status": "no_set_yet",
+                "engine_error": (
+                    f"No current ComplianceRequirementsSet for K8341 "
+                    f"(grant_id={grant_id}). Run "
+                    "POST /compliance/requirements/generate first."
+                ),
+            }
+        resp.raise_for_status()
+        current_set = resp.json()
+    except Exception as exc:  # noqa: BLE001 — graceful degradation
+        return {
+            "tab": "compliance",
+            "current_set": None,
+            "engine_status": "unreachable",
+            "engine_error": f"Engine /compliance/requirements/current fetch failed: "
+                            f"{type(exc).__name__}: {exc}",
+        }
+
+    return {
+        "tab": "compliance",
+        "current_set": current_set,
+        "engine_status": "ok",
+        "engine_error": None,
+    }
+
+
 _TAB_HANDLERS = {
     "budget": _tab_budget,
     "placements": _tab_placements,
@@ -558,6 +647,7 @@ _TAB_HANDLERS = {
     "transactions": _tab_transactions,
     "reporting": _tab_reporting,
     "audit": _tab_audit,
+    "compliance": _tab_compliance,
 }
 
 
