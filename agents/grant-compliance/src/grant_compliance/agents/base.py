@@ -39,11 +39,40 @@ class Agent(ABC):
         max_tokens: int = 1024,
         temperature: float = 0.0,
     ) -> LLMResponse:
-        """Call the LLM and write an audit entry in one step."""
+        """Call the LLM and write an audit entry in one step.
+
+        Both the success and failure paths write to audit_log: a successful
+        call records the response preview + served model; a raised
+        exception records `failed: True` plus the exception type and
+        message before re-raising. Without the failure path, transient
+        API errors (auth, credit balance, rate limits) leave no trace
+        an attempt was made — violating the engine's "every consequential
+        agent action writes to audit_log" discipline.
+        """
         client = get_llm()
-        response = client.complete(
-            system=system, user=user, max_tokens=max_tokens, temperature=temperature
-        )
+        try:
+            response = client.complete(
+                system=system, user=user, max_tokens=max_tokens, temperature=temperature
+            )
+        except Exception as exc:
+            write_entry(
+                db=self.db,
+                actor=self.name,
+                actor_kind="agent",
+                action=action,
+                target_type=target_type,
+                target_id=target_id,
+                inputs={"user_prompt_preview": user[:500], **(extra_inputs or {})},
+                outputs={
+                    "failed": True,
+                    "exception_type": type(exc).__name__,
+                    "exception_message": str(exc)[:1000],
+                },
+                model=None,  # no served model on failure
+                prompt=user,
+                note="LLM call raised; no response received.",
+            )
+            raise
         write_entry(
             db=self.db,
             actor=self.name,
