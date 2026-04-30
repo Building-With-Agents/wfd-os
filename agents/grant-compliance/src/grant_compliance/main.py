@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from grant_compliance.api.routes import (
     allocations,
     compliance,
+    compliance_requirements,
     grants,
     qb_oauth,
     reports,
@@ -42,6 +43,7 @@ app.include_router(grants.router)
 app.include_router(transactions.router)
 app.include_router(allocations.router)
 app.include_router(compliance.router)
+app.include_router(compliance_requirements.router)
 app.include_router(time_effort.router)
 app.include_router(reports.router)
 app.include_router(qb_oauth.router)

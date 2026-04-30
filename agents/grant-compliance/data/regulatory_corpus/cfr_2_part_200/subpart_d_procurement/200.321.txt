@@ -1,0 +1,56 @@
+========================================================================
+CITATION:        2 CFR 200.321
+TITLE:           Contracting with small businesses, minority businesses, women's business enterprises, labor surplus area firms, and veteran-owned businesses
+SUBPART:         D — Post Federal Award Requirements (Procurement Standards)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.321
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           The 2024 final rule expanded the section's scope to explicitly include
+                 veteran-owned businesses and to clarify the affirmative-steps obligation
+                 applies to the non-Federal entity itself, not just its prime contractors.
+                 Verify exact wording at the SOURCE_URL above before citing in formal work.
+========================================================================
+
+§ 200.321  Contracting with small businesses, minority businesses, women's business enterprises, labor surplus area firms, and veteran-owned businesses.
+
+(a) The non-Federal entity must take all necessary affirmative steps to
+assure that minority businesses, women's business enterprises, veteran-
+owned businesses, and labor surplus area firms are used when possible.
+
+(b) AFFIRMATIVE STEPS MUST INCLUDE:
+
+  (1) Placing qualified small and minority businesses, women's business
+  enterprises, and veteran-owned businesses on solicitation lists;
+  (2) Assuring that small and minority businesses, women's business
+  enterprises, and veteran-owned businesses are solicited whenever they
+  are potential sources;
+  (3) Dividing total requirements, when economically feasible, into
+  smaller tasks or quantities to permit maximum participation by small
+  and minority businesses, women's business enterprises, and veteran-
+  owned businesses;
+  (4) Establishing delivery schedules, where the requirement permits,
+  which encourage participation by small and minority businesses,
+  women's business enterprises, and veteran-owned businesses;
+  (5) Using the services and assistance, as appropriate, of such
+  organizations as the Small Business Administration and the Minority
+  Business Development Agency of the Department of Commerce; and
+  (6) Requiring the prime contractor, if subcontracts are to be let, to
+  take the affirmative steps listed in paragraphs (b)(1) through (5) of
+  this section.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- "Affirmative steps" is the operative phrase auditors examine. The
+  non-Federal entity does not have to award contracts to these firms;
+  it has to demonstrably take the listed steps.
+- Documentation of affirmative steps typically includes: solicitation
+  lists showing inclusion of qualified firms in these categories,
+  outreach records to SBA / MBDA, written rationale when small/minority
+  firms were not solicited despite being potential sources.
+- The 2024 final rule explicitly added "veteran-owned businesses" to
+  the list — the affirmative-steps obligation now extends to
+  veteran-owned firms in addition to the historical four categories.
+========================================================================

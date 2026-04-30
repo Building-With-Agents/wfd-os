@@ -405,3 +405,150 @@ class AuditLog(Base):
     model: Mapped[Optional[str]] = mapped_column(String(100))  # LLM model id if agent
     prompt_hash: Mapped[Optional[str]] = mapped_column(String(64))
     note: Mapped[Optional[str]] = mapped_column(Text)
+
+
+# ---------------------------------------------------------------------------
+# Compliance Requirements Agent — Mode A output sets and Mode B Q&A log
+# Spec: agents/grant-compliance/docs/compliance_requirements_agent_spec.md
+# Corpus: agents/grant-compliance/data/regulatory_corpus/
+# ---------------------------------------------------------------------------
+
+
+class ComplianceRequirementsSet(Base):
+    """A Mode A generation run's output — a comprehensive structured
+    documentation requirements specification for a specific grant.
+
+    Each set is keyed by a stable `set_id` (UUID) and is immutable once
+    written. New runs do not delete old sets; instead they set
+    `superseded_by_id` on the prior set so the audit trail of how the
+    requirements specification evolved is preserved. The `is_current`
+    flag is set on exactly one set per grant at a time (the active one
+    the cockpit displays); the supersede operation flips this in a
+    single transaction.
+
+    Reproducibility: the full prompt text, model name, and full LLM
+    response are stored alongside the parsed requirements so any
+    specific run is reproducible later. This extends the engine's
+    audit_log discipline to LLM-generated structured artifacts.
+    """
+
+    __tablename__ = "compliance_requirements_sets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    grant_id: Mapped[str] = mapped_column(
+        ForeignKey("grants.id"), nullable=False, index=True
+    )
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True
+    )
+
+    # Scope of the generation: which compliance areas, contracts, engagement
+    # the run covered. JSON because the shape is a structured object
+    # (ComplianceArea[], contract_ids[], engagement_id?).
+    scope: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    # Provenance of the regulatory corpus the agent worked from.
+    regulatory_corpus_version: Mapped[str] = mapped_column(String(100), nullable=False)
+
+    # Snapshot of the CFA-specific facts the agent used to tailor output —
+    # contract counts, classifications, thresholds in play. Lets a later
+    # reader understand what assumptions drove the specifics.
+    grant_context: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    # LLM call audit trail
+    model_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    model_response_text: Mapped[Optional[str]] = mapped_column(Text)  # full raw response
+    prompt_text: Mapped[Optional[str]] = mapped_column(Text)  # full prompt sent
+    prompt_hash: Mapped[Optional[str]] = mapped_column(String(64))
+    input_tokens: Mapped[Optional[int]] = mapped_column(Integer)
+    output_tokens: Mapped[Optional[int]] = mapped_column(Integer)
+
+    # Versioning
+    superseded_by_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey("compliance_requirements_sets.id"),
+        nullable=True,
+    )
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Human review (per spec §"Determinism and reproducibility" — Mode A
+    # output is a draft until reviewed). Optional fields.
+    reviewed_by: Mapped[Optional[str]] = mapped_column(String(255))
+    reviewed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    review_notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    requirements: Mapped[list["ComplianceRequirementRow"]] = relationship(
+        back_populates="set", cascade="all, delete-orphan"
+    )
+
+
+class ComplianceRequirementRow(Base):
+    """One requirement record within a ComplianceRequirementsSet.
+
+    The row's content matches the spec's Requirement schema. Each row
+    must cite a specific CFR section (regulatory_citation) and include
+    a verbatim or paraphrased excerpt (regulatory_text_excerpt) so the
+    requirement is auditable against the source corpus.
+    """
+
+    __tablename__ = "compliance_requirements"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    set_id: Mapped[str] = mapped_column(
+        ForeignKey("compliance_requirements_sets.id"), nullable=False, index=True
+    )
+    requirement_id: Mapped[str] = mapped_column(String(100), nullable=False)
+    compliance_area: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+
+    regulatory_citation: Mapped[str] = mapped_column(String(255), nullable=False)
+    regulatory_text_excerpt: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Applicability: structured object {applies_to, threshold_value?, circumstance_description?}
+    applicability: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    requirement_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    documentation_artifacts_required: Mapped[list] = mapped_column(JSON, default=list)
+    documentation_form_guidance: Mapped[Optional[str]] = mapped_column(Text)
+    cfa_specific_application: Mapped[Optional[str]] = mapped_column(Text)
+
+    severity_if_missing: Mapped[str] = mapped_column(String(20), nullable=False)
+
+    set: Mapped[ComplianceRequirementsSet] = relationship(back_populates="requirements")
+
+
+class ComplianceQALog(Base):
+    """One Mode B Q&A interaction. Every Mode B query is logged: the
+    question, the structured response, the model used, the prompt, and
+    the timestamp. Per spec §"Open questions" #3 — Ritu confirmed the
+    recommendation to retain Mode B exchanges for review/audit.
+    """
+
+    __tablename__ = "compliance_qa_log"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    asked_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, index=True
+    )
+    asked_by: Mapped[Optional[str]] = mapped_column(String(255))
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Optional caller-supplied hints (e.g., a contract_id) that the agent
+    # may use to scope its reply.
+    context_hints: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    # The structured response — answer, citations, relevant_existing_requirements,
+    # caveats, out_of_scope_warning — stored as JSON to match the QAResponse
+    # Pydantic schema.
+    response: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    # Whether the response was a structured refusal (legal-opinion or
+    # out-of-scope question). True ⇒ Mode B declined; the response field
+    # carries the structured refusal.
+    refused: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # LLM call audit trail
+    model_name: Mapped[Optional[str]] = mapped_column(String(100))
+    model_response_text: Mapped[Optional[str]] = mapped_column(Text)
+    prompt_text: Mapped[Optional[str]] = mapped_column(Text)
+    prompt_hash: Mapped[Optional[str]] = mapped_column(String(64))
+    input_tokens: Mapped[Optional[int]] = mapped_column(Integer)
+    output_tokens: Mapped[Optional[int]] = mapped_column(Integer)

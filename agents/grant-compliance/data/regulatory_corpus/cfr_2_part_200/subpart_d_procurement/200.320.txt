@@ -1,0 +1,173 @@
+========================================================================
+CITATION:        2 CFR 200.320
+TITLE:           Methods of procurement to be followed
+SUBPART:         D — Post Federal Award Requirements (Procurement Standards)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.320
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           Defines the dollar-threshold-banded methods: micro-purchase, small purchase
+                 (informal), sealed bids and competitive proposals (formal), and noncompetitive.
+                 Cross-references the Micro-Purchase Threshold (MPT) and Simplified
+                 Acquisition Threshold (SAT) defined in 48 CFR Subpart 2.1 (FAR).
+                 As of the 2024 final rule:
+                   - MPT (§200.320(a)(1)):  $10,000  (set by reference to FAR)
+                   - SAT (§200.320(b)):     $250,000 (set by reference to FAR)
+                 (b)(1) requires a cost or price analysis in connection with every procurement
+                 action above the SAT — note that §200.324 also addresses cost/price analysis.
+                 Verify exact wording and current thresholds at the SOURCE_URL.
+========================================================================
+
+§ 200.320  Methods of procurement to be followed.
+
+The non-Federal entity must use one of the following methods of
+procurement.
+
+(a) INFORMAL PROCUREMENT METHODS. When the value of the procurement for
+property or services under a Federal award does not exceed the
+Simplified Acquisition Threshold (SAT), or a lower threshold established
+by a non-Federal entity, formal procurement methods are not required.
+The non-Federal entity may use informal procurement methods to expedite
+the completion of its transactions and minimize the associated
+administrative burden and cost. Informal procurement methods include
+but are not limited to:
+
+  (1) MICRO-PURCHASES.
+
+    (i) Distribution. Procurement by micro-purchase is the acquisition
+    of supplies or services using simplified acquisition procedures, the
+    aggregate amount of which does not exceed the micro-purchase
+    threshold. The non-Federal entity may use these procedures, provided
+    it considers the price to be reasonable based on research, experience,
+    purchase history, or other information; documents its files
+    accordingly; and uses the methods to the maximum extent practicable.
+    Purchases must be distributed equitably among qualified suppliers.
+
+    (ii) Micro-purchase awards. Micro-purchases may be awarded without
+    soliciting competitive price or rate quotations if the non-Federal
+    entity considers the price to be reasonable based on research,
+    experience, purchase history, or other information and documents its
+    files accordingly.
+
+    (iii) Micro-purchase thresholds. The non-Federal entity is responsible
+    for determining and documenting an appropriate micro-purchase
+    threshold based on internal controls, an evaluation of risk, and its
+    documented procurement procedures. The micro-purchase threshold used
+    by the non-Federal entity must be authorized or not prohibited under
+    state, local, or tribal laws or regulations. Non-Federal entities
+    may establish a threshold higher than the federal MPT, up to
+    permissible self-certification limits, based on the criteria below.
+    See 48 CFR Subpart 2.1 (FAR) for the federal MPT, currently $10,000.
+
+  (2) SMALL PURCHASES. Procurement by small purchase procedures is the
+  acquisition of property or services, the aggregate dollar amount of
+  which is higher than the micro-purchase threshold but does not exceed
+  the simplified acquisition threshold. If small purchase procedures are
+  used, price or rate quotations must be obtained from an adequate number
+  of qualified sources as determined appropriate by the non-Federal entity.
+
+(b) FORMAL PROCUREMENT METHODS. When the value of the procurement for
+property or services under a Federal financial assistance award exceeds
+the SAT, or a lower threshold established by a non-Federal entity, formal
+procurement methods are required. Formal procurement methods require
+following documented procedures and also requiring public solicitation
+of bids or proposals.
+
+  (1) SEALED BIDS. A procurement method in which bids are publicly
+  solicited and a firm fixed price contract (lump sum or unit price) is
+  awarded to the responsible bidder whose bid, conforming to all the
+  material terms and conditions of the invitation for bids, is the
+  lowest in price. The sealed bid method is the preferred method for
+  procuring construction, if the conditions in paragraph (b)(1)(i) of
+  this section apply.
+
+    (i) In order for sealed bidding to be feasible, the following
+    conditions should be present:
+      (A) A complete, adequate, and realistic specification or purchase
+      description is available;
+      (B) Two or more responsible bidders are willing and able to
+      compete effectively for the business; and
+      (C) The procurement lends itself to a firm fixed price contract
+      and the selection of the successful bidder can be made principally
+      on the basis of price.
+
+    (ii) If sealed bids are used, the following requirements apply:
+      (A) Bids must be solicited from an adequate number of known
+      suppliers, providing them sufficient response time prior to the
+      date set for opening the bids; for state, local, and tribal
+      governments, the invitation for bids must be publicly advertised;
+      (B) The invitation for bids, which will include any specifications
+      and pertinent attachments, must define the items or services in
+      order for the bidder to properly respond;
+      (C) All bids will be opened at the time and place prescribed in
+      the invitation for bids, and for state, local, and tribal
+      governments, the bids must be opened publicly;
+      (D) A firm fixed price contract award will be made in writing to
+      the lowest responsive and responsible bidder. Where specified in
+      bidding documents, factors such as discounts, transportation cost,
+      and life cycle costs must be considered in determining which bid
+      is lowest. Payment discounts will only be used to determine the
+      low bid when prior experience indicates that such discounts are
+      generally taken advantage of; and
+      (E) Any or all bids may be rejected if there is a sound documented
+      reason.
+
+  (2) PROPOSALS. A procurement method in which either a fixed price or
+  cost-reimbursement type contract is awarded. Proposals are generally
+  used when conditions are not appropriate for the use of sealed bids.
+  They are awarded in accordance with the following requirements:
+
+    (i) Requests for proposals must be publicized and identify all
+    evaluation factors and their relative importance. Any response to
+    publicized requests for proposals must be considered to the maximum
+    extent practical;
+    (ii) Proposals must be solicited from an adequate number of qualified
+    sources;
+    (iii) The non-Federal entity must have a written method for
+    conducting technical evaluations of the proposals received and for
+    selecting recipients;
+    (iv) Contracts must be awarded to the responsible firm whose proposal
+    is most advantageous to the program, with price and other factors
+    considered; and
+    (v) The non-Federal entity may use competitive proposal procedures
+    for qualifications-based procurement of architectural/engineering
+    (A/E) professional services whereby offerors' qualifications are
+    evaluated and the most qualified offeror is selected, subject to
+    negotiation of fair and reasonable compensation. The method, where
+    price is not used as a selection factor, can only be used in
+    procurement of A/E professional services. It cannot be used to
+    purchase other types of services though A/E firms are a potential
+    source to perform the proposed effort.
+
+(c) NONCOMPETITIVE PROCUREMENT. There are specific circumstances in
+which noncompetitive procurement can be used. Noncompetitive procurement
+can only be awarded if one or more of the following circumstances apply:
+
+  (1) The acquisition of property or services, the aggregate dollar
+  amount of which does not exceed the micro-purchase threshold (see
+  paragraph (a)(1) of this section);
+  (2) The item is available only from a single source;
+  (3) The public exigency or emergency for the requirement will not
+  permit a delay resulting from publicizing a competitive solicitation;
+  (4) The Federal awarding agency or pass-through entity expressly
+  authorizes a noncompetitive procurement in response to a written
+  request from the non-Federal entity; or
+  (5) After solicitation of a number of sources, competition is
+  determined inadequate.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- The four "permitted noncompetitive" circumstances in (c)(2)–(5) are
+  exclusive: a sole-source procurement that doesn't fit one of these
+  is a competition violation.
+- A written sole-source justification documenting which (c) circumstance
+  applies is the standard auditor expectation; see also §200.318(i)
+  (records sufficient to detail the history of procurement) and §200.324
+  (cost analysis required for sole-source above MPT).
+- For CFA's K8341 procurements: contracts above the $250,000 SAT trigger
+  formal methods (sealed bids or proposals). Contracts at or below the
+  $10,000 MPT can use micro-purchase. Contracts in between can use
+  small-purchase informal procedures.
+========================================================================

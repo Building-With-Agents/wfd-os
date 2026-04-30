@@ -37,24 +37,33 @@ class Agent(ABC):
         target_id: str | None = None,
         extra_inputs: dict[str, Any] | None = None,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = None,
+        model: str | None = None,
     ) -> LLMResponse:
         """Call the LLM and write an audit entry in one step.
 
-        Both the success and failure paths write to audit_log: a successful
-        call records the response preview + served model; a raised
-        exception records `failed: True` plus the exception type and
-        message before re-raising. Without the failure path, transient
-        API errors (auth, credit balance, rate limits) leave no trace
-        an attempt was made — violating the engine's "every consequential
-        agent action writes to audit_log" discipline.
+        `model` overrides the engine's default `settings.anthropic_model`
+        for this single call. The requested model is recorded in the
+        audit_log inputs as `model_requested`; the model the API actually
+        served (what `LLMResponse.model` reports) is recorded on the
+        audit_log row's `model` column. The two may differ when the
+        requested alias resolves to a specific dated version.
         """
         client = get_llm()
         try:
             response = client.complete(
-                system=system, user=user, max_tokens=max_tokens, temperature=temperature
+                system=system,
+                user=user,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                model=model,
             )
         except Exception as exc:
+            # Record the attempted-but-failed call so the audit trail
+            # captures the full history. Without this, transient API
+            # errors (auth, credit balance, rate limits) leave no trace
+            # an attempt was made — violating the engine's "every
+            # consequential agent action writes to audit_log" discipline.
             write_entry(
                 db=self.db,
                 actor=self.name,
@@ -62,13 +71,17 @@ class Agent(ABC):
                 action=action,
                 target_type=target_type,
                 target_id=target_id,
-                inputs={"user_prompt_preview": user[:500], **(extra_inputs or {})},
+                inputs={
+                    "user_prompt_preview": user[:500],
+                    "model_requested": model,
+                    **(extra_inputs or {}),
+                },
                 outputs={
                     "failed": True,
                     "exception_type": type(exc).__name__,
                     "exception_message": str(exc)[:1000],
                 },
-                model=None,  # no served model on failure
+                model=model,  # the requested model — no served model on failure
                 prompt=user,
                 note="LLM call raised; no response received.",
             )
@@ -80,7 +93,11 @@ class Agent(ABC):
             action=action,
             target_type=target_type,
             target_id=target_id,
-            inputs={"user_prompt_preview": user[:500], **(extra_inputs or {})},
+            inputs={
+                "user_prompt_preview": user[:500],
+                "model_requested": model,
+                **(extra_inputs or {}),
+            },
             outputs={"text_preview": response.text[:1000]},
             model=response.model,
             prompt=user,

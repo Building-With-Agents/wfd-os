@@ -33,13 +33,31 @@ class LLMClient:
         system: str,
         user: str,
         max_tokens: int = 1024,
-        temperature: float = 0.0,
+        temperature: float | None = None,
+        model: str | None = None,
     ) -> LLMResponse:
-        """Run a single-turn completion."""
+        """Run a single-turn completion.
+
+        `model` overrides `settings.anthropic_model` for this single call.
+        Useful when one feature needs a different tier than the engine's
+        default (e.g., the Compliance Requirements Agent runs Mode A on
+        Opus once for foundational quality and Sonnet thereafter — see
+        agents/grant-compliance/docs/compliance_requirements_agent_spec.md).
+        Passing `None` (the default) uses the engine's configured model.
+
+        `temperature` is opt-in. Newer Anthropic models (Opus 4.x and
+        later) reject the parameter; passing None lets the model use its
+        own default. Set explicitly only when deterministic sampling
+        matters and you've confirmed the target model accepts it.
+        """
         if self.settings.llm_provider == "mock":
             return self._mock_complete(system=system, user=user)
         return self._anthropic_complete(
-            system=system, user=user, max_tokens=max_tokens, temperature=temperature
+            system=system,
+            user=user,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            model=model,
         )
 
     # -------------------------------------------------------------------
@@ -47,7 +65,13 @@ class LLMClient:
     # -------------------------------------------------------------------
 
     def _anthropic_complete(
-        self, *, system: str, user: str, max_tokens: int, temperature: float
+        self,
+        *,
+        system: str,
+        user: str,
+        max_tokens: int,
+        temperature: float | None = None,
+        model: str | None = None,
     ) -> LLMResponse:
         if not self.settings.anthropic_api_key:
             raise RuntimeError(
@@ -59,13 +83,26 @@ class LLMClient:
 
             self._anthropic = Anthropic(api_key=self.settings.anthropic_api_key)
 
-        msg = self._anthropic.messages.create(
-            model=self.settings.anthropic_model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-        )
+        # Build kwargs dict so we can omit `temperature` entirely for
+        # models that deprecated it (Opus 4.x and later). Including
+        # temperature=0.0 raises a 400 on those models.
+        create_kwargs = {
+            "model": model or self.settings.anthropic_model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": [{"role": "user", "content": user}],
+        }
+        if temperature is not None:
+            create_kwargs["temperature"] = temperature
+
+        # Use streaming for all Anthropic calls. The SDK requires streaming
+        # for any request that may take longer than 10 minutes
+        # (large-max_tokens requests trigger this even when the actual run
+        # is faster). Streaming handles small calls equally well; the
+        # interface stays synchronous — we accumulate the stream and
+        # return when the final message is available.
+        with self._anthropic.messages.stream(**create_kwargs) as stream:
+            msg = stream.get_final_message()
         # Concatenate any text blocks
         text_parts = [
             block.text for block in msg.content if getattr(block, "type", "") == "text"

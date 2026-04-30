@@ -13,3 +13,9 @@ dist/
 build/
 .coverage
 htmlcov/
+
+# Compliance Requirements Agent — runtime artifacts (Mode A / Mode B
+# saved outputs, prompts, scratch files). These are operational
+# scratch only; the canonical record is in compliance_requirements_sets
+# and compliance_qa_log tables.
+.run_outputs/
