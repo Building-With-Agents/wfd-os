@@ -190,6 +190,95 @@ export interface BudgetTabPayload {
   categories: SummaryCategory[]
   totals: { budget: number; spent: number; remaining: number; pct: number }
   months_remaining: number
+  /** Personnel & Contractors sub-section payload. See
+   *  agents/finance/design/personnel_contractors_view_spec.md and
+   *  agents/finance/personnel.py::to_dict for the contract. */
+  personnel: PersonnelPayload
+}
+
+// ---------- Personnel & Contractors sub-section ----------
+
+export type PersonnelEngagementType = "employee" | "contractor" | "subcontractor" | ""
+export type PersonnelBudgetLine =
+  | "personnel_salaries"
+  | "personnel_benefits"
+  | "cfa_contractors"
+  | "gjc_contractors_strategic"
+  | string  // tolerate unknown lines surfaced by the parser
+
+export interface PersonnelQuarterlyActual {
+  quarter: string
+  amount_paid: number
+  source: string
+  qb_vendor_name: string | null
+}
+
+export interface PersonnelQuarterlyProjection {
+  quarter: string
+  projected_amount: number
+  projection_basis: string
+}
+
+export interface PersonnelPerson {
+  id: string
+  name: string
+  role: string
+  engagement_type: PersonnelEngagementType
+  vendor_legal_entity: string | null
+  start_date: string | null
+  end_date: string | null
+  budget_line: PersonnelBudgetLine
+  amended_budget_total: number
+  rate_amount: number
+  rate_unit: string
+  rate_basis: string
+  rate_effective_date: string | null
+  actuals: PersonnelQuarterlyActual[]
+  projections: PersonnelQuarterlyProjection[]
+  missing_required_fields: string[]
+  projections_missing: boolean
+  paid_to_date: number
+  projected_total_remaining: number
+  total_committed: number
+  variance_vs_amended: number
+  variance_pct: number
+  amended_budget_remaining_periods: number
+  documentation_incomplete: boolean
+  drill_key: string  // "person:<id>"
+}
+
+export interface PersonnelRollup {
+  budget_line: string
+  label: string
+  person_count: number
+  amended_budget_total: number
+  paid_to_date: number
+  projected_total_remaining: number
+  total_committed: number
+  variance_vs_amended: number
+  amendment_1_reference: number | null
+  reconciliation_delta: number | null
+  reconciles: boolean | null
+}
+
+export interface PersonnelReconciliationWarning {
+  level: "error" | "warning" | "info"
+  budget_line: string | null
+  message: string
+}
+
+export interface PersonnelPayload {
+  people: PersonnelPerson[]
+  rollups: PersonnelRollup[]
+  distinct_person_count: number
+  summary: {
+    paid_to_date: number
+    total_committed: number
+    variance_vs_amended: number
+  }
+  reconciliation_warnings: PersonnelReconciliationWarning[]
+  extracted_at: string | null
+  source_workbook: string | null
 }
 
 export interface PlacementsTabPayload {

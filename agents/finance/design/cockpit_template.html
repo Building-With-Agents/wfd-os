@@ -1027,6 +1027,132 @@
             </p>
           </div>
         </div>
+
+        {# ----- Personnel & Contractors sub-section -----
+           Spec: agents/finance/design/personnel_contractors_view_spec.md
+           Data: agents/finance/personnel.py via cockpit_data.extract_all["personnel"] #}
+        <div class="panel" style="margin-top:24px;">
+          <div class="panel-head">
+            <h3>Personnel &amp; Contractors</h3>
+            <span class="helper">Per-person allocations · grant-funded only</span>
+          </div>
+          <div class="panel-body">
+            {# Reconciliation drift surfaces prominently — never silently absorbed #}
+            {% set _err_warnings = personnel.reconciliation_warnings | selectattr('level', 'equalto', 'error') | list %}
+            {% if _err_warnings %}
+            <div style="background:var(--critical-soft,#FBE9E9);color:var(--critical,#B43E3E);border:1px solid var(--critical,#B43E3E);padding:10px 14px;margin-bottom:14px;font-size:13px;">
+              <strong>Reconciliation drift — fix before relying on these numbers:</strong>
+              <ul style="margin:6px 0 0;padding-left:20px;">
+                {% for w in _err_warnings %}
+                <li>{{ w.message }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+
+            {# Three summary stat cards (matches existing .three-col + .stat pattern) #}
+            <div class="three-col" style="margin-bottom:16px;">
+              <div class="stat">
+                <div class="label">Grant-funded people</div>
+                <div class="value num">{{ "{:,}".format(personnel.distinct_person_count) }}</div>
+                <div class="sub">{% if personnel.people | length == 0 %}Awaiting initial population{% else %}{{ personnel.people | length }} budget rows{% endif %}</div>
+              </div>
+              <div class="stat">
+                <div class="label">Paid to date (all categories)</div>
+                <div class="value num">${{ "{:,.0f}".format(personnel.summary.paid_to_date) }}</div>
+                <div class="sub">Sum of recorded actuals</div>
+              </div>
+              <div class="stat">
+                <div class="label">Projected variance through Sept 30, 2026</div>
+                {% set _v = personnel.summary.variance_vs_amended %}
+                <div class="value num" style="color:{% if _v >= 0 %}var(--good)
+                  {%- else %}var(--critical){% endif %};">
+                  {% if _v >= 0 %}+{% endif %}${{ "{:,.0f}".format(_v) }}
+                </div>
+                <div class="sub">{% if _v >= 0 %}under budget{% else %}projected overrun{% endif %}</div>
+              </div>
+            </div>
+
+            {# Empty state — pre-step-8 #}
+            {% if personnel.people | length == 0 %}
+            <div style="padding:16px;background:var(--surface-alt);border:1px dashed var(--border-strong);color:var(--text-2);font-size:13px;">
+              <strong>Awaiting initial data population.</strong> The personnel
+              workbook at <code>agents/finance/design/fixtures/K8341_Personnel_and_Contractors.xlsx</code>
+              is empty pending the complete person list from Ritu and Krista
+              (spec §"Open questions for Ritu"). Once populated, each person
+              appears here grouped by budget line, with rate, amended budget,
+              paid-to-date, projected remaining, and variance.
+            </div>
+            {% else %}
+              {# Grouped table — one block per budget line that has people #}
+              {% for rollup in personnel.rollups %}
+                {% set _line_people = personnel.people | selectattr('budget_line', 'equalto', rollup.budget_line) | list %}
+                {% if _line_people %}
+                <div style="margin-bottom:16px;">
+                  <div style="background:var(--surface-alt);padding:8px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);display:flex;gap:16px;align-items:center;font-size:13px;">
+                    <strong>{{ rollup.label }}</strong>
+                    <span class="num" style="color:var(--text-2);">
+                      Amended ${{ "{:,.0f}".format(rollup.amended_budget_total) }}
+                      {% if rollup.amendment_1_reference is not none and rollup.reconciles == false %}
+                        <span style="color:var(--critical);margin-left:6px;">(Amendment 1: ${{ "{:,.0f}".format(rollup.amendment_1_reference) }})</span>
+                      {% endif %}
+                    </span>
+                    <span class="num" style="color:var(--text-2);">Paid ${{ "{:,.0f}".format(rollup.paid_to_date) }}</span>
+                    <span class="num" style="color:var(--text-2);">Projected ${{ "{:,.0f}".format(rollup.projected_total_remaining) }}</span>
+                    <span class="num" style="margin-left:auto;color:{% if rollup.variance_vs_amended >= 0 %}var(--good)
+                      {%- else %}var(--critical){% endif %};">
+                      Variance {% if rollup.variance_vs_amended >= 0 %}+{% endif %}${{ "{:,.0f}".format(rollup.variance_vs_amended) }}
+                    </span>
+                  </div>
+                  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                      <tr>
+                        <th class="left">Name</th>
+                        <th class="left">Role</th>
+                        <th class="left">Engagement</th>
+                        <th class="right">Rate</th>
+                        <th class="right">Amended</th>
+                        <th class="right">Paid</th>
+                        <th class="right">Projected remaining</th>
+                        <th class="right">Variance</th>
+                        <th class="right">Variance %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for p in _line_people | sort(attribute='amended_budget_total', reverse=true) %}
+                      <tr data-drill="{{ p.drill_key }}" style="cursor:pointer;">
+                        <td>
+                          {{ p.name }}
+                          {% if p.documentation_incomplete %}
+                            <span style="margin-left:6px;font-size:10px;color:var(--watch);text-transform:uppercase;letter-spacing:0.04em;" title="Missing: {{ p.missing_required_fields | join(', ') }}">doc incomplete</span>
+                          {% endif %}
+                        </td>
+                        <td>{{ p.role or "—" }}</td>
+                        <td>{{ p.engagement_type or "—" }}</td>
+                        <td class="right num">{% if p.rate_amount and p.rate_unit %}${{ "{:,.0f}".format(p.rate_amount) }} / {{ p.rate_unit }}{% else %}—{% endif %}</td>
+                        <td class="right num">${{ "{:,.0f}".format(p.amended_budget_total) }}</td>
+                        <td class="right num">${{ "{:,.0f}".format(p.paid_to_date) }}</td>
+                        <td class="right num">{% if p.projections_missing %}<span style="color:var(--watch);">not yet projected</span>{% else %}${{ "{:,.0f}".format(p.projected_total_remaining) }}{% endif %}</td>
+                        <td class="right num" style="color:{% if p.variance_vs_amended >= 0 %}var(--good){% else %}var(--critical){% endif %};">{% if p.variance_vs_amended >= 0 %}+{% endif %}${{ "{:,.0f}".format(p.variance_vs_amended) }}</td>
+                        <td class="right num" style="color:{% if p.variance_vs_amended >= 0 %}var(--good){% else %}var(--critical){% endif %};">{{ "{:.1f}".format(p.variance_pct * 100) }}%</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+
+            {# What's not in this view — transparency footer (per spec) #}
+            <div style="background:var(--surface-alt);padding:10px 14px;margin-top:14px;font-size:11px;color:var(--text-3);border-left:3px solid var(--border-strong);">
+              <strong style="color:var(--text-2);">What's not in this view:</strong>
+              Training provider staff (paid through providers, not directly by CFA),
+              AI Engage's internal team (surfaced as the contractor entity),
+              and CFA staff funded from non-grant sources.
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

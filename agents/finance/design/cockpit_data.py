@@ -1829,6 +1829,38 @@ def _find_fixture(project_dir: Path, patterns: list,
     return None
 
 
+def _extract_personnel(project_dir):
+    """Pull the personnel & contractors workbook into the extract dict.
+
+    Defers to agents/finance/personnel.py for the actual parsing,
+    computation, and reconciliation. Returns the to_dict() shape so the
+    cockpit template + cockpit_api can consume without dataclass
+    serialization plumbing. See
+    agents/finance/design/personnel_contractors_view_spec.md for the
+    contract this honours.
+
+    Drill registry contributions: build_personnel_drills() returns
+    `person:<id>` entries that the cockpit's polymorphic drill route
+    serves unchanged — same shape (eyebrow / title / summary / sections
+    with stable ids) as every other drill.
+    """
+    # Local imports keep cockpit_data.py importable in environments where
+    # personnel.py's openpyxl import would fail; openpyxl is already a
+    # cockpit dependency, so this is belt-and-suspenders.
+    from agents.finance.personnel import (
+        extract_personnel_and_contractors,
+        to_dict as personnel_to_dict,
+        build_personnel_drills,
+    )
+
+    workbook_path = (
+        Path(resolve_data_dir(project_dir))
+        / "K8341_Personnel_and_Contractors.xlsx"
+    )
+    extract = extract_personnel_and_contractors(workbook_path)
+    return personnel_to_dict(extract), build_personnel_drills(extract)
+
+
 def extract_all(project_dir=None) -> dict:
     """Top-level entry: read all source spreadsheets, return structured data.
 
@@ -1946,8 +1978,29 @@ def extract_all(project_dir=None) -> dict:
     # "unavailable" state rather than hiding the issue.
     result["audit_dimensions_from_engine"] = fetch_audit_dimensions_from_engine()
     result["audit_activity_from_engine"] = fetch_audit_activity_from_engine()
+
+    # Personnel & Contractors view (Budget & Burn sub-section). Two
+    # outputs: a serialized PersonnelExtract (people / rollups / summary
+    # / reconciliation_warnings) the template + cockpit_api consume, and
+    # a `person:<id>` drill registry the polymorphic drill route serves.
+    # See agents/finance/design/personnel_contractors_view_spec.md.
+    personnel_payload, personnel_drills = _extract_personnel(project_dir)
+    result["personnel"] = personnel_payload
+
     result["charts"] = build_chart_data(result)
     result["drills"] = build_drills(result)
+    # Merge per-person drills into the registry — done after build_drills
+    # so personnel keys can't collide with auto-built drill keys. Each
+    # personnel entry passes through validate_drill so its sections meet
+    # the same id-uniqueness + schema contract every other drill does.
+    for key, entry in personnel_drills.items():
+        validate_drill(key, entry)
+        if key in result["drills"]:
+            print(
+                f"[cockpit_data] WARNING: personnel drill key {key!r} "
+                f"collides with existing drill; personnel wins."
+            )
+        result["drills"][key] = entry
     return result
 
 

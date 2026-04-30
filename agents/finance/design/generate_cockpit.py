@@ -19,13 +19,26 @@ the data dict comes from grant-compliance API endpoints instead of openpyxl.
 
 import argparse
 import os
+import sys
 from pathlib import Path
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from cockpit_data import DEFAULT_DATA_DIR, canonical_provider, extract_all, resolve_data_dir
-
-
+# cockpit_data.py imports `agents.finance.audit_dimension_display`, so the
+# repo root needs to be on sys.path regardless of which directory we're
+# invoked from. Adding both the repo root and `design/` makes both
+# `from agents.finance.design.cockpit_data` and the bare
+# `from cockpit_data` import paths resolve cleanly.
 HERE = Path(__file__).resolve().parent
+_REPO_ROOT = HERE.parents[2]
+for _p in (str(_REPO_ROOT), str(HERE)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+from agents.finance.design.cockpit_data import (  # noqa: E402
+    DEFAULT_DATA_DIR, canonical_provider, extract_all, resolve_data_dir,
+)
+
+
 DEFAULT_TEMPLATE = HERE / "cockpit_template.html"
 DEFAULT_OUT = HERE / "CFA_Cockpit.html"
 
@@ -63,6 +76,9 @@ def render_cockpit(project_dir, template_path: Path, out_path: Path) -> None:
         financial_performance=data["financial_performance"],
         charts=data["charts"],
         drills=data["drills"],
+        # Personnel & Contractors sub-section payload — see
+        # agents/finance/design/personnel_contractors_view_spec.md
+        personnel=data["personnel"],
         trailing_q1_total=trailing_q1_total,
         high_priority_count=high_priority_count,
     )

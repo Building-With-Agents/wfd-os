@@ -333,6 +333,20 @@ def _tab_budget(data: dict) -> dict:
             "pct": (total_spent / s["grant_total_budget"] * 100) if s["grant_total_budget"] else 0,
         },
         "months_remaining": s["months_remaining"],
+        # Personnel & Contractors sub-section. Already a serialized dict
+        # (PersonnelExtract.to_dict shape) from cockpit_data._extract_personnel.
+        # Per-person drills are merged into data["drills"] as `person:<id>`
+        # so the existing /cockpit/drills/{key} route serves them unchanged.
+        # See agents/finance/design/personnel_contractors_view_spec.md.
+        "personnel": data.get("personnel", {
+            "people": [],
+            "rollups": [],
+            "distinct_person_count": 0,
+            "summary": {"paid_to_date": 0, "total_committed": 0, "variance_vs_amended": 0},
+            "reconciliation_warnings": [],
+            "extracted_at": None,
+            "source_workbook": None,
+        }),
     }
 
 

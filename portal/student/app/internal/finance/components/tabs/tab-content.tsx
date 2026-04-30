@@ -114,6 +114,23 @@ function canonicalProvider(name: string): string {
 
 function BudgetTab({ payload, onOpen }: { payload: BudgetTabPayload; onOpen: (k: string) => void }) {
   const { categories, totals, months_remaining, verdict } = payload
+  // Defensive default — survives an old cockpit_api response that pre-dates
+  // the personnel field. PersonnelSection just renders the empty state.
+  const personnel = payload.personnel ?? {
+    people: [],
+    rollups: [],
+    distinct_person_count: 0,
+    summary: { paid_to_date: 0, total_committed: 0, variance_vs_amended: 0 },
+    reconciliation_warnings: [
+      {
+        level: "warning" as const,
+        budget_line: null,
+        message: "cockpit_api response is missing the `personnel` field — restart the API on :8013 to pick up the new _tab_budget shape.",
+      },
+    ],
+    extracted_at: null,
+    source_workbook: null,
+  }
   return (
     <div className="cockpit-tab-pane">
       <VerdictBox tone={verdict.tone} headline={verdict.headline} body={verdict.body} />
@@ -168,6 +185,281 @@ function BudgetTab({ payload, onOpen }: { payload: BudgetTabPayload; onOpen: (k:
           </table>
         </div>
       </div>
+      <PersonnelSection personnel={personnel} onOpen={onOpen} />
+    </div>
+  )
+}
+
+// ---- Personnel & Contractors sub-section (Budget & Burn tab) ------------
+//
+// Spec: agents/finance/design/personnel_contractors_view_spec.md
+// Data: agents/finance/personnel.py via cockpit_api._tab_budget.personnel
+// Drills: per-person `person:<id>` keys served by /cockpit/drills/{key}.
+
+function PersonnelSection({
+  personnel,
+  onOpen,
+}: {
+  personnel: import("../../lib/types").PersonnelPayload
+  onOpen: (k: string) => void
+}) {
+  const { people, rollups, distinct_person_count, summary, reconciliation_warnings } = personnel
+  const variance = summary.variance_vs_amended
+  const varianceColor = variance >= 0 ? "var(--cockpit-good)" : "var(--cockpit-critical)"
+  const varianceLabel = variance >= 0 ? "under budget" : "projected overrun"
+
+  // Group people by budget line for the grouped table.
+  const peopleByLine: Record<string, typeof people> = {}
+  for (const p of people) {
+    (peopleByLine[p.budget_line] ||= []).push(p)
+  }
+  for (const line of Object.keys(peopleByLine)) {
+    peopleByLine[line].sort((a, b) => b.amended_budget_total - a.amended_budget_total)
+  }
+
+  // Reconciliation banner — surface errors (and informational notes) at the top.
+  const errorWarnings = reconciliation_warnings.filter((w) => w.level === "error")
+  const infoWarnings = reconciliation_warnings.filter((w) => w.level !== "error")
+
+  return (
+    <div className="cockpit-panel" style={{ marginTop: 24 }}>
+      <div className="cockpit-panel-head">
+        <h3>Personnel &amp; Contractors</h3>
+        <span className="cockpit-helper">Per-person allocations · grant-funded only</span>
+      </div>
+
+      {/* Reconciliation warnings — never silently absorbed (per spec) */}
+      {errorWarnings.length > 0 && (
+        <div
+          style={{
+            background: "var(--cockpit-critical-soft, #FBE9E9)",
+            color: "var(--cockpit-critical, #B43E3E)",
+            border: "1px solid var(--cockpit-critical, #B43E3E)",
+            padding: "10px 14px",
+            margin: "0 16px 12px",
+            fontSize: "var(--cockpit-fs-body)",
+          }}
+        >
+          <strong>Reconciliation drift — fix before relying on these numbers:</strong>
+          <ul style={{ margin: "6px 0 0", paddingLeft: 20 }}>
+            {errorWarnings.map((w, i) => (
+              <li key={i}>{w.message}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {infoWarnings.length > 0 && (
+        <div
+          style={{
+            background: "var(--cockpit-watch-soft, #FAF3DD)",
+            color: "var(--cockpit-text-2)",
+            padding: "8px 14px",
+            margin: "0 16px 12px",
+            fontSize: "var(--cockpit-fs-meta)",
+          }}
+        >
+          {infoWarnings.map((w, i) => (
+            <div key={i}>{w.message}</div>
+          ))}
+        </div>
+      )}
+
+      {/* Three summary stat cards */}
+      <div className="cockpit-three-col" style={{ padding: "12px 16px 4px" }}>
+        <StatCard
+          label="Grant-funded people"
+          value={fmtNum(distinct_person_count)}
+          sub={people.length === 0 ? "Awaiting initial population" : `${people.length} budget rows`}
+        />
+        <StatCard
+          label="Paid to date (all categories)"
+          value={fmtUSD(summary.paid_to_date)}
+          sub="Sum of recorded actuals"
+        />
+        <StatCard
+          label="Projected variance through Sept 30, 2026"
+          value={`${variance >= 0 ? "+" : ""}${fmtUSD(variance)}`}
+          sub={varianceLabel}
+          valueColor={varianceColor}
+        />
+      </div>
+
+      {/* Empty state — pre-step-8 */}
+      {people.length === 0 && (
+        <div
+          style={{
+            margin: "16px",
+            padding: "16px",
+            background: "var(--cockpit-surface-alt)",
+            border: "1px dashed var(--cockpit-border-strong)",
+            color: "var(--cockpit-text-2)",
+            fontSize: "var(--cockpit-fs-body)",
+          }}
+        >
+          <strong>Awaiting initial data population.</strong> The personnel
+          workbook at <code>agents/finance/design/fixtures/K8341_Personnel_and_Contractors.xlsx</code>{" "}
+          is empty pending the complete person list from Ritu and Krista (spec
+          §&ldquo;Open questions for Ritu&rdquo;). Once populated, each person
+          appears here grouped by budget line, with rate, amended budget,
+          paid-to-date, projected remaining, and variance.
+        </div>
+      )}
+
+      {/* Grouped table — one section per budget line with people present */}
+      {people.length > 0 && (
+        <div style={{ padding: "0 0 4px" }}>
+          {rollups
+            .filter((r) => peopleByLine[r.budget_line]?.length)
+            .map((rollup) => (
+              <PersonnelRollupBlock
+                key={rollup.budget_line}
+                rollup={rollup}
+                people={peopleByLine[rollup.budget_line]}
+                onOpen={onOpen}
+              />
+            ))}
+        </div>
+      )}
+
+      {/* What's not in this view — transparency footer (per spec) */}
+      <div
+        style={{
+          background: "var(--cockpit-surface-alt)",
+          padding: "10px 16px",
+          margin: "12px 16px 16px",
+          fontSize: "var(--cockpit-fs-meta)",
+          color: "var(--cockpit-text-3)",
+          borderLeft: "3px solid var(--cockpit-border-strong)",
+        }}
+      >
+        <strong style={{ color: "var(--cockpit-text-2)" }}>What&rsquo;s not in this view:</strong>{" "}
+        Training provider staff (paid through providers, not directly by CFA),
+        AI Engage&rsquo;s internal team (surfaced as the contractor entity),
+        and CFA staff funded from non-grant sources.
+      </div>
+    </div>
+  )
+}
+
+function PersonnelRollupBlock({
+  rollup,
+  people,
+  onOpen,
+}: {
+  rollup: import("../../lib/types").PersonnelRollup
+  people: import("../../lib/types").PersonnelPerson[]
+  onOpen: (k: string) => void
+}) {
+  return (
+    <div style={{ marginBottom: 4 }}>
+      {/* Line header */}
+      <div
+        style={{
+          background: "var(--cockpit-surface-alt)",
+          padding: "8px 16px",
+          borderTop: "1px solid var(--cockpit-border)",
+          borderBottom: "1px solid var(--cockpit-border)",
+          display: "flex",
+          gap: 16,
+          alignItems: "center",
+          fontSize: "var(--cockpit-fs-body)",
+        }}
+      >
+        <strong>{rollup.label}</strong>
+        <span className="cockpit-num" style={{ color: "var(--cockpit-text-2)" }}>
+          Amended {fmtUSD(rollup.amended_budget_total)}
+          {rollup.amendment_1_reference !== null && rollup.reconciles === false && (
+            <span style={{ color: "var(--cockpit-critical)", marginLeft: 6 }}>
+              (Amendment 1: {fmtUSD(rollup.amendment_1_reference)})
+            </span>
+          )}
+        </span>
+        <span className="cockpit-num" style={{ color: "var(--cockpit-text-2)" }}>
+          Paid {fmtUSD(rollup.paid_to_date)}
+        </span>
+        <span className="cockpit-num" style={{ color: "var(--cockpit-text-2)" }}>
+          Projected remaining {fmtUSD(rollup.projected_total_remaining)}
+        </span>
+        <span
+          className="cockpit-num"
+          style={{
+            color: rollup.variance_vs_amended >= 0
+              ? "var(--cockpit-good)"
+              : "var(--cockpit-critical)",
+            marginLeft: "auto",
+          }}
+        >
+          Variance {rollup.variance_vs_amended >= 0 ? "+" : ""}
+          {fmtUSD(rollup.variance_vs_amended)}
+        </span>
+      </div>
+
+      {/* People rows */}
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "var(--cockpit-fs-body)" }}>
+        <thead>
+          <tr>
+            <th style={cellHead("left", 16)}>Name</th>
+            <th style={cellHead("left")}>Role</th>
+            <th style={cellHead("left")}>Engagement</th>
+            <th style={cellHead("right")}>Rate</th>
+            <th style={cellHead("right")}>Amended</th>
+            <th style={cellHead("right")}>Paid</th>
+            <th style={cellHead("right")}>Projected remaining</th>
+            <th style={cellHead("right")}>Variance</th>
+            <th style={cellHead("right", 16)}>Variance %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {people.map((p) => {
+            const varianceColor =
+              p.variance_vs_amended >= 0 ? "var(--cockpit-good)" : "var(--cockpit-critical)"
+            const incomplete = p.documentation_incomplete
+            return (
+              <DrillableRow key={p.id} drillKey={p.drill_key} onOpen={onOpen}>
+                <td style={cell("left", 16)}>
+                  {p.name || <em>unnamed</em>}
+                  {incomplete && (
+                    <span
+                      style={{
+                        marginLeft: 6,
+                        fontSize: "var(--cockpit-fs-meta)",
+                        color: "var(--cockpit-watch)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.04em",
+                      }}
+                      title={`Missing: ${p.missing_required_fields.join(", ")}`}
+                    >
+                      doc incomplete
+                    </span>
+                  )}
+                </td>
+                <td style={cell("left")}>{p.role || "—"}</td>
+                <td style={cell("left")}>{p.engagement_type || "—"}</td>
+                <td style={cell("right")} className="cockpit-num">
+                  {p.rate_amount && p.rate_unit
+                    ? `${fmtUSD(p.rate_amount)} / ${p.rate_unit}`
+                    : "—"}
+                </td>
+                <td style={cell("right")} className="cockpit-num">{fmtUSD(p.amended_budget_total)}</td>
+                <td style={cell("right")} className="cockpit-num">{fmtUSD(p.paid_to_date)}</td>
+                <td style={cell("right")} className="cockpit-num">
+                  {p.projections_missing
+                    ? <span style={{ color: "var(--cockpit-watch)" }}>not yet projected</span>
+                    : fmtUSD(p.projected_total_remaining)}
+                </td>
+                <td style={cell("right")} className="cockpit-num" data-tone={varianceColor}>
+                  <span style={{ color: varianceColor }}>
+                    {p.variance_vs_amended >= 0 ? "+" : ""}{fmtUSD(p.variance_vs_amended)}
+                  </span>
+                </td>
+                <td style={cell("right", 16)} className="cockpit-num">
+                  <span style={{ color: varianceColor }}>{fmtPct(p.variance_pct * 100, 1)}</span>
+                </td>
+              </DrillableRow>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
