@@ -15,6 +15,11 @@ dependencies = [
     "cryptography>=43",
     "python-multipart>=0.0.12",
     "jinja2>=3.1",
+    # openpyxl is the Excel reader for the contracts bootstrap importer
+    # (see src/grant_compliance/contracts_bootstrap/loader.py). The grant-
+    # compliance engine had no Excel ingestion before contracts inventory
+    # — added 2026-04-30 with that feature.
+    "openpyxl>=3.1",
 ]
 
 [project.optional-dependencies]
