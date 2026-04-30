@@ -58,8 +58,6 @@ app.add_middleware(
 # #29 — structured error envelope on every 4xx/5xx.
 install_error_handlers(app)
 
-<<<<<<< HEAD
-
 # -----------------------------------------------------------------------------
 # Auth — Gary's Phase 4 magic-link flow + a dev-only instant sign-in shortcut.
 # Student Portal API is chosen as the host because (a) it's already running with

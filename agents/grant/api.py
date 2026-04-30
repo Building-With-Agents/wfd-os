@@ -55,7 +55,10 @@ app.router.add_get("/health", health)
 
 
 if __name__ == "__main__":
-    init_db()
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[WARN] DB init skipped: {e}")
     port = int(os.getenv("PORT", 3978))
     print(f"CFA Grant Bot running on port {port}")
     print(f"Messaging endpoint: http://localhost:{port}/api/messages")

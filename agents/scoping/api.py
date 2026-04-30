@@ -17,6 +17,11 @@ from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
+# Ensure repo root is on path so absolute imports like agents.scoping.* resolve
+_repo_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
 from agents.scoping.webhook import handle_scoping_trigger
 from agents.scoping.postcall import handle_postcall_trigger
 
