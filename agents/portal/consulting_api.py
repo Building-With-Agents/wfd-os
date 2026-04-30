@@ -1,43 +1,74 @@
 """
 Consulting Intake API — Handles project inquiry form submissions.
-Run: uvicorn consulting_api:app --reload --port 8003
+Run: uvicorn agents.portal.consulting_api:app --reload --port 8003
 """
-import sys, os, json, asyncio, traceback
+import asyncio, traceback
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr
-
-# Make wfd-os repo root importable so `agents.scoping.*` and `agents.graph.*` resolve
-_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
+from pydantic import BaseModel
 import psycopg2
 import psycopg2.extras
-from dotenv import load_dotenv
 
-# Load .env from wfd-os root so SMTP_* vars are picked up
-load_dotenv(os.path.join(os.path.dirname(__file__), "../../.env"), override=False)
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG
+# wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv —
+# no hardcoded path needed. Pre-#27 this file had sys.path.insert hacks; the
+# monorepo root pyproject.toml (#27) now exposes `agents.*` as a namespace
+# package, so direct imports resolve without them.
 
 # Email helper — Microsoft Graph backend. Import via full package path so it
 # doesn't shadow Python's stdlib `email` package.
-from agents.portal.email import notify_internal, send_email
+from wfdos_common.auth import SessionMiddleware, build_auth_router
+from wfdos_common.config import settings
+from wfdos_common.email import notify_internal, send_email
+from wfdos_common.errors import (
+    NotFoundError,
+    ServiceUnavailableError,
+    ValidationFailure,
+    install_error_handlers,
+)
+from wfdos_common.logging import RequestContextMiddleware, configure as configure_logging, get_logger
+
+# Configure structured logging at module import (idempotent).
+configure_logging(service_name="consulting-api")
+log = get_logger(__name__)
 
 # Scoping Agent pipeline (lazy-imported inside the trigger to avoid blocking module load
 # if Graph creds or Anthropic SDK aren't available on startup).
 
 app = FastAPI(title="Waifinder Consulting API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.auth.secret_key,
+    cookie_name=settings.auth.cookie_name,
+    max_age_seconds=settings.auth.session_ttl_seconds,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:3003", "http://127.0.0.1:3000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
+
+# #24 — magic-link auth routes live on this service; other services
+# just parse the cookie via SessionMiddleware.
+app.include_router(build_auth_router())
+
+
+def get_conn():
+    """Raw DBAPI connection from the wfdos_common.db engine pool (#22c).
+
+    Returns a psycopg2-compatible connection; conn.close() returns it
+    to the shared pool instead of actually closing the socket.
+    """
+    from wfdos_common.db import get_engine
+    return get_engine().raw_connection()
 
 
 class ProjectInquiry(BaseModel):
@@ -58,7 +89,7 @@ class ProjectInquiry(BaseModel):
 @app.post("/api/consulting/inquire")
 def submit_inquiry(inquiry: ProjectInquiry):
     """Submit a new consulting project inquiry."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
 
     # Generate a human-friendly reference number: INQ-<year>-<0001, 0002, ...>
@@ -118,15 +149,15 @@ def submit_inquiry(inquiry: ProjectInquiry):
         subject, html_body = render_submitter_confirmation(inquiry, reference_number)
         send_email(inquiry.email, subject, html_body, html=True)
     except Exception as e:
-        print(f"[WARN] submitter confirmation email raised: {type(e).__name__}: {e}")
+        log.warning("email.submitter_confirmation.failed", error_type=type(e).__name__, error=str(e))
 
     # 2. Internal notification email to Ritu
     try:
         subject, html_body = render_internal_notification(inquiry, reference_number)
-        notify_email = os.getenv("NOTIFY_EMAIL", "ritu@computingforall.org")
+        notify_email = settings.email.notify
         send_email(notify_email, subject, html_body, html=True)
     except Exception as e:
-        print(f"[WARN] internal notification email raised: {type(e).__name__}: {e}")
+        log.warning("email.internal_notification.failed", error_type=type(e).__name__, error=str(e))
 
     # --- Create Apollo contact (best-effort, never blocks the response) ---
     apollo_contact_id = None
@@ -147,7 +178,7 @@ def submit_inquiry(inquiry: ProjectInquiry):
         )
         if apollo_result.get("ok"):
             apollo_contact_id = apollo_result.get("contact_id")
-            print(f"[APOLLO] Contact created for {inquiry.email} -> {apollo_contact_id}")
+            log.info("apollo.contact.created", email=inquiry.email, contact_id=apollo_contact_id)
 
             # Determine suggested sequence based on project type / org name
             project_lower = (inquiry.project_area or "").lower() + " " + (inquiry.organization_name or "").lower()
@@ -159,7 +190,7 @@ def submit_inquiry(inquiry: ProjectInquiry):
                 apollo_sequence_suggested = "TX Professional Services Sequence"
 
             # Save Apollo data to the inquiry row
-            conn3 = psycopg2.connect(**PG_CONFIG)
+            conn3 = get_conn()
             cur3 = conn3.cursor()
             cur3.execute(
                 "UPDATE project_inquiries SET apollo_contact_id = %s, apollo_sequence_suggested = %s WHERE id = %s",
@@ -167,11 +198,11 @@ def submit_inquiry(inquiry: ProjectInquiry):
             )
             conn3.commit()
             conn3.close()
-            print(f"[APOLLO] Sequence suggested: {apollo_sequence_suggested} (not auto-enrolled — Jason approves)")
+            log.info("apollo.sequence.suggested", sequence=apollo_sequence_suggested, auto_enrolled=False)
         else:
-            print(f"[APOLLO] Contact creation failed: {apollo_result.get('error')}")
+            log.warning("apollo.contact.create_failed", error=apollo_result.get("error"))
     except Exception as e:
-        print(f"[WARN] Apollo integration raised: {type(e).__name__}: {e}")
+        log.warning("apollo.integration.exception", error_type=type(e).__name__, error=str(e), exc_info=True)
 
     return {
         "success": True,
@@ -198,7 +229,7 @@ def get_client_engagement(client_id: str):
 
     Accepts either the engagement id (legacy) OR the random client_access_token.
     """
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Look up by client_access_token first (new flow), then by id (legacy / WSB)
@@ -212,7 +243,7 @@ def get_client_engagement(client_id: str):
         client_id = engagement["id"]
     if not engagement:
         conn.close()
-        raise HTTPException(status_code=404, detail="Engagement not found")
+        raise NotFoundError("engagement")
     engagement = dict(engagement)
 
     # Milestones
@@ -266,7 +297,6 @@ def get_client_engagement(client_id: str):
     progress_pct = round(completed_milestones / total_milestones * 100) if total_milestones else 0
 
     # Days remaining
-    import math
     from datetime import date
     days_remaining = None
     if engagement.get('expected_completion'):
@@ -321,7 +351,7 @@ def get_client_documents(client_id: str):
     Accepts either the random access token or the engagement id. Returns files
     grouped by top-level folder (Scoping, Proposal, Delivery, Financials).
     """
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute(
         "SELECT id, organization_name, sharepoint_workspace_url FROM consulting_engagements "
@@ -331,16 +361,16 @@ def get_client_documents(client_id: str):
     eng = cur.fetchone()
     conn.close()
     if not eng:
-        raise HTTPException(status_code=404, detail="Engagement not found")
+        raise NotFoundError("engagement")
 
     safe_name = _safe_name(eng["organization_name"])
     stored_sp_url = eng.get("sharepoint_workspace_url")
 
     try:
-        from agents.graph.sharepoint import list_client_documents_sync
+        from wfdos_common.graph.sharepoint import list_client_documents_sync
         files = list_client_documents_sync(safe_name, recursive=True)
     except Exception as e:
-        print(f"[DOCUMENTS] list failed: {type(e).__name__}: {e}")
+        log.error("sharepoint.list_documents.failed", error_type=type(e).__name__, error=str(e), exc_info=True)
         files = []
 
     # Group by top-level section folder (Scoping / Proposal / Delivery / Financials)
@@ -368,7 +398,7 @@ def get_client_documents(client_id: str):
 @app.get("/api/consulting/pipeline")
 def get_pipeline():
     """Full consulting pipeline: inquiries + active engagements."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # All inquiries
@@ -456,13 +486,13 @@ def get_pipeline():
 @app.get("/api/consulting/inquiry/{inquiry_id}")
 def get_inquiry(inquiry_id: str):
     """Full inquiry details."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("SELECT * FROM project_inquiries WHERE id = %s", (inquiry_id,))
     row = cur.fetchone()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Inquiry not found")
+        raise NotFoundError("inquiry")
     d = dict(row)
     d['id'] = str(d['id'])
     if d.get('created_at'):
@@ -481,7 +511,7 @@ VALID_STATUSES = {"new", "contacted", "scoping", "scoped", "active", "closed"}
 
 
 def _fetch_inquiry(inquiry_id: str) -> dict | None:
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("SELECT * FROM project_inquiries WHERE id = %s", (inquiry_id,))
     row = cur.fetchone()
@@ -490,7 +520,7 @@ def _fetch_inquiry(inquiry_id: str) -> dict | None:
 
 
 def _set_inquiry_status(inquiry_id: str, status: str, note_append: str | None = None) -> None:
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     if note_append:
         cur.execute("""
@@ -512,7 +542,7 @@ def _set_inquiry_status(inquiry_id: str, status: str, note_append: str | None = 
 
 def _inquiry_to_scoping_request(inq: dict):
     """Build a ScopingRequest from a project_inquiries row."""
-    from agents.scoping.models import ScopingRequest, Contact, Organization
+    from wfdos_common.models.scoping import ScopingRequest, Contact, Organization
 
     # Split contact_name into first / last (best-effort)
     full = (inq.get("contact_name") or "").strip()
@@ -544,19 +574,22 @@ def _run_scoping_pipeline_sync(inquiry_id: str) -> None:
     FastAPI. On success, transitions status to 'scoped' and appends a note.
     On failure, leaves status at 'scoping' and records the error in notes.
     """
-    print("=" * 60)
-    print(f"[SCOPING TRIGGER] Starting background pipeline for inquiry {inquiry_id}")
-    print("=" * 60)
+    log.info("scoping.pipeline.start", inquiry_id=inquiry_id)
     try:
         inq = _fetch_inquiry(inquiry_id)
         if not inq:
-            print(f"[SCOPING TRIGGER] Inquiry {inquiry_id} not found - aborting")
+            log.warning("scoping.pipeline.inquiry_not_found", inquiry_id=inquiry_id)
             return
 
         from agents.scoping.pipeline import run_precall_pipeline
         req = _inquiry_to_scoping_request(inq)
-        print(f"[SCOPING TRIGGER] Built request: {req.organization.name} / {req.contact.full_name} <{req.contact.email}>")
-        print(f"[SCOPING TRIGGER] safe_name = {req.organization.safe_name}")
+        log.info(
+            "scoping.pipeline.request_built",
+            organization=req.organization.name,
+            contact=req.contact.full_name,
+            contact_email=req.contact.email,
+            safe_name=req.organization.safe_name,
+        )
 
         asyncio.run(run_precall_pipeline(req))
 
@@ -566,7 +599,7 @@ def _run_scoping_pipeline_sync(inquiry_id: str) -> None:
             f"SharePoint workspace at /sites/wAIFinder/Clients/{req.organization.safe_name}/"
         )
         _set_inquiry_status(inquiry_id, "scoped", note_append=success_note)
-        print(f"[SCOPING TRIGGER] Pipeline complete - status -> scoped")
+        log.info("scoping.pipeline.complete", inquiry_id=inquiry_id, status="scoped")
 
         # Internal notification (console fallback if SMTP not configured)
         try:
@@ -584,8 +617,14 @@ def _run_scoping_pipeline_sync(inquiry_id: str) -> None:
 
     except Exception as e:
         tb = traceback.format_exc()
-        print(f"[SCOPING TRIGGER] Pipeline FAILED: {type(e).__name__}: {e}")
-        print(tb)
+        log.error(
+            "scoping.pipeline.failed",
+            inquiry_id=inquiry_id,
+            error_type=type(e).__name__,
+            error=str(e),
+            traceback=tb,
+            exc_info=True,
+        )
         err_note = (
             f"[{datetime.now(timezone.utc).isoformat(timespec='seconds')}] "
             f"Scoping Agent pipeline FAILED: {type(e).__name__}: {e}"
@@ -604,15 +643,15 @@ def update_inquiry_status(
 ):
     """Update inquiry status and notes. Fires Scoping Agent when status -> 'scoping'."""
     if update.status not in VALID_STATUSES:
-        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of {VALID_STATUSES}")
+        raise ValidationFailure(f"Invalid status. Must be one of {VALID_STATUSES}")
 
     # Fetch current to detect transition
     current = _fetch_inquiry(inquiry_id)
     if not current:
-        raise HTTPException(status_code=404, detail="Inquiry not found")
+        raise NotFoundError("inquiry")
     prev_status = current.get("status")
 
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         UPDATE project_inquiries
@@ -624,14 +663,19 @@ def update_inquiry_status(
     conn.commit()
     conn.close()
     if not result:
-        raise HTTPException(status_code=404, detail="Inquiry not found")
+        raise NotFoundError("inquiry")
 
     scoping_triggered = False
     if update.status == "scoping" and prev_status != "scoping":
         # Fire pipeline as a background task — returns immediately.
         background_tasks.add_task(_run_scoping_pipeline_sync, inquiry_id)
         scoping_triggered = True
-        print(f"[SCOPING TRIGGER] Queued background pipeline for inquiry {inquiry_id} ({prev_status} -> scoping)")
+        log.info(
+            "scoping.pipeline.queued",
+            inquiry_id=inquiry_id,
+            prev_status=prev_status,
+            new_status="scoping",
+        )
 
     return {
         "success": True,
@@ -652,14 +696,14 @@ def _safe_name(org_name: str) -> str:
 
 def _public_portal_base() -> str:
     """Base URL the client will use to reach their portal (configurable via env)."""
-    return os.getenv("CLIENT_PORTAL_BASE_URL", "http://localhost:3000").rstrip("/")
+    return settings.platform.portal_base_url.rstrip("/")
 
 
 @app.delete("/api/consulting/inquiry/{inquiry_id}")
 def delete_inquiry(inquiry_id: str):
     """Hard-delete a single inquiry. Returns the deleted row's organization
     name so the client can show a friendly toast."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute(
         "DELETE FROM project_inquiries WHERE id = %s RETURNING organization_name, reference_number",
@@ -669,7 +713,7 @@ def delete_inquiry(inquiry_id: str):
     conn.commit()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Inquiry not found")
+        raise NotFoundError("inquiry")
     return {
         "success": True,
         "id": inquiry_id,
@@ -686,7 +730,7 @@ def delete_test_inquiries():
     string 'test' (case-insensitive). Returns the list of deleted rows
     so the UI can show exactly what was removed.
     """
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute("""
         DELETE FROM project_inquiries
@@ -717,7 +761,7 @@ def convert_inquiry(inquiry_id: str):
     """
     import re, secrets
 
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Get inquiry
@@ -725,7 +769,7 @@ def convert_inquiry(inquiry_id: str):
     inquiry = cur.fetchone()
     if not inquiry:
         conn.close()
-        raise HTTPException(status_code=404, detail="Inquiry not found")
+        raise NotFoundError("inquiry")
     inquiry = dict(inquiry)
 
     # Generate slug-based engagement id
@@ -786,7 +830,7 @@ def convert_inquiry(inquiry_id: str):
     # --- Grant SharePoint access (best-effort; never blocks the response) ---
     sharepoint_invite: dict = {"ok": False, "error": "not attempted"}
     try:
-        from agents.graph.invitations import invite_to_client_folder
+        from wfdos_common.graph.invitations import invite_to_client_folder
         sharepoint_invite = invite_to_client_folder(
             company_safe_name=safe_name,
             email=inquiry['email'],
@@ -799,7 +843,7 @@ def convert_inquiry(inquiry_id: str):
             ),
         )
     except Exception as e:
-        print(f"[CONVERT] SharePoint invite exception: {type(e).__name__}: {e}")
+        log.warning("convert.sharepoint_invite.failed", error_type=type(e).__name__, error=str(e))
         sharepoint_invite = {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
     # --- Send welcome email with portal link (mailer has console fallback) ---
@@ -849,12 +893,12 @@ def convert_inquiry(inquiry_id: str):
             ),
         )
     except Exception as e:
-        print(f"[CONVERT] Welcome email exception: {type(e).__name__}: {e}")
+        log.warning("convert.welcome_email.failed", error_type=type(e).__name__, error=str(e))
 
     # Persist timestamp if welcome email actually went out
     if welcome_sent.get("sent"):
         try:
-            conn2 = psycopg2.connect(**PG_CONFIG)
+            conn2 = get_conn()
             cur2 = conn2.cursor()
             cur2.execute(
                 "UPDATE consulting_engagements SET welcome_email_sent_at = NOW() WHERE id = %s",
@@ -908,14 +952,14 @@ def post_engagement_update(engagement_id: str, update: NewUpdate):
     If post_to_teams=true, also posts an Adaptive Card to the Teams channel
     via Power Automate webhook. Teams failure never blocks the DB save.
     """
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     # Verify engagement exists
     cur.execute("SELECT id, organization_name, contact_email, client_access_token FROM consulting_engagements WHERE id = %s", (engagement_id,))
     eng = cur.fetchone()
     if not eng:
         conn.close()
-        raise HTTPException(status_code=404, detail="Engagement not found")
+        raise NotFoundError("engagement")
 
     eng_id, org_name, contact_email, client_token = eng
 
@@ -943,7 +987,7 @@ def post_engagement_update(engagement_id: str, update: NewUpdate):
     teams_result = None
     if update.post_to_teams:
         try:
-            from agents.graph.teams import post_engagement_update_to_teams
+            from wfdos_common.graph.teams import post_engagement_update_to_teams
             portal_url = f"http://localhost:3000/coalition/client?token={client_token or engagement_id}"
             teams_result = post_engagement_update_to_teams(
                 title=update.title,
@@ -953,7 +997,7 @@ def post_engagement_update(engagement_id: str, update: NewUpdate):
                 portal_url=portal_url,
             )
         except Exception as e:
-            print(f"[WARN] Teams post failed: {type(e).__name__}: {e}")
+            log.warning("teams.post.failed", error_type=type(e).__name__, error=str(e))
             teams_result = {"ok": False, "error": str(e)}
 
     return {

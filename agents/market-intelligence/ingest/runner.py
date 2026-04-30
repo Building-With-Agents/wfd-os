@@ -9,16 +9,13 @@ Usage:
     python runner.py --source jsearch --location "El Paso, TX" --limit 50
     python runner.py --source all --location "El Paso, TX" --limit 50
 """
-import sys
 import os
 import json
 import argparse
 from datetime import datetime, timezone
 
-# Add paths
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../../scripts"))
 import psycopg2
-from pgconfig import PG_CONFIG
+from wfdos_common.config import PG_CONFIG
 
 # Load env
 from dotenv import load_dotenv
@@ -279,7 +276,7 @@ def main():
             for source, total, digital, ambig in cur.fetchall():
                 print(f"    {source}: {total} total, {digital} digital, {ambig} ambiguous")
             conn.close()
-        except:
+        except Exception:
             pass
 
 

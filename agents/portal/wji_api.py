@@ -13,8 +13,6 @@ Run: uvicorn wji_api:app --reload --port 8007
 """
 import io
 import json
-import os
-import sys
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
 
@@ -23,17 +21,32 @@ from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 import psycopg2.extras
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG  # noqa: E402
+from wfdos_common.errors import NotFoundError, ValidationFailure, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware
+
 
 app = FastAPI(title="WJI Grant Closeout API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
+
+
+def get_conn():
+    """Raw DBAPI connection from the wfdos_common.db engine pool (#22c).
+
+    Returns a psycopg2-compatible connection; conn.close() returns it
+    to the shared pool instead of actually closing the socket.
+    """
+    from wfdos_common.db import get_engine
+    return get_engine().raw_connection()
 
 
 # ---------------------------------------------------------------------------
@@ -158,25 +171,25 @@ async def upload_placements(
     Unknown columns are preserved in raw_data (jsonb).
     """
     if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls", ".xlsm")):
-        raise HTTPException(status_code=400, detail="File must be .xlsx, .xls, or .xlsm")
+        raise ValidationFailure("File must be .xlsx, .xls, or .xlsm")
 
     content = await file.read()
     if not content:
-        raise HTTPException(status_code=400, detail="Empty file")
+        raise ValidationFailure("Empty file")
 
     # Parse Excel
     import openpyxl
     try:
         wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True, read_only=True)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not read Excel file: {e}")
+        raise ValidationFailure(f"Could not read Excel file: {e}")
 
     ws = wb.active
     rows = ws.iter_rows(values_only=True)
     try:
         header_row = next(rows)
     except StopIteration:
-        raise HTTPException(status_code=400, detail="Empty worksheet")
+        raise ValidationFailure("Empty worksheet")
 
     headers = [str(h).strip() if h is not None else "" for h in header_row]
     headers_normed = {_norm(h): h for h in headers if h}
@@ -188,7 +201,7 @@ async def upload_placements(
             col_map[canonical] = matched
 
     # Create batch
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO wji_upload_batches (upload_type, filename, uploaded_by, status)
@@ -280,11 +293,11 @@ async def upload_payments(
     Negative amounts kept as-is (QB refunds appear negative).
     """
     if not file.filename or not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="File must be .csv")
+        raise ValidationFailure("File must be .csv")
 
     content = await file.read()
     if not content:
-        raise HTTPException(status_code=400, detail="Empty file")
+        raise ValidationFailure("Empty file")
 
     # Decode — try utf-8, fall back to cp1252 (QB often exports cp1252)
     text: str | None = None
@@ -295,14 +308,14 @@ async def upload_payments(
         except UnicodeDecodeError:
             continue
     if text is None:
-        raise HTTPException(status_code=400, detail="Could not decode file as text")
+        raise ValidationFailure("Could not decode file as text")
 
     import csv as csvmod
     reader = csvmod.reader(io.StringIO(text))
     try:
         header_row = next(reader)
     except StopIteration:
-        raise HTTPException(status_code=400, detail="Empty CSV")
+        raise ValidationFailure("Empty CSV")
 
     headers = [h.strip() for h in header_row]
     headers_normed = {_norm(h): h for h in headers if h}
@@ -312,7 +325,7 @@ async def upload_payments(
         if matched:
             col_map[canonical] = matched
 
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO wji_upload_batches (upload_type, filename, uploaded_by, status)
@@ -388,7 +401,7 @@ async def upload_payments(
 @app.get("/api/wji/dashboard")
 def get_dashboard():
     """Aggregate WJI grant close-out stats + recent uploads."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Placement totals
@@ -482,7 +495,7 @@ def get_dashboard():
 
 @app.get("/api/wji/placements")
 def list_placements(limit: int = Query(50, le=500), offset: int = 0, batch_id: int | None = None):
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     where = "WHERE batch_id = %s" if batch_id else ""
     params = (batch_id,) if batch_id else ()
@@ -511,7 +524,7 @@ def list_placements(limit: int = Query(50, le=500), offset: int = 0, batch_id: i
 
 @app.get("/api/wji/payments")
 def list_payments(limit: int = Query(50, le=500), offset: int = 0, batch_id: int | None = None):
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     where = "WHERE batch_id = %s" if batch_id else ""
     params = (batch_id,) if batch_id else ()
@@ -540,14 +553,14 @@ def list_payments(limit: int = Query(50, le=500), offset: int = 0, batch_id: int
 @app.delete("/api/wji/batches/{batch_id}")
 def delete_batch(batch_id: int):
     """Undo an upload — deletes the batch and all its rows (cascade)."""
-    conn = psycopg2.connect(**PG_CONFIG)
+    conn = get_conn()
     cur = conn.cursor()
     cur.execute("DELETE FROM wji_upload_batches WHERE id = %s RETURNING upload_type, filename", (batch_id,))
     row = cur.fetchone()
     conn.commit()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Batch not found")
+        raise NotFoundError("batch")
     return {"success": True, "batch_id": batch_id, "upload_type": row[0], "filename": row[1]}
 
 

@@ -16,6 +16,10 @@ const nextConfig = {
   async rewrites() {
     return [
       {
+        source: "/auth/:path*",
+        destination: "http://localhost:8003/auth/:path*",
+      },
+      {
         source: "/api/college/:path*",
         destination: "http://localhost:8004/api/college/:path*",
       },
@@ -106,6 +110,14 @@ const nextConfig = {
       // served by student_api.py on :8001 — NOT :8005 (which was a stale
       // placeholder). /coalition + /for-employers consume this to render
       // the hero stats bar dynamically with hardcoded fallback.
+      {
+        source: "/api/laborpulse/:path*",
+        destination: "http://localhost:8012/api/laborpulse/:path*",
+      },
+      {
+        source: "/api/student/:path*",
+        destination: "http://localhost:8001/api/student/:path*",
+      },
       {
         source: "/api/stats",
         destination: "http://localhost:8001/api/stats",

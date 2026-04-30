@@ -10,9 +10,6 @@ Run: uvicorn agents.assistant.api:app --port 8009
 """
 from __future__ import annotations
 
-import json
-import os
-import sys
 import uuid
 from typing import Optional
 
@@ -20,32 +17,40 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-# Repo root for imports
-_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
+# wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv.
+# Pre-#27 this file had sys.path.insert hacks; the monorepo root pyproject.toml
+# (#27) now exposes `agents.*` as a namespace package.
+from agents.assistant.base import BaseAgent, _load_session
+from agents.assistant.consulting_agent import consulting_agent
+from agents.assistant.employer_agent import employer_agent
+from agents.assistant.student_agent import student_agent
+from agents.assistant.staff_agent import staff_agent
+from agents.assistant.college_agent import college_agent
+from agents.assistant.youth_agent import youth_agent
 
-from dotenv import load_dotenv
-load_dotenv(os.path.join(_REPO_ROOT, ".env"), override=False)
+from agents.assistant.bd_agent import bd_agent
+from agents.assistant.marketing_agent import marketing_agent
+from agents.assistant.finance_agent import finance_agent
 
-sys.path.insert(0, os.path.join(_REPO_ROOT, "scripts"))
-
-from agents.assistant.base import BaseAgent, _load_session  # noqa: E402
-from agents.assistant.consulting_agent import consulting_agent  # noqa: E402
-from agents.assistant.employer_agent import employer_agent  # noqa: E402
-from agents.assistant.student_agent import student_agent  # noqa: E402
-from agents.assistant.staff_agent import staff_agent  # noqa: E402
-from agents.assistant.college_agent import college_agent  # noqa: E402
-from agents.assistant.youth_agent import youth_agent  # noqa: E402
-from agents.assistant.bd_agent import bd_agent  # noqa: E402
-from agents.assistant.marketing_agent import marketing_agent  # noqa: E402
-from agents.assistant.finance_agent import finance_agent  # noqa: E402
+from wfdos_common.auth import SessionMiddleware
+from wfdos_common.config import settings
+from wfdos_common.errors import NotFoundError, ValidationFailure, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware
 
 app = FastAPI(title="WFD OS Conversational Agent API", version="0.1.0")
+app.add_middleware(RequestContextMiddleware)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.auth.secret_key,
+    cookie_name=settings.auth.cookie_name,
+    max_age_seconds=settings.auth.session_ttl_seconds,
+)
+install_error_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -126,10 +131,10 @@ def _get_agent(agent_type: str) -> BaseAgent:
 
     prompt = _DEFAULT_PROMPTS.get(agent_type)
     if not prompt:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unknown agent_type '{agent_type}'. "
-                   f"Valid types: {', '.join(sorted(set(list(_REGISTERED_AGENTS.keys()) + list(_DEFAULT_PROMPTS.keys()))))}",
+        valid = sorted(set(list(_REGISTERED_AGENTS.keys()) + list(_DEFAULT_PROMPTS.keys())))
+        raise ValidationFailure(
+            f"Unknown agent_type '{agent_type}'.",
+            details={"valid_agent_types": valid},
         )
     return BaseAgent(agent_type=agent_type, system_prompt=prompt)
 
@@ -195,7 +200,7 @@ def get_session(session_id: str):
     """Retrieve full conversation history for a session."""
     session = _load_session(session_id)
     if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
+        raise NotFoundError("session")
 
     # Serialize dates
     for key in ("created_at", "updated_at"):

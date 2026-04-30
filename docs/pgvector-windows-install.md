@@ -89,13 +89,14 @@ If building is problematic, run a pgvector-enabled PostgreSQL in Docker:
 
 ```powershell
 docker run -d --name wfdos-pg \
-  -e POSTGRES_PASSWORD=wfdos2026 \
+  -e POSTGRES_PASSWORD=<choose-a-local-password> \
   -e POSTGRES_DB=wfd_os \
   -p 5433:5432 \
   pgvector/pgvector:pg17
 
-# Connect on port 5433 instead of 5432
-# Then restore the wfd_os data from a pg_dump
+# Connect on port 5433 instead of 5432.
+# Use the same password in your local .env as PG_PASSWORD.
+# Then restore the wfd_os data from a pg_dump.
 ```
 
 ---

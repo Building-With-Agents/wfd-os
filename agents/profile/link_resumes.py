@@ -5,16 +5,12 @@ Reads all blob paths from Azure Blob Storage resume-storage container,
 extracts the GUID from each path, and matches to students by
 original_record_id (Dataverse contactid).
 """
-import os, psycopg2
+import psycopg2
 from azure.storage.blob import BlobServiceClient
-from dotenv import load_dotenv
-import sys
-sys.path.insert(0, "C:/Users/ritub/projects/wfd-os/scripts")
-from pgconfig import PG_CONFIG
 
-load_dotenv("C:/Users/ritub/projects/wfd-os/.env")
+from wfdos_common.config import PG_CONFIG, settings
 
-BLOB_CONN_STR = os.getenv("BLOB_CONNECTION_STRING")
+BLOB_CONN_STR = settings.blob.connection_string
 CONTAINER = "resume-storage"
 
 

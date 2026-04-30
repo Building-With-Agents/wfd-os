@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.production
+.env.gary-private
 
 # Python
 __pycache__/
@@ -69,3 +70,5 @@ data/cohort1_ingestion_digest.json
 # consistent with resume digest pattern so we don't track bulky API snapshots)
 data/cohort1_jobs_raw_cache/
 data/cohort1_jobs_ingestion_digest.json
+
+.coverage

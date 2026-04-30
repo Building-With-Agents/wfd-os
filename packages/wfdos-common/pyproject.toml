@@ -1,0 +1,81 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-common"
+version = "0.0.1"
+description = "Shared primitives for wfd-os services: config, models, DB, LLM adapter, auth, logging, Microsoft Graph client, email."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [
+    { name = "Computing for All" }
+]
+# Runtime deps grow as modules graduate from stubs to implementations.
+dependencies = [
+    "pydantic>=2.5",
+    "pydantic-settings>=2.1",
+    "python-dotenv>=1.0",
+    # wfdos_common.graph (#17) — Microsoft Graph client for SharePoint / Teams / mail
+    "azure-identity>=1.15",
+    "msgraph-sdk>=1.0",
+    "httpx>=0.27",
+    # wfdos_common.db (#22) — SQLAlchemy engine factory + tenant middleware
+    "SQLAlchemy>=2.0",
+    "psycopg2-binary>=2.9",
+    # wfdos_common.llm (#20) — LLM adapter.
+    # Azure OpenAI is the default provider per CLAUDE.md llm-provider.mdc,
+    # so the openai SDK is a required runtime dep. The anthropic + gemini
+    # fallback providers lazy-import their SDKs from requirements-dev.txt
+    # so services choosing a narrow install footprint can skip them.
+    "openai>=1.30",
+    # wfdos_common.logging (#23) — structured logging + request context
+    "structlog>=24.1",
+    # wfdos_common.auth (#24) — itsdangerous signs magic-link + session tokens;
+    # slowapi is a thin FastAPI wrapper over limits + the stdlib that powers
+    # the per-role rate-limit decorators (#25).
+    "itsdangerous>=2.1",
+    "slowapi>=0.1.9",
+    "email-validator>=2.0",
+]
+
+[project.optional-dependencies]
+# Secret-backend plugins — lazy-imported. Install only the ones you need.
+# Declared here (#18) but the implementations land in the issues that flesh
+# out wfdos_common.config.secrets.
+keyvault = ["azure-identity>=1.15", "azure-keyvault-secrets>=4.7"]
+onepassword = ["onepasswordconnectsdk>=1.5"]
+doppler = ["doppler-sdk>=1.0"]
+infisical = ["infisical-python>=2.0"]
+hashivault = ["hvac>=2.0"]
+
+# LLM fallback providers (#20). Install these only if you want the adapter
+# to fall through to Anthropic or Gemini when Azure OpenAI is unconfigured.
+llm-anthropic = ["anthropic>=0.31"]
+llm-gemini = ["google-generativeai>=0.8"]
+
+# Per-module deps that will be added as modules graduate from stubs:
+#   graph: msgraph-sdk, azure-identity, httpx  (populated in #17)
+#   email: (uses graph module)  (populated in #17)
+#   db: sqlalchemy>=2.0, psycopg2-binary  (#22)
+#   llm: openai  (#20, default provider; Anthropic/Gemini are opt-in extras)
+#   logging: structlog>=24  (#23)
+#   auth: itsdangerous, slowapi  (#24)
+#   testing: pytest>=8, pytest-asyncio  (#28)
+
+[project.urls]
+Repository = "https://github.com/Building-With-Agents/wfd-os"
+
+# Pytest plugin entry point (#28). Consumers that pip install wfdos-common
+# get the shared fixtures automatically; no need to add
+# `pytest_plugins = ["wfdos_common.testing"]` to conftest.py.
+[project.entry-points.pytest11]
+wfdos_common = "wfdos_common.testing.plugin"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wfdos_common*"]
+
+[tool.setuptools.package-data]
+wfdos_common = ["py.typed"]

@@ -1,8 +1,7 @@
 """Transcript analysis — extract answers to the 5 scoping questions."""
 
-from agents.graph import config
-from anthropic import Anthropic
-from agents.scoping.models import ScopingRequest, ScopingAnalysis, ScopingAnswer
+from wfdos_common.llm import complete as llm_complete
+from wfdos_common.models.scoping import ScopingRequest, ScopingAnalysis, ScopingAnswer
 
 
 SCOPING_QUESTIONS = [
@@ -16,8 +15,6 @@ SCOPING_QUESTIONS = [
 
 async def analyze_transcript(transcript: str, req: ScopingRequest) -> ScopingAnalysis:
     """Analyze a scoping call transcript against the 5 scoping questions."""
-    client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
-
     questions_text = "\n".join(f"{i+1}. {q}" for i, q in enumerate(SCOPING_QUESTIONS))
 
     prompt = f"""You are analyzing a scoping call transcript for CFA (Computing for All), an agentic AI engineering firm.
@@ -53,13 +50,14 @@ SUMMARY:
 
 Format your response with clear section headers for each question (Q1, Q2, etc.) and for the Gap Analysis and Summary sections."""
 
-    response = client.messages.create(
-        model=config.CLAUDE_MODEL,
-        max_tokens=3000,
+    # Transcript analysis is reasoning-heavy — use the synthesis tier.
+    text = llm_complete(
         messages=[{"role": "user", "content": prompt}],
+        tier="synthesis",
+        max_tokens=3000,
     )
 
-    return _parse_analysis(response.content[0].text)
+    return _parse_analysis(text)
 
 
 def _clean(text: str) -> str:

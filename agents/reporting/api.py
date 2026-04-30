@@ -11,24 +11,28 @@ Endpoints:
 
 Run: uvicorn api:app --reload --port 8000
 """
-import sys, os, json
 from datetime import datetime, timezone
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 import psycopg2.extras
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG
+from wfdos_common.config import PG_CONFIG
+from wfdos_common.errors import install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware
 
 app = FastAPI(title="Waifinder Reporting API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
 
 
 def query(sql, params=None):
@@ -43,6 +47,11 @@ def query(sql, params=None):
 def query_one(sql, params=None):
     rows = query(sql, params)
     return rows[0] if rows else {}
+
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "service": "reporting-api", "port": 8000}
 
 
 @app.get("/api/overview")

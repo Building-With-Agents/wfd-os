@@ -15,6 +15,7 @@ Run: uvicorn student_api:app --reload --port 8001
 import json
 import os
 from datetime import datetime
+
 from fastapi import FastAPI, HTTPException, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -57,6 +58,7 @@ app.add_middleware(
 # #29 — structured error envelope on every 4xx/5xx.
 install_error_handlers(app)
 
+<<<<<<< HEAD
 
 # -----------------------------------------------------------------------------
 # Auth — Gary's Phase 4 magic-link flow + a dev-only instant sign-in shortcut.

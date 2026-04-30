@@ -10,18 +10,19 @@ Privacy: Last name initial only. No email/phone exposed.
 
 Run: uvicorn showcase_api:app --reload --port 8002
 """
-import sys, os, json
-from datetime import datetime, timezone
+import json
 from fastapi import FastAPI, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import psycopg2
 import psycopg2.extras
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-from pgconfig import PG_CONFIG
+from wfdos_common.errors import NotFoundError, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware
+
 
 app = FastAPI(title="Waifinder Talent Showcase API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3003", "http://localhost:3000", "http://127.0.0.1:3003"],
@@ -29,9 +30,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
+
 
 def get_conn():
-    return psycopg2.connect(**PG_CONFIG)
+    """Raw DBAPI connection from the wfdos_common.db engine pool (#22c)."""
+    from wfdos_common.db import get_engine
+    return get_engine().raw_connection()
 
 
 def query(sql, params=None):
@@ -308,7 +314,7 @@ def get_candidate_detail(student_id: str):
 
     if not student:
         conn.close()
-        raise HTTPException(status_code=404, detail="Candidate not found")
+        raise NotFoundError("candidate")
 
     student = dict(student)
 
@@ -424,7 +430,7 @@ def get_candidate_detail(student_id: str):
     if isinstance(legacy, str):
         try:
             legacy = json.loads(legacy)
-        except:
+        except Exception:
             legacy = {}
 
     career_objective = legacy.get('career_objective')
@@ -432,7 +438,7 @@ def get_candidate_detail(student_id: str):
     if isinstance(certifications, str):
         try:
             certifications = json.loads(certifications)
-        except:
+        except Exception:
             certifications = []
 
     conn.close()
@@ -534,7 +540,7 @@ def _compute_duration(start: str, end: str, is_current: bool) -> str:
         if diff.months:
             parts.append(f"{diff.months} mo")
         return " ".join(parts) or "< 1 mo"
-    except:
+    except Exception:
         return "Duration available"
 
 

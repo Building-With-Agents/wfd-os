@@ -12,11 +12,7 @@ Endpoints:
 
 Run: uvicorn agents.marketing.api:app --port 8008
 """
-import os
 import re
-import sys
-import json
-from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
@@ -25,24 +21,26 @@ from pydantic import BaseModel
 import psycopg2
 import psycopg2.extras
 
-_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-if _REPO_ROOT not in sys.path:
-    sys.path.insert(0, _REPO_ROOT)
-
-from dotenv import load_dotenv
-load_dotenv(os.path.join(_REPO_ROOT, ".env"), override=False)
-
-sys.path.insert(0, os.path.join(_REPO_ROOT, "scripts"))
-from pgconfig import PG_CONFIG
+# wfdos_common.config auto-loads the repo .env via python-dotenv find_dotenv —
+# no hardcoded path needed. Pre-#27 this file had sys.path.insert hacks; the
+# monorepo root pyproject.toml (#27) now exposes `agents.*` as a namespace
+# package, so direct imports resolve without them.
+from wfdos_common.config import PG_CONFIG
+from wfdos_common.errors import NotFoundError, ValidationFailure, install_error_handlers
+from wfdos_common.logging import RequestContextMiddleware
 
 app = FastAPI(title="WFD OS Marketing Content API", version="0.1.0")
 
+app.add_middleware(RequestContextMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# #29 — structured error envelope on every 4xx/5xx.
+install_error_handlers(app)
 
 
 def _slugify(title: str) -> str:
@@ -144,7 +142,7 @@ def get_content(content_id: str):
     row = cur.fetchone()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Content not found")
+        raise NotFoundError("content")
     return _serialize(row)
 
 
@@ -152,7 +150,7 @@ def get_content(content_id: str):
 def update_status(content_id: str, update: StatusUpdate):
     valid = {"draft", "in_review", "approved", "published", "active", "archived"}
     if update.status not in valid:
-        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of {valid}")
+        raise ValidationFailure(f"Invalid status. Must be one of {valid}")
 
     conn = psycopg2.connect(**PG_CONFIG)
     cur = conn.cursor()
@@ -173,7 +171,7 @@ def update_status(content_id: str, update: StatusUpdate):
     conn.commit()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Content not found")
+        raise NotFoundError("content")
     return {"success": True, "id": row[0], "title": row[1], "status": update.status}
 
 
@@ -191,7 +189,7 @@ def mark_loaded(content_id: str):
     conn.commit()
     conn.close()
     if not row:
-        raise HTTPException(status_code=404, detail="Email sequence not found")
+        raise NotFoundError("email sequence")
     return {"success": True, "id": row[0], "title": row[1], "status": "active"}
 
 

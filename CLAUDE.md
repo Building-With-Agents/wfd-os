@@ -2,6 +2,28 @@
 # CLAUDE.md v4
 
 =============================================================
+!! NEW SESSION — LOAD THE REFACTOR INDEX FIRST !!
+=============================================================
+
+Before diving into any task:
+
+1. Read `docs/refactor/INDEX.md` — the per-phase map.
+2. Load the specific phase/feature MDs it points to for your task.
+3. Only load `~/.claude/plans/wild-splashing-cascade.md` if you need
+   the strategic-level context (merge strategy, stacked-branch order,
+   etc.). Per-phase detail lives in the phase exit reports, not the
+   plan.
+
+**Never load every exit report eagerly** — defeats the purpose of
+indexing. Be surgical.
+
+**GPG signing is mandatory on every commit.** Never use
+`--no-gpg-sign`, `-c commit.gpgsign=false`, or `GIT_CONFIG_PARAMETERS`
+to bypass. If Kleopatra / gpg-agent is down, prompt Gary — do not skip.
+
+=============================================================
+
+=============================================================
 !! CRITICAL — DO NOT DISTURB EXISTING SYSTEMS !!
 =============================================================
 

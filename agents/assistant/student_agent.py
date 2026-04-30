@@ -70,9 +70,8 @@ CERTIFICATIONS = {
 def _search_jobs(query: str = "", skills: str = "", location: str = "Washington") -> list[dict]:
     """Search real job listings from PostgreSQL. Falls back to hardcoded if DB unavailable."""
     try:
-        import psycopg2, psycopg2.extras, os, sys
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-        from pgconfig import PG_CONFIG
+        import psycopg2, psycopg2.extras
+        from wfdos_common.config import PG_CONFIG
         conn = psycopg2.connect(**PG_CONFIG)
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
