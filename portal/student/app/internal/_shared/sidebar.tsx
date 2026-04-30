@@ -44,6 +44,15 @@ const NAV: NavSection[] = [
         label: "Finance",
         href: "/internal/finance",
         match: "/internal/finance",
+        children: [
+          // Compliance Requirements has its own standalone page —
+          // /internal/finance/compliance — that renders the same
+          // ComplianceTab component without the cockpit hero, decisions,
+          // or sibling tabs. The compliance tab still exists inside the
+          // cockpit too; this sub-item is for users who want the
+          // requirements view on its own.
+          { label: "Compliance Requirements", href: "/internal/finance/compliance", match: "/internal/finance/compliance" },
+        ],
       },
       {
         label: "Recruiting",
@@ -99,8 +108,12 @@ const NAV: NavSection[] = [
         match: "/showcase",
       },
       {
+        // Land on the token-entry page — /college is a token-gated route
+        // that shows an access-error card when hit directly. Staff entering
+        // the institution access code (bc-001, nsc-001) from /college/login
+        // are redirected to the dashboard automatically.
         label: "College Portal",
-        href: "/college",
+        href: "/college/login",
         match: "/college",
       },
       {

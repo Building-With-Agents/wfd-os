@@ -15,10 +15,12 @@ import type {
   TransactionsTabPayload,
   ReportingTabPayload,
   AuditTabPayload,
+  ComplianceTabPayload,
   Tone,
 } from "../../lib/types"
 import { fmtUSD, fmtPct, fmtNum } from "../../lib/format"
 import { VerdictBox } from "../../../_shared/verdict-box"
+import { ComplianceTab } from "../compliance/compliance-tab"
 
 // ---------- shared cell-style helpers ----------
 
@@ -839,6 +841,7 @@ export function TabContent({
     case "transactions": return <TransactionsTab payload={payload} onOpen={onOpen} />
     case "reporting":    return <ReportingTab    payload={payload} />
     case "audit":        return <AuditTab        payload={payload} onOpen={onOpen} />
+    case "compliance":   return <ComplianceTab   payload={payload} />
     default: {
       const exhaustive: never = payload
       console.warn("Unknown tab payload", exhaustive)

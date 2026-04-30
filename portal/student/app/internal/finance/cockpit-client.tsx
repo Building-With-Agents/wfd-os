@@ -47,6 +47,13 @@ export function CockpitClient({ initial }: { initial: InitialState }) {
     { id: "providers", label: "Providers", count: counts.providers },
     { id: "transactions", label: "Transactions", count: counts.transactions },
     { id: "reporting", label: "ESD Reporting", count: counts.reporting },
+    // Compliance Requirements lives between ESD Reporting and Audit Readiness:
+    // Reporting (what was reported) → Compliance (what must be documented)
+    // → Audit Readiness (do we have it?). The tab count is intentionally
+    // not pre-loaded — it's only known after the engine fetch in
+    // _tab_compliance, and including it in the cockpit /status payload
+    // would force every cockpit refresh to call the engine.
+    { id: "compliance", label: "Compliance Requirements" },
     { id: "audit", label: "Audit Readiness", count: counts.audit },
   ], [counts])
 
@@ -67,6 +74,35 @@ export function CockpitClient({ initial }: { initial: InitialState }) {
   useEffect(() => {
     void loadTab(activeTab)
   }, [activeTab, loadTab])
+
+  // URL hash → active tab. Lets the sidebar deep-link
+  // /internal/finance#compliance straight to the Compliance Requirements
+  // tab. On mount and on every hashchange, if the hash names a valid tab
+  // id, switch to it. Unknown hashes are ignored (we don't want a typo
+  // in the URL to wipe out the user's tab selection).
+  useEffect(() => {
+    const validIds = new Set(tabs.map((t) => t.id))
+    function syncFromHash() {
+      const h = window.location.hash.replace(/^#/, "")
+      if (h && validIds.has(h)) {
+        setActiveTab(h)
+      }
+    }
+    syncFromHash()
+    window.addEventListener("hashchange", syncFromHash)
+    return () => window.removeEventListener("hashchange", syncFromHash)
+  }, [tabs])
+
+  // Active tab → URL hash. Keeps the URL shareable / bookmarkable. We
+  // use replaceState rather than navigation so this doesn't add browser-
+  // history entries on every tab click.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const desired = `#${activeTab}`
+    if (window.location.hash !== desired) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${desired}`)
+    }
+  }, [activeTab])
 
   const openDrill = useCallback(async (key: string) => {
     setActiveDrillKey(key)

@@ -393,6 +393,12 @@ export interface AuditTabPayload {
   dimensions: AuditDimension[]
 }
 
+// Re-export the Compliance Requirements tab payload from its own module
+// (compliance-types.ts) so the union below stays the single TabPayload
+// definition without inlining 200+ lines of mirror types here.
+export type { ComplianceTabPayload } from "./compliance-types"
+import type { ComplianceTabPayload as _ComplianceTabPayloadImport } from "./compliance-types"
+
 export type TabPayload =
   | BudgetTabPayload
   | PlacementsTabPayload
@@ -400,3 +406,4 @@ export type TabPayload =
   | TransactionsTabPayload
   | ReportingTabPayload
   | AuditTabPayload
+  | _ComplianceTabPayloadImport
