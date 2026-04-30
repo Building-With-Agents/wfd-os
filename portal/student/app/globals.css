@@ -631,6 +631,167 @@
   text-align: right;
 }
 
+/* ----- Chat panel — live wiring (broad chat, step 4) ----- */
+.cockpit-surface .cockpit-chat-col[data-collapsed="true"] {
+  width: 44px;
+  align-items: center;
+  padding-top: 16px;
+}
+.cockpit-surface .cockpit-chat-rail-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  color: var(--cockpit-text-2);
+  font-family: inherit;
+}
+.cockpit-surface .cockpit-chat-rail-btn:hover { color: var(--cockpit-text-1); }
+
+.cockpit-surface .cockpit-chat-head {
+  position: relative;
+  padding-right: 40px;
+}
+.cockpit-surface .cockpit-chat-collapse-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--cockpit-text-3);
+  cursor: pointer;
+  padding: 4px;
+}
+.cockpit-surface .cockpit-chat-collapse-btn:hover { color: var(--cockpit-text-1); }
+.cockpit-surface .cockpit-chat-clear-btn {
+  display: block;
+  margin-top: 6px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--cockpit-text-3);
+  font-size: var(--cockpit-fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cockpit-surface .cockpit-chat-clear-btn:hover {
+  color: var(--cockpit-text-1);
+  text-decoration: underline;
+}
+
+/* Message rows. role=user right-aligns; role=assistant left-aligns. */
+.cockpit-surface .cockpit-chat-msg-row {
+  display: flex;
+  margin-bottom: 12px;
+}
+.cockpit-surface .cockpit-chat-msg-row[data-role="user"] {
+  justify-content: flex-end;
+}
+.cockpit-surface .cockpit-chat-msg-row[data-role="assistant"] {
+  justify-content: flex-start;
+}
+.cockpit-surface .cockpit-chat-msg-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  font-size: var(--cockpit-fs-body);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.cockpit-surface .cockpit-chat-msg-row[data-role="user"] .cockpit-chat-msg-bubble {
+  background: var(--cockpit-surface-warm, #EAE6D8);
+  color: var(--cockpit-text-1);
+}
+.cockpit-surface .cockpit-chat-msg-row[data-role="assistant"] .cockpit-chat-msg-bubble {
+  background: #FFFFFF;
+  color: var(--cockpit-text-1);
+  border: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .cockpit-chat-msg-row[data-error="true"] .cockpit-chat-msg-bubble {
+  border-color: var(--cockpit-critical, #B43E3E);
+  color: var(--cockpit-critical, #B43E3E);
+}
+.cockpit-surface .cockpit-chat-retry-btn {
+  align-self: center;
+  margin-left: 8px;
+  background: transparent;
+  border: 1px solid var(--cockpit-border-strong);
+  color: var(--cockpit-text-2);
+  padding: 4px 10px;
+  font-size: var(--cockpit-fs-meta);
+  cursor: pointer;
+  font-family: inherit;
+}
+.cockpit-surface .cockpit-chat-retry-btn:hover {
+  background: var(--cockpit-surface-warm);
+}
+
+/* Drill-link buttons inside agent messages. Render as inline accented
+ * text with a subtle underline; click handler intercepts to open the
+ * drill panel instead of navigating. */
+.cockpit-surface .cockpit-chat-drill-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--cockpit-brand, #1A1A1A);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: pointer;
+}
+.cockpit-surface .cockpit-chat-drill-link:hover {
+  text-decoration-style: solid;
+}
+.cockpit-surface .cockpit-chat-ext-link {
+  color: var(--cockpit-brand, #1A1A1A);
+  text-decoration: underline;
+}
+
+/* Typing indicator — three pulsing dots. */
+.cockpit-surface .cockpit-chat-typing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 12px 14px;
+}
+.cockpit-surface .cockpit-chat-typing-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--cockpit-text-3);
+  border-radius: 50%;
+  animation: cockpit-chat-pulse 1.2s ease-in-out infinite;
+}
+.cockpit-surface .cockpit-chat-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.cockpit-surface .cockpit-chat-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes cockpit-chat-pulse {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+
+/* Live input — replaces the static .cockpit-chat-input-box display. */
+.cockpit-surface .cockpit-chat-input-field {
+  width: 100%;
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border-strong);
+  padding: 10px 12px;
+  font-size: var(--cockpit-fs-body);
+  color: var(--cockpit-text-1);
+  font-family: inherit;
+  outline: none;
+}
+.cockpit-surface .cockpit-chat-input-field:focus {
+  border-color: var(--cockpit-text-1);
+}
+.cockpit-surface .cockpit-chat-input-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ----- Drill panel + sections ----- */
 .cockpit-surface .cockpit-drill-overlay {
   position: fixed;

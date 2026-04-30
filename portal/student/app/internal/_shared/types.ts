@@ -20,6 +20,7 @@ export type SectionType =
 // ---------- per-section content ----------
 
 export interface RowsSection {
+  id: string
   type: "rows"
   title: string
   rows: Array<{
@@ -42,6 +43,7 @@ export interface TableColumn {
 }
 
 export interface TableSection {
+  id: string
   type: "table"
   title: string
   columns: TableColumn[]
@@ -66,6 +68,7 @@ export interface ChartReferenceLine {
 }
 
 export interface ChartSection {
+  id: string
   type: "chart"
   title: string
   chart_type: "bar" | "line" | "area"
@@ -77,12 +80,14 @@ export interface ChartSection {
 }
 
 export interface ProseSection {
+  id: string
   type: "prose"
   title?: string
   body: string
 }
 
 export interface VerdictSection {
+  id: string
   type: "verdict"
   tone: Tone
   headline: string
@@ -96,6 +101,7 @@ export interface TimelineEvent {
 }
 
 export interface TimelineSection {
+  id: string
   type: "timeline"
   title: string
   events: TimelineEvent[]
@@ -108,6 +114,7 @@ export interface ActionItem {
 }
 
 export interface ActionItemsSection {
+  id: string
   type: "action_items"
   title: string
   items: ActionItem[]
@@ -146,6 +153,10 @@ export interface DrillEntry {
   updated_at?: string
   source?: string
   note?: string
+  /** Drill-chat seeded prompts. Three per drill, server-generated.
+   *  Consumed by DrillChat (Surface 2 in chat_spec.md, lands step 5).
+   *  Optional only because legacy drill payloads predate this field. */
+  discussion_prompts?: string[]
 }
 
 export type DrillRegistry = Record<string, DrillEntry>

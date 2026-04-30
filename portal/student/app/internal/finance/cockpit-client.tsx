@@ -16,8 +16,9 @@ import { TabsBar, type TabDef } from "../_shared/tabs-bar"
 import { DrillPanel } from "../_shared/drill/drill-panel"
 import { Topbar } from "./components/cockpit-shell/topbar"
 import { DecisionsList } from "./components/cockpit-shell/decisions-list"
-import { ChatPanel } from "./components/cockpit-shell/chat-panel"
 import { ActivityFeed } from "./components/cockpit-shell/activity-feed"
+import { BroadChat } from "./components/chat/broad-chat"
+import { FinanceChatProvider } from "./components/chat/finance-chat-context"
 import { TabContent, TabLoading, TabError } from "./components/tabs/tab-content"
 
 interface InitialState {
@@ -87,8 +88,6 @@ export function CockpitClient({ initial }: { initial: InitialState }) {
     setDrillError(null)
   }, [])
 
-  const activeTabLabel = tabs.find((t) => t.id === activeTab)?.label ?? activeTab
-
   const tabPayload = tabCache[activeTab]
   const tabFetchError = tabError[activeTab]
 
@@ -106,7 +105,7 @@ export function CockpitClient({ initial }: { initial: InitialState }) {
   ]
 
   return (
-    <>
+    <FinanceChatProvider>
       <CockpitShell
         main={
           <>
@@ -133,7 +132,7 @@ export function CockpitClient({ initial }: { initial: InitialState }) {
             <ActivityFeed activity={initial.activity} />
           </>
         }
-        chat={<ChatPanel activeTab={activeTabLabel} />}
+        chat={<BroadChat onOpenDrill={openDrill} />}
       />
       <DrillPanel
         entry={activeDrill}
@@ -141,6 +140,6 @@ export function CockpitClient({ initial }: { initial: InitialState }) {
         error={drillError}
         onClose={closeDrill}
       />
-    </>
+    </FinanceChatProvider>
   )
 }
