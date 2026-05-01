@@ -44,6 +44,33 @@ STOP. Ask Ritu first.
 
 =============================================================
 
+=============================================================
+!! REUSE FIRST — `packages/wfdos-common` IS THE SHARED LAYER !!
+=============================================================
+
+Before writing new code in `agents/*` (or anywhere else), check
+`packages/wfdos-common/wfdos_common/` for an existing primitive.
+This package is the canonical home for shared service code —
+config, db, models, auth, llm, graph, email, logging, errors,
+tenancy, agent base class, testing helpers. See its `README.md`
+for module-by-module status and the shim+flip migration pattern.
+
+Defaults:
+- New agent / service code: import from `wfdos_common.*` instead
+  of duplicating. If the primitive doesn't exist yet, add it to
+  `wfdos-common` (and its tests) rather than copying logic into
+  an agent.
+- Touching legacy `agents/*` modules that have a `wfdos_common`
+  equivalent: prefer flipping the importer to the new path
+  (the shims exist for exactly this).
+- Microsoft Graph / email / LLM / auth / DB sessions: always go
+  through `wfdos_common`, never re-instantiate clients per agent.
+
+If a piece of logic feels generic enough that a second agent
+would want it, it belongs in `wfdos-common`, not the agent.
+
+=============================================================
+
 ## Project Overview
 
 WFD OS is CFA's internal agent-first platform for managing the
@@ -359,13 +386,20 @@ Each = Gemini Flash + system prompt + tools + session memory
 Tools = existing APIs wrapped for LLM function calling
 
 ===============================================================
-THE SIX CONVERSATIONAL AGENTS
+THE NINE CONVERSATIONAL AGENTS
 ===============================================================
 
 All powered by Gemini Flash.
 All saved to: agents/assistant/
 All served by: agents/assistant/api.py
 Port: 8009
+
+The original six (Student, Employer, College, Consulting Intake,
+Youth, CFA Staff) cover the platform's outward-facing surfaces.
+Agents 7-9 (BD, Marketing, Finance) are internal-team assistants
+landed via the bd-command-center / finance-cockpit reconciliation —
+each is scoped to one staff function (Jason / Jessica / Ritu) and
+reads from a narrower slice of tables than staff_agent.
 
 AGENT 1: Student Agent
 File: agents/assistant/student_agent.py
@@ -440,6 +474,60 @@ Tools: get_ceo_briefing,
        get_student_progress,
        flag_issue
 
+AGENT 7: BD Agent
+File: agents/assistant/bd_agent.py
+Lives on: /internal/bd
+Principle: DRAFT, NEVER SEND
+Goal: Help Jason work the Waifinder
+      BD pipeline — synthesizes Agents
+      12/13/14/15 intelligence into
+      actionable answers. Drafts only.
+Users: Jason
+Reads: company_scores, hot_warm_contacts,
+       warm_signals, distribution_log,
+       email_sequences
+
+AGENT 8: Marketing Agent
+File: agents/assistant/marketing_agent.py
+Lives on: /internal/marketing
+Principle: PLAN AND DRAFT
+Goal: Help Jessica plan, draft, and
+      submit content to the Waifinder
+      distribution pipeline.
+Users: Jessica
+Reads: content_submissions,
+       distribution_log, warm_signals,
+       company_scores (recommended_content),
+       marketing_leads
+
+AGENT 9: Finance Agent
+File: agents/assistant/finance_agent.py
+Lives on: /internal/finance
+Principle: SURFACE, DON'T DECIDE
+Goal: Read-only assistant scoped to
+      grants, transactions, allocations,
+      compliance flags, and QB sync.
+      Cites rule references and DB
+      sources on every claim.
+Users: Ritu (today), Krista (eventually)
+Reads via: agents/grant-compliance API
+       (engine on :8014). Never writes
+       to QB.
+
+===============================================================
+NON-CONVERSATIONAL AGENTS (engine-side, no chat surface)
+===============================================================
+
+Compliance Requirements Agent
+Location: agents/grant-compliance/src/grant_compliance/
+          compliance_requirements_agent/
+Surfaced through: grant-compliance FastAPI on :8014
+Users: programmatic — finance_agent + the
+       /internal/finance cockpit consume it.
+Goal: Mode A (rule lookup) and Mode B (Q&A)
+      against the regulatory corpus +
+      contracts inventory.
+
 ===============================================================
 ROUTING (rule-based, not LLM)
 ===============================================================
@@ -449,6 +537,9 @@ ROUTING (rule-based, not LLM)
 /college            -> College Agent
 /cfa/ai-consulting/chat -> Consulting Agent
 /internal           -> Staff Agent (?user=ritu etc)
+/internal/bd        -> BD Agent (Jason)
+/internal/marketing -> Marketing Agent (Jessica)
+/internal/finance   -> Finance Agent (Ritu / Krista)
 /youth              -> Youth Agent
 / (homepage)        -> ask user who they are
 

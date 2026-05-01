@@ -18,11 +18,11 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
 from dotenv import find_dotenv, load_dotenv
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 # Auto-load the repo-root .env. find_dotenv walks up from CWD.
@@ -250,6 +250,50 @@ class PlatformSettings(BaseSettings):
         default="http://localhost:3000",
         alias="CLIENT_PORTAL_BASE_URL",
     )
+    # Comma-separated list of origins permitted by the CORSMiddleware on
+    # every FastAPI service. Defaults cover local dev (Next.js on 3000/3001)
+    # plus the two production hostnames behind the edge proxy. Override via
+    # WFDOS_ALLOWED_ORIGINS for a tenant-specific deployment. NoDecode keeps
+    # pydantic-settings from JSON-parsing the env value before the validator
+    # below runs — that's how plain CSV (the natural shell idiom) works.
+    allowed_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://127.0.0.1:3000",
+            "https://platform.thewaifinder.com",
+            "https://talent.borderplexwfs.org",
+        ],
+        alias="WFDOS_ALLOWED_ORIGINS",
+    )
+    # Optional regex for auto-port localhost (e.g. when Next.js falls back
+    # to 3001/3002 because 3000 is taken). None disables the regex match.
+    allowed_origin_regex: Optional[str] = Field(
+        default=r"http://(localhost|127\.0\.0\.1):\d+",
+        alias="WFDOS_ALLOWED_ORIGIN_REGEX",
+    )
+    # Inter-service URL for the assistant API (Gemini-backed chat). Used
+    # by student_api when proxying student-portal chat to the assistant
+    # router on :8009. Override per deployment if the assistant is on a
+    # different host.
+    assistant_api_base_url: str = Field(
+        default="http://127.0.0.1:8009",
+        alias="WFDOS_ASSISTANT_API_BASE_URL",
+    )
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def _split_csv_origins(cls, v):
+        """Accept either a JSON list or a comma-separated string from env.
+
+        Pydantic-settings parses `list[str]` env values as JSON by
+        default, which makes the natural shell idiom
+        `WFDOS_ALLOWED_ORIGINS=https://a,https://b` raise. This
+        validator splits the CSV form before the type coercion runs.
+        """
+        if isinstance(v, str):
+            return [s.strip() for s in v.split(",") if s.strip()]
+        return v
 
     model_config = SettingsConfigDict(populate_by_name=True, extra="ignore")
 

@@ -6,9 +6,13 @@ const COMPANY_COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444"]
 
 interface JobMatchesSectionProps {
   matches: JobMatch[]
+  /** Click a card → open the gap-detail modal keyed by the clicked job's id.
+   *  Passed from the student portal page; when undefined the cards render
+   *  non-clickable (backward-compatible with the previous display-only UX). */
+  onCardClick?: (jobId: string) => void
 }
 
-export function JobMatchesSection({ matches }: JobMatchesSectionProps) {
+export function JobMatchesSection({ matches, onCardClick }: JobMatchesSectionProps) {
   if (matches.length === 0) {
     return (
       <section className="rounded-lg border bg-card p-8 text-center">
@@ -59,7 +63,7 @@ export function JobMatchesSection({ matches }: JobMatchesSectionProps) {
                 ? `From $${Math.round(match.salary_min / 1000)}K`
                 : null
 
-          return (
+          const card = (
             <JobMatchCard
               key={match.job_id}
               job={{
@@ -77,6 +81,29 @@ export function JobMatchesSection({ matches }: JobMatchesSectionProps) {
                 isNew: i === 0,
               }}
             />
+          )
+          if (!onCardClick) return card
+          // Can't wrap in <button> — the JobMatchCard already contains
+          // a <Button> (the inner CTA), and nested buttons trigger a
+          // React hydration error. Use div+role=button so the outer
+          // click target doesn't produce invalid HTML.
+          return (
+            <div
+              key={match.job_id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onCardClick(match.job_id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  onCardClick(match.job_id)
+                }
+              }}
+              className="cursor-pointer rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+              aria-label={`Open detail for ${match.title}`}
+            >
+              {card}
+            </div>
           )
         })}
       </div>

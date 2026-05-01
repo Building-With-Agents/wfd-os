@@ -1,4 +1,4 @@
-"""LaborPulse — FastAPI service (port 8012).
+"""LaborPulse — FastAPI service (port 8015).
 
   POST /api/laborpulse/query     — workforce-development Q&A, request/
                                     response JSON. Proxies to JIE
@@ -23,7 +23,7 @@ Mock mode:
   production deploy accidentally running in mock mode is greppable.
 
 Run:
-  uvicorn agents.laborpulse.api:app --port 8012
+  uvicorn agents.laborpulse.api:app --port 8015
 """
 
 from __future__ import annotations
@@ -80,12 +80,8 @@ app.add_middleware(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://platform.thewaifinder.com",
-        "https://talent.borderplexwfs.org",
-    ],
+    allow_origins=settings.platform.allowed_origins,
+    allow_origin_regex=settings.platform.allowed_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],

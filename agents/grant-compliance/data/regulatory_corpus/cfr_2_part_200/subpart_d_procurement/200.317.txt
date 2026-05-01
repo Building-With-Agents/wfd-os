@@ -1,0 +1,39 @@
+========================================================================
+CITATION:        2 CFR 200.317
+TITLE:           Procurements by states
+SUBPART:         D — Post Federal Award Requirements (Procurement Standards)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.317
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           This section's substance has been stable across the 2014 / 2020 / 2024 revisions.
+                 Verify the exact wording at the SOURCE_URL above before citing in formal work.
+========================================================================
+
+§ 200.317  Procurements by states.
+
+When procuring property and services under a Federal award, a state must
+follow the same policies and procedures it uses for procurements from its
+non-Federal funds. The state will comply with §§ 200.321, 200.322, 200.323,
+and 200.327 and ensure that every purchase order or other contract includes
+any clauses required by Federal statutes and executive orders and their
+implementing regulations. All other non-Federal entities, including
+subrecipients of a state, must follow the procurement standards in
+§§ 200.318 through 200.327.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- §200.317 applies only when the non-Federal entity is a state government
+  unit. CFA (Computing for All) is a 501(c)(3) nonprofit, NOT a state. The
+  K8341 grant is administered by Washington's Employment Security
+  Department (ESD), which is the state pass-through entity.
+- For CFA's own procurements under K8341, §§200.318–200.327 apply (the
+  general standards). §200.317 is included in the corpus because pass-through
+  monitoring may reference it when ESD describes the state's own
+  procurement standards.
+- ESD itself, as a state, may follow its own state procurement procedures
+  rather than §§200.318–200.327, but it must still apply §§200.321,
+  200.322, 200.323, and 200.327 to its procurements.
+========================================================================

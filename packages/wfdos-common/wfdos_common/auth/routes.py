@@ -14,6 +14,10 @@ This gives the service:
   GET  /auth/verify?token=...               → sets cookie, redirects home
   POST /auth/logout                         → clears cookie
   GET  /auth/me                             → {"email", "role"} or 401
+  GET  /auth/dev-login?email=...            → DEV ONLY — instant cookie
+
+The dev-login route is gated by `DEV_AUTH_BYPASS=1`; with the flag unset
+it 404s, so it's inert in any deploy where the env var isn't present.
 
 Factory-based so each service can configure its own post-verify redirect
 target (the Next.js portal lives at localhost:3000, standalone services
@@ -22,10 +26,11 @@ may redirect elsewhere).
 
 from __future__ import annotations
 
+import os
 from typing import Callable, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, EmailStr
 from starlette.responses import JSONResponse, RedirectResponse
 
@@ -183,6 +188,56 @@ def build_auth_router(
         if user is None:
             raise UnauthorizedError("authentication required")
         return {"email": user.email, "role": user.role, "tenant_id": user.tenant_id}
+
+    @router.get("/dev-login")
+    def dev_login(email: str, response: Response):
+        """DEV ONLY: instant sign-in that skips the magic-link email step.
+
+        Gated by `DEV_AUTH_BYPASS=1` — returns 404 otherwise, so this
+        endpoint is inert in any deploy where the flag isn't set. Uses
+        the same Session + issue_session + allowlist resolution as the
+        magic-link flow; only the email dispatch is skipped. The email
+        MUST be on one of the four WFDOS_AUTH_*_ALLOWLIST env vars —
+        unallowlisted emails 403 so dev-mode can't promote arbitrary
+        users.
+
+        Mounted on every service via build_auth_router so the front-end
+        rewrite (/auth/* → any one backend) reaches it regardless of
+        which service handles /auth/*.
+        """
+        if os.environ.get("DEV_AUTH_BYPASS") != "1":
+            raise HTTPException(status_code=404, detail="Not found")
+
+        email_norm = email.strip().lower()
+        role = resolve_role(
+            email_norm,
+            admin_csv=settings.auth.admin_allowlist,
+            staff_csv=settings.auth.staff_allowlist,
+            student_csv=settings.auth.student_allowlist,
+            workforce_development_csv=settings.auth.workforce_development_allowlist,
+        )
+        if role is None:
+            raise HTTPException(
+                status_code=403,
+                detail=(
+                    f"{email_norm} is not on any WFDOS_AUTH_*_ALLOWLIST. "
+                    "Add it to .env and restart the service."
+                ),
+            )
+
+        session = Session(email=email_norm, role=role, tenant_id=None)
+        token = issue_session(session, secret_key=settings.auth.secret_key)
+        response.set_cookie(
+            key=settings.auth.cookie_name,
+            value=token,
+            max_age=settings.auth.session_ttl_seconds,
+            httponly=True,
+            secure=False,  # dev — http://localhost
+            samesite="lax",
+            path="/",
+        )
+        log.info("auth.dev_login", email=email_norm, role=role)
+        return {"status": "ok", "email": email_norm, "role": role}
 
     return router
 

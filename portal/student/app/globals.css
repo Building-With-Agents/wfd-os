@@ -45,6 +45,1245 @@
   --warning-foreground: oklch(0.25 0.05 65);
 }
 
+/* Finance cockpit design tokens (CFA agent surface).
+ * Migrated from agents/finance/design/CFA_Cockpit.html :root.
+ * Scoped under .cockpit-surface so they don't leak into the rest
+ * of the portal's oklch token system. The cockpit (and any future
+ * agent surface that adopts this pattern) opts in by adding
+ * cockpit-surface on its root element. */
+.cockpit-surface {
+  --cockpit-bg: #FAFAF7;
+  --cockpit-surface: #FFFFFF;
+  --cockpit-surface-alt: #F4F2EC;
+  --cockpit-surface-warm: #EFEBE0;
+  --cockpit-border: #E8E5DC;
+  --cockpit-border-strong: #D4D0C4;
+  --cockpit-text-1: #1A1A1A;
+  --cockpit-text-2: #5C5A52;
+  --cockpit-text-3: #8C8A82;
+  --cockpit-good: #1F6B5C;
+  --cockpit-good-soft: #E8F0EE;
+  --cockpit-watch: #B8821B;
+  --cockpit-watch-soft: #F5EBD4;
+  --cockpit-critical: #B8462E;
+  --cockpit-critical-soft: #F5E1D9;
+  --cockpit-brand: #2E4D3E;
+
+  /* Type scale — explicit tokens so size choices live in one place
+   * and downstream agent surfaces can override per-deployment. */
+  --cockpit-fs-micro: 9px;
+  --cockpit-fs-meta: 10px;
+  --cockpit-fs-label: 11px;
+  --cockpit-fs-helper: 12px;
+  --cockpit-fs-body: 13px;
+  --cockpit-fs-button: 14px;
+  --cockpit-fs-section: 18px;
+  --cockpit-fs-stat: 22px;
+  --cockpit-fs-drill: 26px;
+  --cockpit-fs-hero: 28px;
+  --cockpit-fs-display: 32px;
+
+  background: var(--cockpit-bg);
+  color: var(--cockpit-text-1);
+  font-family: var(--font-cockpit-sans), 'Figtree', sans-serif;
+  font-size: var(--cockpit-fs-button);
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+.cockpit-surface .cockpit-num {
+  font-family: var(--font-cockpit-mono), 'DM Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.cockpit-surface .cockpit-display {
+  font-family: var(--font-cockpit-display), 'Instrument Serif', serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* ----- Agent shell (shared nav sidebar + content) -----
+ * Wraps every agent surface under /internal/*. Applied at the shell
+ * root; every child (including the cockpit-app flex row) sits beside
+ * the sidebar. */
+.cockpit-surface.agent-shell { display: flex; min-height: 100vh; }
+.cockpit-surface .agent-shell-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.cockpit-surface .agent-sidebar {
+  width: 180px;
+  flex-shrink: 0;
+  background: var(--cockpit-surface-alt);
+  border-right: 1px solid var(--cockpit-border);
+  padding: 20px 0;
+  font-size: var(--cockpit-fs-body);
+}
+.cockpit-surface .agent-sidebar-header {
+  font-size: var(--cockpit-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  padding: 0 20px 14px;
+}
+.cockpit-surface .agent-sidebar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.cockpit-surface .agent-sidebar-list > li {
+  list-style: none;
+}
+.cockpit-surface .agent-sidebar-item {
+  display: block;
+  padding: 8px 20px;
+  color: var(--cockpit-text-2);
+  text-decoration: none;
+  font-weight: 500;
+  transition: background 0.12s, color 0.12s;
+}
+.cockpit-surface a.agent-sidebar-item:hover { color: var(--cockpit-text-1); }
+.cockpit-surface .agent-sidebar-item[data-active="true"] {
+  background: var(--cockpit-surface-warm);
+  color: var(--cockpit-text-1);
+  font-weight: 600;
+  border-left: 2px solid var(--cockpit-brand);
+  padding-left: 18px;
+}
+.cockpit-surface .agent-sidebar-item[data-parent="true"] {
+  /* Recruiting parent row: not itself a link, just a label above its
+   * sub-items. Kept visually distinct from active + hover states. */
+  color: var(--cockpit-text-2);
+  cursor: default;
+}
+.cockpit-surface .agent-sidebar-sublist {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 4px;
+}
+.cockpit-surface .agent-sidebar-sublist > li {
+  list-style: none;
+}
+.cockpit-surface .agent-sidebar-subitem {
+  display: block;
+  padding: 6px 20px 6px 32px;
+  color: var(--cockpit-text-2);
+  text-decoration: none;
+  font-size: var(--cockpit-fs-helper);
+  transition: background 0.12s, color 0.12s;
+}
+.cockpit-surface .agent-sidebar-subitem:hover { color: var(--cockpit-text-1); }
+.cockpit-surface .agent-sidebar-subitem[data-active="true"] {
+  background: var(--cockpit-surface-warm);
+  color: var(--cockpit-text-1);
+  font-weight: 600;
+  border-left: 2px solid var(--cockpit-brand);
+  padding-left: 30px;
+}
+
+/* ----- Coming-soon placeholder ----- */
+.cockpit-surface .coming-soon-page {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 32px;
+}
+.cockpit-surface .coming-soon-inner {
+  max-width: 560px;
+}
+.cockpit-surface .coming-soon-eyebrow {
+  font-size: var(--cockpit-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  margin-bottom: 10px;
+}
+.cockpit-surface .coming-soon-title {
+  font-size: var(--cockpit-fs-display);
+  line-height: 1.15;
+  margin-bottom: 10px;
+}
+.cockpit-surface .coming-soon-tagline {
+  font-size: var(--cockpit-fs-section);
+  color: var(--cockpit-text-2);
+  margin-bottom: 20px;
+  line-height: 1.4;
+}
+.cockpit-surface .coming-soon-body {
+  font-size: var(--cockpit-fs-body);
+  color: var(--cockpit-text-2);
+  line-height: 1.6;
+  margin-bottom: 28px;
+}
+.cockpit-surface .coming-soon-chip {
+  display: inline-block;
+  background: var(--cockpit-watch-soft);
+  color: var(--cockpit-watch);
+  padding: 4px 12px;
+  font-size: var(--cockpit-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+}
+
+/* ----- App shell ----- */
+.cockpit-surface .cockpit-app { display: flex; min-height: 100vh; }
+.cockpit-surface .cockpit-main { flex: 1; min-width: 0; overflow-y: auto; }
+.cockpit-surface .cockpit-chat-col {
+  width: 360px;
+  border-left: 1px solid var(--cockpit-border);
+  background: var(--cockpit-surface);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ----- Topbar ----- */
+.cockpit-surface .cockpit-topbar {
+  background: var(--cockpit-brand);
+  color: #F5F2E8;
+  padding: 10px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--cockpit-fs-helper);
+  letter-spacing: 0.04em;
+}
+.cockpit-surface .cockpit-topbar-brand {
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cockpit-surface .cockpit-topbar-meta { opacity: 0.7; margin-left: 24px; }
+.cockpit-surface .cockpit-mockup-tag {
+  background: rgba(255,255,255,0.12);
+  padding: 3px 10px;
+  border-radius: 2px;
+  font-size: var(--cockpit-fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ----- Hero ----- */
+.cockpit-surface .cockpit-hero {
+  padding: 32px 32px 28px;
+  background: linear-gradient(180deg, var(--cockpit-surface) 0%, var(--cockpit-bg) 100%);
+  border-bottom: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .cockpit-hero-eyebrow {
+  font-size: var(--cockpit-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  margin-bottom: 6px;
+}
+.cockpit-surface .cockpit-hero-title {
+  font-size: var(--cockpit-fs-display);
+  line-height: 1.15;
+  margin-bottom: 4px;
+}
+.cockpit-surface .cockpit-hero-subtitle {
+  color: var(--cockpit-text-2);
+  margin-bottom: 28px;
+  font-size: var(--cockpit-fs-button);
+}
+.cockpit-surface .cockpit-hero-grid {
+  display: grid;
+  /* Column count comes from --hero-columns set inline by HeroGrid;
+   * fallback 4 for callers that don't supply it. */
+  grid-template-columns: repeat(var(--hero-columns, 4), 1fr);
+  gap: 1px;
+  background: var(--cockpit-border);
+  border: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .cockpit-hero-cell {
+  background: var(--cockpit-surface);
+  padding: 18px 20px;
+  position: relative;
+  transition: background 0.12s;
+}
+/* Clickable cells (rendered as <button>) get pointer + hover affordances.
+ * Static cells (data-static="true") skip the hover background and arrow. */
+.cockpit-surface button.cockpit-hero-cell { cursor: pointer; }
+.cockpit-surface button.cockpit-hero-cell:hover { background: var(--cockpit-surface-warm); }
+.cockpit-surface button.cockpit-hero-cell::after {
+  content: '↗';
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  color: var(--cockpit-text-3);
+  font-size: var(--cockpit-fs-button);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.cockpit-surface button.cockpit-hero-cell:hover::after { opacity: 1; }
+.cockpit-surface .cockpit-hero-label {
+  font-size: var(--cockpit-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  margin-bottom: 8px;
+}
+.cockpit-surface .cockpit-hero-value {
+  font-size: var(--cockpit-fs-hero);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+.cockpit-surface .cockpit-hero-sub {
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-2);
+}
+.cockpit-surface .cockpit-hero-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-size: var(--cockpit-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.cockpit-surface .cockpit-hero-badge[data-tone="good"] { background: var(--cockpit-good-soft); color: var(--cockpit-good); }
+.cockpit-surface .cockpit-hero-badge[data-tone="watch"] { background: var(--cockpit-watch-soft); color: var(--cockpit-watch); }
+.cockpit-surface .cockpit-hero-badge[data-tone="critical"] { background: var(--cockpit-critical-soft); color: var(--cockpit-critical); }
+
+/* ----- Decisions list ----- */
+.cockpit-surface .cockpit-decisions {
+  padding: 28px 32px;
+  background: var(--cockpit-surface);
+  border-bottom: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .cockpit-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+.cockpit-surface .cockpit-section-head h2 {
+  font-size: var(--cockpit-fs-section);
+  font-weight: 500;
+}
+.cockpit-surface .cockpit-helper {
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-3);
+}
+.cockpit-surface .cockpit-decision-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--cockpit-border);
+  border: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .cockpit-decision {
+  background: var(--cockpit-surface);
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  gap: 14px;
+  align-items: start;
+  cursor: pointer;
+  transition: background 0.12s;
+  text-align: left;
+  border: none;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+}
+.cockpit-surface .cockpit-decision:hover { background: var(--cockpit-surface-alt); }
+.cockpit-surface .cockpit-decision-marker {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 6px;
+}
+.cockpit-surface .cockpit-decision-marker[data-tone="critical"] { background: var(--cockpit-critical); }
+.cockpit-surface .cockpit-decision-marker[data-tone="watch"] { background: var(--cockpit-watch); }
+.cockpit-surface .cockpit-decision-marker[data-tone="good"] { background: var(--cockpit-good); }
+.cockpit-surface .cockpit-decision-marker[data-tone="neutral"] { background: var(--cockpit-text-3); }
+.cockpit-surface .cockpit-decision-title { font-weight: 500; margin-bottom: 2px; }
+.cockpit-surface .cockpit-decision-meta {
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-2);
+}
+.cockpit-surface .cockpit-decision-right {
+  text-align: right;
+  font-size: var(--cockpit-fs-label);
+  color: var(--cockpit-text-3);
+  letter-spacing: 0.04em;
+}
+.cockpit-surface .cockpit-decision-priority {
+  font-weight: 600;
+  color: var(--cockpit-text-2);
+}
+
+/* ----- Tabs ----- */
+.cockpit-surface .cockpit-tabs-bar {
+  display: flex;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--cockpit-border);
+  background: var(--cockpit-surface);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.cockpit-surface .cockpit-tab {
+  padding: 14px 18px;
+  cursor: pointer;
+  color: var(--cockpit-text-2);
+  font-weight: 500;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  font-size: var(--cockpit-fs-body);
+  font-family: inherit;
+}
+.cockpit-surface .cockpit-tab:hover { color: var(--cockpit-text-1); }
+.cockpit-surface .cockpit-tab[data-active="true"] {
+  color: var(--cockpit-text-1);
+  border-bottom-color: var(--cockpit-brand);
+}
+.cockpit-surface .cockpit-tab-count {
+  display: inline-block;
+  background: var(--cockpit-surface-warm);
+  color: var(--cockpit-text-2);
+  font-size: var(--cockpit-fs-meta);
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+/* ----- Tab content + panels + tables ----- */
+.cockpit-surface .cockpit-tab-pane { padding: 28px 32px; }
+.cockpit-surface .cockpit-panel {
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border);
+  margin-bottom: 24px;
+}
+.cockpit-surface .cockpit-panel-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--cockpit-border);
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.cockpit-surface .cockpit-panel-head h3 { font-size: var(--cockpit-fs-button); font-weight: 600; }
+.cockpit-surface .cockpit-panel-body { padding: 20px; }
+.cockpit-surface .cockpit-three-col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.cockpit-surface .cockpit-stat {
+  border: 1px solid var(--cockpit-border);
+  background: var(--cockpit-surface);
+  padding: 14px 16px;
+}
+.cockpit-surface .cockpit-stat-label {
+  font-size: var(--cockpit-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  margin-bottom: 6px;
+}
+.cockpit-surface .cockpit-stat-value {
+  font-size: var(--cockpit-fs-stat);
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+.cockpit-surface .cockpit-stat-sub {
+  font-size: var(--cockpit-fs-label);
+  color: var(--cockpit-text-2);
+}
+
+/* ----- Verdict box (cockpit body, not drill) ----- */
+.cockpit-surface .cockpit-verdict {
+  padding: 20px;
+  background: var(--cockpit-surface-warm);
+  border-left: 3px solid var(--cockpit-brand);
+  margin-bottom: 24px;
+}
+.cockpit-surface .cockpit-verdict[data-tone="good"] {
+  background: var(--cockpit-good-soft);
+  border-left-color: var(--cockpit-good);
+}
+.cockpit-surface .cockpit-verdict[data-tone="watch"] {
+  background: var(--cockpit-watch-soft);
+  border-left-color: var(--cockpit-watch);
+}
+.cockpit-surface .cockpit-verdict[data-tone="critical"] {
+  background: var(--cockpit-critical-soft);
+  border-left-color: var(--cockpit-critical);
+}
+.cockpit-surface .cockpit-verdict-label {
+  font-size: var(--cockpit-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  margin-bottom: 6px;
+}
+.cockpit-surface .cockpit-verdict-headline {
+  font-family: var(--font-cockpit-display), 'Instrument Serif', serif;
+  font-size: var(--cockpit-fs-stat);
+  line-height: 1.25;
+  margin-bottom: 6px;
+}
+.cockpit-surface .cockpit-verdict-body {
+  font-size: var(--cockpit-fs-body);
+  color: var(--cockpit-text-2);
+}
+
+/* ----- Activity feed ----- */
+.cockpit-surface .cockpit-feed {
+  padding: 20px 32px 40px;
+  border-top: 1px solid var(--cockpit-border);
+  background: var(--cockpit-surface-alt);
+}
+.cockpit-surface .cockpit-feed h4 {
+  font-size: var(--cockpit-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  margin-bottom: 12px;
+}
+.cockpit-surface .cockpit-feed-item {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 16px;
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-2);
+  padding: 6px 0;
+}
+.cockpit-surface .cockpit-feed-time {
+  color: var(--cockpit-text-3);
+  font-family: var(--font-cockpit-mono), 'DM Mono', monospace;
+  font-size: var(--cockpit-fs-label);
+}
+.cockpit-surface .cockpit-feed-who { font-weight: 500; color: var(--cockpit-text-1); }
+
+/* ----- Chat panel ----- */
+.cockpit-surface .cockpit-chat-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .cockpit-chat-head-title { font-size: var(--cockpit-fs-button); font-weight: 600; margin-bottom: 2px; }
+.cockpit-surface .cockpit-chat-head-ctx {
+  font-size: var(--cockpit-fs-label);
+  color: var(--cockpit-text-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.cockpit-surface .cockpit-chat-body { flex: 1; overflow-y: auto; padding: 20px; }
+.cockpit-surface .cockpit-chat-section-head {
+  font-size: var(--cockpit-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  margin-bottom: 12px;
+}
+.cockpit-surface .cockpit-chat-pills {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.cockpit-surface .cockpit-chat-pill {
+  background: var(--cockpit-surface-alt);
+  border: 1px solid var(--cockpit-border);
+  padding: 10px 14px;
+  font-size: var(--cockpit-fs-body);
+  cursor: pointer;
+  text-align: left;
+  color: var(--cockpit-text-1);
+  line-height: 1.35;
+  font-family: inherit;
+}
+.cockpit-surface .cockpit-chat-pill:hover { background: var(--cockpit-surface-warm); border-color: var(--cockpit-border-strong); }
+.cockpit-surface .cockpit-chat-pill-icon { color: var(--cockpit-text-3); margin-right: 6px; }
+.cockpit-surface .cockpit-chat-input {
+  padding: 16px 20px;
+  border-top: 1px solid var(--cockpit-border);
+  background: var(--cockpit-surface-alt);
+}
+.cockpit-surface .cockpit-chat-input-box {
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border-strong);
+  padding: 10px 12px;
+  font-size: var(--cockpit-fs-body);
+  color: var(--cockpit-text-3);
+}
+.cockpit-surface .cockpit-chat-meta {
+  font-size: var(--cockpit-fs-meta);
+  color: var(--cockpit-text-3);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 8px;
+  text-align: right;
+}
+
+/* ----- Chat panel — live wiring (broad chat, step 4) ----- */
+.cockpit-surface .cockpit-chat-col[data-collapsed="true"] {
+  width: 44px;
+  align-items: center;
+  padding-top: 16px;
+}
+.cockpit-surface .cockpit-chat-rail-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  color: var(--cockpit-text-2);
+  font-family: inherit;
+}
+.cockpit-surface .cockpit-chat-rail-btn:hover { color: var(--cockpit-text-1); }
+
+.cockpit-surface .cockpit-chat-head {
+  position: relative;
+  padding-right: 40px;
+}
+.cockpit-surface .cockpit-chat-collapse-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: transparent;
+  border: none;
+  color: var(--cockpit-text-3);
+  cursor: pointer;
+  padding: 4px;
+}
+.cockpit-surface .cockpit-chat-collapse-btn:hover { color: var(--cockpit-text-1); }
+.cockpit-surface .cockpit-chat-clear-btn {
+  display: block;
+  margin-top: 6px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--cockpit-text-3);
+  font-size: var(--cockpit-fs-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  font-family: inherit;
+}
+.cockpit-surface .cockpit-chat-clear-btn:hover {
+  color: var(--cockpit-text-1);
+  text-decoration: underline;
+}
+
+/* Message rows. role=user right-aligns; role=assistant left-aligns. */
+.cockpit-surface .cockpit-chat-msg-row {
+  display: flex;
+  margin-bottom: 12px;
+}
+.cockpit-surface .cockpit-chat-msg-row[data-role="user"] {
+  justify-content: flex-end;
+}
+.cockpit-surface .cockpit-chat-msg-row[data-role="assistant"] {
+  justify-content: flex-start;
+}
+.cockpit-surface .cockpit-chat-msg-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  font-size: var(--cockpit-fs-body);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.cockpit-surface .cockpit-chat-msg-row[data-role="user"] .cockpit-chat-msg-bubble {
+  background: var(--cockpit-surface-warm, #EAE6D8);
+  color: var(--cockpit-text-1);
+}
+.cockpit-surface .cockpit-chat-msg-row[data-role="assistant"] .cockpit-chat-msg-bubble {
+  background: #FFFFFF;
+  color: var(--cockpit-text-1);
+  border: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .cockpit-chat-msg-row[data-error="true"] .cockpit-chat-msg-bubble {
+  border-color: var(--cockpit-critical, #B43E3E);
+  color: var(--cockpit-critical, #B43E3E);
+}
+.cockpit-surface .cockpit-chat-retry-btn {
+  align-self: center;
+  margin-left: 8px;
+  background: transparent;
+  border: 1px solid var(--cockpit-border-strong);
+  color: var(--cockpit-text-2);
+  padding: 4px 10px;
+  font-size: var(--cockpit-fs-meta);
+  cursor: pointer;
+  font-family: inherit;
+}
+.cockpit-surface .cockpit-chat-retry-btn:hover {
+  background: var(--cockpit-surface-warm);
+}
+
+/* Drill-link buttons inside agent messages. Render as inline accented
+ * text with a subtle underline; click handler intercepts to open the
+ * drill panel instead of navigating. */
+.cockpit-surface .cockpit-chat-drill-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--cockpit-brand, #1A1A1A);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  cursor: pointer;
+}
+.cockpit-surface .cockpit-chat-drill-link:hover {
+  text-decoration-style: solid;
+}
+.cockpit-surface .cockpit-chat-ext-link {
+  color: var(--cockpit-brand, #1A1A1A);
+  text-decoration: underline;
+}
+
+/* Typing indicator — three pulsing dots. */
+.cockpit-surface .cockpit-chat-typing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 12px 14px;
+}
+.cockpit-surface .cockpit-chat-typing-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--cockpit-text-3);
+  border-radius: 50%;
+  animation: cockpit-chat-pulse 1.2s ease-in-out infinite;
+}
+.cockpit-surface .cockpit-chat-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+.cockpit-surface .cockpit-chat-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+@keyframes cockpit-chat-pulse {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+
+/* Live input — replaces the static .cockpit-chat-input-box display. */
+.cockpit-surface .cockpit-chat-input-field {
+  width: 100%;
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border-strong);
+  padding: 10px 12px;
+  font-size: var(--cockpit-fs-body);
+  color: var(--cockpit-text-1);
+  font-family: inherit;
+  outline: none;
+}
+.cockpit-surface .cockpit-chat-input-field:focus {
+  border-color: var(--cockpit-text-1);
+}
+.cockpit-surface .cockpit-chat-input-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ----- Drill panel + sections ----- */
+.cockpit-surface .cockpit-drill-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 26, 0.32);
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s;
+}
+.cockpit-surface .cockpit-drill-overlay[data-open="true"] { opacity: 1; pointer-events: auto; }
+.cockpit-surface .cockpit-drill-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(560px, 100vw);
+  background: var(--cockpit-surface);
+  border-left: 1px solid var(--cockpit-border);
+  z-index: 101;
+  transform: translateX(100%);
+  transition: transform 0.2s ease-out;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.cockpit-surface .cockpit-drill-panel[data-open="true"] { transform: translateX(0); }
+.cockpit-surface .cockpit-drill-head {
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid var(--cockpit-border);
+  background: var(--cockpit-surface-warm);
+  position: relative;
+}
+.cockpit-surface .cockpit-drill-eyebrow {
+  font-size: var(--cockpit-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  margin-bottom: 6px;
+}
+.cockpit-surface .cockpit-drill-title {
+  font-family: var(--font-cockpit-display), 'Instrument Serif', serif;
+  font-weight: 400;
+  font-size: var(--cockpit-fs-drill);
+  line-height: 1.15;
+  margin-bottom: 4px;
+}
+.cockpit-surface .cockpit-drill-summary {
+  font-size: var(--cockpit-fs-body);
+  color: var(--cockpit-text-2);
+}
+.cockpit-surface .cockpit-drill-close {
+  position: absolute;
+  top: 20px;
+  right: 24px;
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--cockpit-text-2);
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cockpit-surface .cockpit-drill-close:hover { color: var(--cockpit-text-1); }
+
+/* back button bar — only rendered when the drill is a child of
+   another drill (Recruiting Phase 2E: student opened from job). */
+.cockpit-surface .cockpit-drill-back {
+  background: none;
+  border: none;
+  padding: 0 0 10px 0;
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-2);
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+.cockpit-surface .cockpit-drill-back:hover { color: var(--cockpit-brand); }
+
+.cockpit-surface .cockpit-drill-body { flex: 1; overflow-y: auto; padding: 24px 28px 32px; }
+
+/* footer slot at the bottom of the drill body — used by Recruiting
+   for the Initiate Application button. */
+.cockpit-surface .cockpit-drill-footer {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .cockpit-drill-section { margin-bottom: 28px; }
+.cockpit-surface .cockpit-drill-section:last-child { margin-bottom: 0; }
+.cockpit-surface .cockpit-drill-section-title {
+  font-size: var(--cockpit-fs-label);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  margin-bottom: 12px;
+}
+.cockpit-surface .cockpit-drill-callout {
+  background: var(--cockpit-surface-warm);
+  border-left: 3px solid var(--cockpit-brand);
+  padding: 14px 16px;
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-2);
+  line-height: 1.55;
+  margin-top: 16px;
+}
+.cockpit-surface .cockpit-drill-status-chip-wrap { margin-bottom: 16px; }
+
+/* drill section: rows */
+.cockpit-surface .cockpit-drill-rows { display: flex; flex-direction: column; }
+.cockpit-surface .cockpit-drill-kv {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--cockpit-border);
+  font-size: var(--cockpit-fs-body);
+}
+.cockpit-surface .cockpit-drill-kv:last-child { border-bottom: none; }
+.cockpit-surface .cockpit-drill-kv-label { font-weight: 500; }
+.cockpit-surface .cockpit-drill-kv-value {
+  font-size: var(--cockpit-fs-body);
+  text-align: right;
+  min-width: 80px;
+}
+.cockpit-surface .cockpit-drill-kv-value[data-emphasize="true"] {
+  font-weight: 700;
+  color: var(--cockpit-brand);
+}
+.cockpit-surface .cockpit-drill-kv-link {
+  color: var(--cockpit-brand);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--cockpit-brand);
+}
+.cockpit-surface .cockpit-drill-kv-link:hover {
+  border-bottom-style: solid;
+}
+
+/* drill section: table */
+.cockpit-surface .cockpit-drill-table { width: 100%; border-collapse: collapse; font-size: var(--cockpit-fs-helper); }
+.cockpit-surface .cockpit-drill-table th {
+  text-align: left;
+  font-size: var(--cockpit-fs-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cockpit-text-3);
+  font-weight: 600;
+  padding: 6px 10px 6px 0;
+  border-bottom: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .cockpit-drill-table td {
+  padding: 8px 10px 8px 0;
+  border-bottom: 1px solid var(--cockpit-border);
+  vertical-align: middle;
+}
+.cockpit-surface .cockpit-drill-table tr[data-total="true"] td {
+  font-weight: 600;
+  border-top: 1px solid var(--cockpit-border-strong);
+  background: var(--cockpit-surface-alt);
+}
+.cockpit-surface .cockpit-drill-table tr:last-child td { border-bottom: none; }
+.cockpit-surface .cockpit-drill-table tr[data-clickable="true"] {
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.cockpit-surface .cockpit-drill-table tr[data-clickable="true"]:hover {
+  background: var(--cockpit-surface-warm);
+}
+.cockpit-surface .cockpit-drill-table tr[data-clickable="true"]:focus-visible {
+  outline: 2px solid var(--cockpit-brand);
+  outline-offset: -2px;
+}
+.cockpit-surface .cockpit-drill-table tr[data-clickable="true"] td:first-child {
+  color: var(--cockpit-brand);
+  font-weight: 500;
+}
+
+/* drill section: prose */
+.cockpit-surface .cockpit-drill-prose { font-size: var(--cockpit-fs-body); line-height: 1.55; color: var(--cockpit-text-1); }
+
+/* drill section: verdict (smaller than body verdict) */
+.cockpit-surface .cockpit-drill-verdict {
+  padding: 14px 16px;
+  border-left: 3px solid var(--cockpit-brand);
+  background: var(--cockpit-surface-warm);
+}
+.cockpit-surface .cockpit-drill-verdict[data-tone="good"] { background: var(--cockpit-good-soft); border-left-color: var(--cockpit-good); }
+.cockpit-surface .cockpit-drill-verdict[data-tone="watch"] { background: var(--cockpit-watch-soft); border-left-color: var(--cockpit-watch); }
+.cockpit-surface .cockpit-drill-verdict[data-tone="critical"] { background: var(--cockpit-critical-soft); border-left-color: var(--cockpit-critical); }
+.cockpit-surface .cockpit-drill-verdict-headline {
+  font-size: var(--cockpit-fs-section);
+  line-height: 1.25;
+  margin-bottom: 6px;
+}
+.cockpit-surface .cockpit-drill-verdict-body { font-size: var(--cockpit-fs-body); line-height: 1.55; color: var(--cockpit-text-2); }
+
+/* drill section: timeline */
+.cockpit-surface .cockpit-drill-timeline { display: flex; flex-direction: column; gap: 10px; }
+.cockpit-surface .cockpit-drill-timeline-event {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 12px;
+  align-items: baseline;
+  font-size: var(--cockpit-fs-body);
+}
+.cockpit-surface .cockpit-drill-timeline-date {
+  font-size: var(--cockpit-fs-label);
+  color: var(--cockpit-text-3);
+}
+.cockpit-surface .cockpit-drill-timeline-title[data-tone="good"] { color: var(--cockpit-good); }
+.cockpit-surface .cockpit-drill-timeline-title[data-tone="watch"] { color: var(--cockpit-watch); }
+.cockpit-surface .cockpit-drill-timeline-title[data-tone="critical"] { color: var(--cockpit-critical); }
+
+/* drill section: action_items */
+.cockpit-surface .cockpit-drill-action-items { display: flex; flex-direction: column; gap: 10px; }
+.cockpit-surface .cockpit-drill-action-item {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  column-gap: 12px;
+  row-gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--cockpit-border);
+  font-size: var(--cockpit-fs-body);
+}
+.cockpit-surface .cockpit-drill-action-item:last-child { border-bottom: none; }
+.cockpit-surface .cockpit-drill-action-priority {
+  font-size: var(--cockpit-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 2px;
+  align-self: start;
+  text-align: center;
+}
+.cockpit-surface .cockpit-drill-action-priority[data-priority="high"] { background: var(--cockpit-critical-soft); color: var(--cockpit-critical); }
+.cockpit-surface .cockpit-drill-action-priority[data-priority="medium"] { background: var(--cockpit-watch-soft); color: var(--cockpit-watch); }
+.cockpit-surface .cockpit-drill-action-priority[data-priority="low"] { background: var(--cockpit-surface-alt); color: var(--cockpit-text-3); }
+.cockpit-surface .cockpit-drill-action-owner {
+  font-size: var(--cockpit-fs-label);
+  color: var(--cockpit-text-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.cockpit-surface .cockpit-drill-action-text { grid-column: 2; color: var(--cockpit-text-1); line-height: 1.45; }
+
+/* ----- Workday view (Recruiting) -----
+ * Reuses the cockpit surface tokens + hero chrome. Adds Recruiting-
+ * specific primitives: search box, filter chip row, job cards,
+ * pagination. Scoped under .cockpit-surface so tokens resolve. */
+
+.cockpit-surface .workday-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 20px 0 12px;
+  padding: 10px 14px;
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border);
+  border-radius: 2px;
+  max-width: 640px;
+}
+.cockpit-surface .workday-search-icon {
+  color: var(--cockpit-text-3);
+  font-size: var(--cockpit-fs-section);
+}
+.cockpit-surface .workday-search-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--cockpit-fs-body);
+  color: var(--cockpit-text-1);
+  outline: none;
+}
+.cockpit-surface .workday-search-input::placeholder {
+  color: var(--cockpit-text-3);
+}
+.cockpit-surface .workday-search-hint {
+  font-size: var(--cockpit-fs-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--cockpit-text-3);
+  padding: 2px 8px;
+  background: var(--cockpit-surface-alt);
+  border-radius: 2px;
+}
+
+.cockpit-surface .workday-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.cockpit-surface .workday-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border);
+  padding: 6px 12px;
+  font-size: var(--cockpit-fs-helper);
+}
+.cockpit-surface .workday-chip-label {
+  font-weight: 600;
+  color: var(--cockpit-text-3);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: var(--cockpit-fs-meta);
+}
+.cockpit-surface .workday-chip-input,
+.cockpit-surface .workday-chip-select {
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-1);
+  outline: none;
+  min-width: 90px;
+}
+.cockpit-surface .workday-chip-toggle { cursor: pointer; }
+.cockpit-surface .workday-chip-clear {
+  background: transparent;
+  border: none;
+  font: inherit;
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-3);
+  cursor: pointer;
+  padding: 6px 8px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cockpit-surface .workday-chip-clear:hover { color: var(--cockpit-text-1); }
+
+.cockpit-surface .workday-job-list {
+  padding: 28px 32px;
+  background: var(--cockpit-surface);
+}
+.cockpit-surface .workday-job-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16px;
+}
+.cockpit-surface .workday-job-list-head h2 {
+  font-size: var(--cockpit-fs-section);
+  font-weight: 500;
+}
+.cockpit-surface .workday-job-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: var(--cockpit-border);
+  border: 1px solid var(--cockpit-border);
+}
+.cockpit-surface .workday-job-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: center;
+  background: var(--cockpit-surface);
+  border: none;
+  padding: 16px 20px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: background 0.12s;
+}
+.cockpit-surface .workday-job-card:hover { background: var(--cockpit-surface-alt); }
+.cockpit-surface .workday-job-card-title {
+  font-size: var(--cockpit-fs-button);
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: var(--cockpit-text-1);
+}
+.cockpit-surface .workday-job-card-meta {
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-2);
+}
+.cockpit-surface .workday-job-card-inflight {
+  margin-top: 4px;
+  font-size: var(--cockpit-fs-label);
+  color: var(--cockpit-good);
+}
+.cockpit-surface .workday-job-card-badge {
+  font-size: var(--cockpit-fs-label);
+  color: var(--cockpit-text-2);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.cockpit-surface .workday-job-card-badge[data-pending="true"] {
+  color: var(--cockpit-watch);
+}
+.cockpit-surface .workday-job-match-pending {
+  font-style: italic;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--cockpit-fs-helper);
+}
+
+.cockpit-surface .workday-job-list-empty,
+.cockpit-surface .workday-job-list-error {
+  padding: 32px;
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border);
+  text-align: center;
+  color: var(--cockpit-text-2);
+}
+.cockpit-surface .workday-job-list-error p { color: var(--cockpit-critical); }
+.cockpit-surface .workday-retry-btn {
+  margin-top: 12px;
+  background: var(--cockpit-brand);
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cockpit-surface .workday-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  padding: 12px 0;
+}
+.cockpit-surface .workday-page-btn {
+  background: var(--cockpit-surface);
+  border: 1px solid var(--cockpit-border-strong);
+  padding: 8px 14px;
+  font: inherit;
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-1);
+  cursor: pointer;
+}
+.cockpit-surface .workday-page-btn:hover:not(:disabled) { background: var(--cockpit-surface-alt); }
+.cockpit-surface .workday-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.cockpit-surface .workday-page-meta {
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-3);
+}
+
+/* Student-drill footer: Initiate Application button + success /
+   already-applied states. Phase 2E. */
+.cockpit-surface .workday-app-action { display: flex; flex-direction: column; gap: 4px; }
+.cockpit-surface .workday-app-submit {
+  background: var(--cockpit-brand);
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  font: inherit;
+  font-weight: 500;
+  font-size: var(--cockpit-fs-body);
+  cursor: pointer;
+  align-self: flex-start;
+}
+.cockpit-surface .workday-app-submit:hover:not(:disabled) { filter: brightness(0.92); }
+.cockpit-surface .workday-app-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.cockpit-surface .workday-app-action[data-tone="good"] {
+  background: var(--cockpit-good-soft);
+  border-left: 3px solid var(--cockpit-good);
+  padding: 12px 14px;
+}
+.cockpit-surface .workday-app-action[data-tone="neutral"] {
+  background: var(--cockpit-surface-warm);
+  border-left: 3px solid var(--cockpit-text-3);
+  padding: 12px 14px;
+}
+.cockpit-surface .workday-app-action-label {
+  font-weight: 600;
+  color: var(--cockpit-text-1);
+}
+.cockpit-surface .workday-app-action-meta {
+  font-size: var(--cockpit-fs-helper);
+  color: var(--cockpit-text-2);
+  margin-top: 2px;
+}
+.cockpit-surface .workday-app-action-error {
+  color: var(--cockpit-critical);
+  font-size: var(--cockpit-fs-helper);
+  margin-top: 6px;
+}
+
 .dark {
   --background: oklch(0.18 0.02 280);
   --foreground: oklch(0.95 0.01 280);

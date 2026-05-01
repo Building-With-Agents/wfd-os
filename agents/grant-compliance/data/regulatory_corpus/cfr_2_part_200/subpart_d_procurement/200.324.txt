@@ -1,0 +1,68 @@
+========================================================================
+CITATION:        2 CFR 200.324
+TITLE:           Contract cost and price
+SUBPART:         D — Post Federal Award Requirements (Procurement Standards)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.324
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           Cost-or-price analysis is the core contemporaneous documentation expected
+                 for procurements above the SAT and for sole-source procurements above the MPT.
+                 The "cost analysis" vs "price analysis" distinction matters: cost analysis
+                 examines the contractor's individual cost elements (labor, materials, overhead,
+                 profit); price analysis compares the proposed price to other sources (other
+                 quotes, catalog prices, market rate). Sole-source procurement above MPT
+                 generally requires cost analysis, not just price analysis. Cross-references
+                 §200.404 (reasonable costs) and Subpart E generally for cost principles.
+                 Verify exact wording at the SOURCE_URL above before citing in formal work.
+========================================================================
+
+§ 200.324  Contract cost and price.
+
+(a) The non-Federal entity must perform a cost or price analysis in
+connection with every procurement action in excess of the Simplified
+Acquisition Threshold including contract modifications. The method and
+degree of analysis is dependent on the facts surrounding the particular
+procurement situation, but as a starting point, the non-Federal entity
+must make independent estimates before receiving bids or proposals.
+
+(b) The non-Federal entity must negotiate profit as a separate element
+of the price for each contract in which there is no price competition
+and in all cases where cost analysis is performed. To establish a fair
+and reasonable profit, consideration must be given to the complexity of
+the work to be performed, the risk borne by the contractor, the
+contractor's investment, the amount of subcontracting, the quality of
+its record of past performance, and industry profit rates in the
+surrounding geographical area for similar work.
+
+(c) Costs or prices based on estimated costs for contracts under the
+Federal award are allowable only to the extent that costs incurred or
+cost estimates included in negotiated prices would be allowable for the
+non-Federal entity under Subpart E of this part. The non-Federal entity
+may reference its own cost principles that comply with the Federal cost
+principles.
+
+(d) The cost plus a percentage of cost and percentage of construction
+cost methods of contracting must not be used.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- "Cost or price analysis in excess of the SAT" is the threshold trigger.
+  Above $250,000, the non-Federal entity MUST perform and document
+  either a cost analysis or a price analysis.
+- "Independent estimate before receiving bids or proposals" is a
+  contemporaneous documentation requirement. Reconstructed estimates
+  produced after award are weaker evidence and may not satisfy auditors
+  even if the underlying estimate was reasonable.
+- For SOLE-SOURCE procurements (above MPT, no price competition), cost
+  analysis is generally required because there is no competing price
+  to anchor a price-only analysis. The contractor's cost elements
+  (labor, overhead, profit) must be examined.
+- Cost-plus-percentage-of-cost contracts (§200.324(d)) are prohibited
+  outright — this is a hard rule, not a documentation requirement.
+- Profit must be a SEPARATE NEGOTIATED element when cost analysis is
+  performed (§200.324(b)). Documentation of profit reasoning (margin %,
+  basis for the % chosen) is part of the cost analysis record.
+========================================================================

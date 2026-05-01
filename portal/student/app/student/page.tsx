@@ -10,6 +10,8 @@ import { JourneyPipeline } from "@/components/dashboard/journey-pipeline"
 import { GapAnalysisPreview } from "@/components/dashboard/gap-analysis-preview"
 import { ShowcaseStatus } from "@/components/dashboard/showcase-status"
 import { AICareerNavigator } from "@/components/dashboard/ai-career-navigator"
+import { ResumeSummary } from "@/components/dashboard/resume-summary"
+import { GapDetailModal } from "@/components/dashboard/gap-detail-modal"
 import {
   fetchProfile,
   fetchMatches,
@@ -34,6 +36,8 @@ function DashboardContent() {
   const [showcase, setShowcase] = useState<Showcase | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  // Gap-detail drill — when set, GapDetailModal opens for this job_id
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!studentId) {
@@ -154,7 +158,16 @@ function DashboardContent() {
           )}
 
           {/* Job Matches Hero Section */}
-          <JobMatchesSection matches={matches} />
+          <JobMatchesSection
+            matches={matches}
+            onCardClick={(jobId) => setSelectedJobId(jobId)}
+          />
+
+          {/* Resume Summary — "about this student" card for case managers +
+              self-referential reminder for the student. Assembled from the
+              /profile endpoint's parsed-resume fields (career_objective,
+              institution, work_experience, skills, certifications). */}
+          <ResumeSummary profile={profile} />
 
           {/* Two Column Layout for smaller sections */}
           <div className="grid gap-8 lg:grid-cols-2">
@@ -214,6 +227,15 @@ function DashboardContent() {
         studentId={studentId || ""}
         newMatchCount={matches.length}
       />
+
+      {/* Gap Detail Modal — opens when a JobMatchCard is clicked. */}
+      {selectedJobId && studentId ? (
+        <GapDetailModal
+          studentId={studentId}
+          jobId={selectedJobId}
+          onClose={() => setSelectedJobId(null)}
+        />
+      ) : null}
     </div>
   )
 }

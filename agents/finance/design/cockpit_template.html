@@ -1,0 +1,2318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>CFA Finance Cockpit — K8341</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAFAF7;
+    --surface: #FFFFFF;
+    --surface-alt: #F4F2EC;
+    --surface-warm: #EFEBE0;
+    --border: #E8E5DC;
+    --border-strong: #D4D0C4;
+    --text-1: #1A1A1A;
+    --text-2: #5C5A52;
+    --text-3: #8C8A82;
+    --good: #1F6B5C;
+    --good-soft: #E8F0EE;
+    --watch: #B8821B;
+    --watch-soft: #F5EBD4;
+    --critical: #B8462E;
+    --critical-soft: #F5E1D9;
+    --brand: #2E4D3E;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    font-family: 'Figtree', sans-serif;
+    background: var(--bg);
+    color: var(--text-1);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
+  .display { font-family: 'Instrument Serif', serif; font-weight: 400; letter-spacing: -0.01em; }
+
+  /* App shell */
+  .app { display: flex; height: 100vh; }
+  .main { flex: 1; overflow-y: auto; min-width: 0; }
+  .chat { width: 360px; border-left: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; }
+
+  /* Top bar */
+  .topbar {
+    background: var(--brand);
+    color: #F5F2E8;
+    padding: 10px 32px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+  }
+  .topbar .left { display: flex; gap: 24px; align-items: baseline; }
+  .topbar .brand-mark { font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+  .topbar .meta { opacity: 0.7; }
+  .topbar .right { display: flex; gap: 16px; align-items: center; }
+  .mockup-tag {
+    background: rgba(255,255,255,0.12);
+    padding: 3px 10px;
+    border-radius: 2px;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* Hero */
+  .hero {
+    padding: 32px 32px 28px;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .hero-eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 6px;
+  }
+  .hero-title {
+    font-size: 32px;
+    line-height: 1.15;
+    margin-bottom: 4px;
+  }
+  .hero-subtitle {
+    color: var(--text-2);
+    margin-bottom: 28px;
+    font-size: 14px;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+  }
+  .hero-cell {
+    background: var(--surface);
+    padding: 18px 20px;
+  }
+  .hero-cell .label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 8px;
+  }
+  .hero-cell .value {
+    font-size: 28px;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+  .hero-cell .sub {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .hero-cell .badge {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge.good { background: var(--good-soft); color: var(--good); }
+  .badge.watch { background: var(--watch-soft); color: var(--watch); }
+  .badge.critical { background: var(--critical-soft); color: var(--critical); }
+
+  /* Decisions */
+  .decisions {
+    padding: 28px 32px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 16px;
+  }
+  .section-head h2 {
+    font-size: 18px;
+    font-weight: 500;
+  }
+  .section-head .helper {
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  .decision-list { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); }
+  .decision {
+    background: var(--surface);
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    gap: 14px;
+    align-items: start;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .decision:hover { background: var(--surface-alt); }
+  .decision .marker {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 6px;
+  }
+  .marker.critical { background: var(--critical); }
+  .marker.watch { background: var(--watch); }
+  .marker.good { background: var(--good); }
+  .marker.neutral { background: var(--text-3); }
+  .decision .body .title {
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  .decision .body .meta {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .decision .meta-right {
+    text-align: right;
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.04em;
+  }
+  .decision .meta-right .age { font-weight: 600; color: var(--text-2); }
+
+  /* Tabs */
+  .tabs-bar {
+    display: flex;
+    padding: 0 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  .tab {
+    padding: 14px 18px;
+    cursor: pointer;
+    color: var(--text-2);
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.12s, border-color 0.12s;
+    font-size: 13px;
+  }
+  .tab:hover { color: var(--text-1); }
+  .tab.active {
+    color: var(--text-1);
+    border-bottom-color: var(--brand);
+  }
+  .tab .count {
+    display: inline-block;
+    background: var(--surface-warm);
+    color: var(--text-2);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 8px;
+    margin-left: 6px;
+    vertical-align: 1px;
+  }
+
+  /* Tab content */
+  .tab-pane { display: none; padding: 28px 32px; }
+  .tab-pane.active { display: block; }
+
+  /* Panels */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    margin-bottom: 24px;
+  }
+  .panel-head {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .panel-head h3 { font-size: 14px; font-weight: 600; }
+  .panel-head .helper { font-size: 12px; color: var(--text-3); }
+  .panel-body { padding: 20px; }
+
+  /* Tables */
+  table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data th {
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    font-weight: 600;
+    padding: 8px 12px 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  table.data th.right, table.data td.right { text-align: right; padding-right: 0; padding-left: 12px; }
+  table.data td {
+    padding: 10px 12px 10px 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  table.data tr:last-child td { border-bottom: none; }
+  table.data tr.subhead td {
+    background: var(--surface-alt);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-2);
+    font-weight: 600;
+    padding: 6px 12px 6px 0;
+  }
+  table.data tr.total td {
+    font-weight: 600;
+    border-top: 1px solid var(--border-strong);
+    background: var(--surface-alt);
+  }
+
+  /* Progress bars */
+  .bar { height: 6px; background: var(--surface-warm); border-radius: 3px; overflow: hidden; }
+  .bar > div { height: 100%; border-radius: 3px; }
+  .bar.green > div { background: var(--good); }
+  .bar.amber > div { background: var(--watch); }
+  .bar.red > div { background: var(--critical); }
+  .bar.split { display: flex; }
+  .bar.split > * { display: block; }
+  .bar.split > .a { background: var(--good); }
+  .bar.split > .b { background: var(--brand); opacity: 0.6; }
+  .bar.split > .c { background: var(--watch); opacity: 0.5; }
+
+  /* Two-column layout for tab content */
+  .two-col { display: grid; grid-template-columns: 1.5fr 1fr; gap: 20px; }
+  .three-col { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+  /* Stat cards */
+  .stat {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 14px 16px;
+  }
+  .stat .label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 6px;
+  }
+  .stat .value { font-size: 22px; font-weight: 500; margin-bottom: 2px; }
+  .stat .sub { font-size: 11px; color: var(--text-2); }
+
+  /* Verdict box */
+  .verdict {
+    padding: 20px;
+    background: var(--surface-warm);
+    border-left: 3px solid var(--brand);
+    margin-bottom: 24px;
+  }
+  .verdict .label {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 6px;
+  }
+  .verdict .headline {
+    font-family: 'Instrument Serif', serif;
+    font-size: 22px;
+    line-height: 1.25;
+    margin-bottom: 6px;
+  }
+  .verdict .body { font-size: 13px; color: var(--text-2); }
+  .verdict.good { background: var(--good-soft); border-left-color: var(--good); }
+  .verdict.watch { background: var(--watch-soft); border-left-color: var(--watch); }
+  .verdict.critical { background: var(--critical-soft); border-left-color: var(--critical); }
+
+  /* Funnel */
+  .funnel-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .funnel-row:last-child { border-bottom: none; }
+  .funnel-row .lbl { font-size: 13px; }
+  .funnel-row .val { font-family: 'DM Mono', monospace; font-size: 16px; font-weight: 500; }
+  .funnel-row.delta .val { color: var(--text-2); font-size: 14px; }
+  .funnel-row.delta .lbl { color: var(--text-2); font-size: 12px; padding-left: 16px; }
+  .funnel-row.target { background: var(--good-soft); padding: 14px 12px; margin-top: 4px; }
+  .funnel-row.target .val { color: var(--good); font-weight: 700; font-size: 18px; }
+
+  /* Chat */
+  .chat-head { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+  .chat-head .title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .chat-head .ctx { font-size: 11px; color: var(--text-3); letter-spacing: 0.04em; text-transform: uppercase; }
+  .chat-body { flex: 1; overflow-y: auto; padding: 20px; }
+  .chat-pills { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+  .pill {
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-1);
+    line-height: 1.35;
+    transition: all 0.12s;
+  }
+  .pill:hover { background: var(--surface-warm); border-color: var(--border-strong); }
+  .pill .icon { color: var(--text-3); margin-right: 6px; }
+  .chat-msg { margin-bottom: 16px; }
+  .chat-msg.user { background: var(--brand); color: #F5F2E8; padding: 10px 14px; font-size: 13px; margin-left: 32px; }
+  .chat-msg.agent { padding: 0; font-size: 13px; line-height: 1.55; }
+  .chat-msg.agent .body { color: var(--text-1); }
+  .chat-msg.agent .body .num { font-weight: 500; }
+  .chat-input {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-alt);
+  }
+  .chat-input .input-box {
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    padding: 10px 12px;
+    font-size: 13px;
+    color: var(--text-3);
+  }
+  .chat-meta {
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-top: 8px;
+    text-align: right;
+  }
+
+  /* Sparkline-like trajectory */
+  .trajectory {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .traj-cell {
+    border-top: 2px solid var(--border);
+    padding-top: 8px;
+  }
+  .traj-cell.current { border-top-color: var(--brand); }
+  .traj-cell .month { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-3); }
+  .traj-cell .amt { font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; margin-top: 2px; }
+  .traj-cell .cum { font-size: 10px; color: var(--text-3); margin-top: 2px; }
+
+  /* Status pills inline */
+  .status {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .status.draft { background: var(--surface-warm); color: var(--text-2); }
+  .status.review { background: var(--watch-soft); color: var(--watch); }
+  .status.approved { background: var(--good-soft); color: var(--good); }
+  .status.blocked { background: var(--critical-soft); color: var(--critical); }
+  .status.closed { background: var(--surface-alt); color: var(--text-3); }
+
+  /* Closeout checklist */
+  .checklist .row {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    gap: 12px;
+    padding: 8px 0;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .checklist .row:last-child { border-bottom: none; }
+  .checklist .check {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid var(--border-strong);
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: transparent;
+  }
+  .checklist .check.done { background: var(--good); border-color: var(--good); color: white; }
+  .checklist .check.pending { border-color: var(--watch); }
+  .checklist .row.done .lbl { color: var(--text-3); text-decoration: line-through; }
+
+  /* Reporting cycle */
+  .cycle {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 0;
+    border: 1px solid var(--border);
+  }
+  .cycle-step {
+    padding: 12px 14px;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    position: relative;
+  }
+  .cycle-step:last-child { border-right: none; }
+  .cycle-step.done { background: var(--good-soft); }
+  .cycle-step.current { background: var(--surface-warm); border-bottom: 2px solid var(--brand); }
+  .cycle-step .step-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    color: var(--text-3);
+    margin-bottom: 4px;
+  }
+  .cycle-step .step-name { font-size: 12px; font-weight: 500; margin-bottom: 4px; }
+  .cycle-step .step-date { font-size: 10px; color: var(--text-3); font-family: 'DM Mono', monospace; }
+
+  /* Activity feed */
+  .feed { padding: 20px 32px 40px; border-top: 1px solid var(--border); background: var(--surface-alt); }
+  .feed h4 { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3); margin-bottom: 12px; }
+  .feed-item {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-2);
+    padding: 6px 0;
+  }
+  .feed-item .ts { color: var(--text-3); font-family: 'DM Mono', monospace; font-size: 11px; }
+  .feed-item .who { font-weight: 500; color: var(--text-1); }
+
+  /* Clickable hero cells */
+  .hero-cell {
+    cursor: pointer;
+    transition: background 0.12s, transform 0.08s;
+    position: relative;
+  }
+  .hero-cell:hover {
+    background: var(--surface-warm);
+  }
+  .hero-cell::after {
+    content: '↗';
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    color: var(--text-3);
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+  .hero-cell:hover::after {
+    opacity: 1;
+  }
+
+  /* Drill-down modal */
+  .drill-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(26, 26, 26, 0.32);
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.16s;
+  }
+  .drill-overlay.open { opacity: 1; pointer-events: auto; }
+  .drill-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 560px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    z-index: 101;
+    transform: translateX(100%);
+    transition: transform 0.2s ease-out;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .drill-panel.open { transform: translateX(0); }
+  .drill-head {
+    padding: 24px 28px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-warm);
+  }
+  .drill-head .eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 6px;
+  }
+  .drill-head h2 {
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    font-size: 26px;
+    line-height: 1.15;
+    margin-bottom: 4px;
+  }
+  .drill-head .summary {
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .drill-close {
+    position: absolute;
+    top: 20px;
+    right: 24px;
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--text-2);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .drill-close:hover { color: var(--text-1); }
+  .drill-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px 32px;
+  }
+  .drill-section { margin-bottom: 28px; }
+  .drill-section h3 {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    margin-bottom: 12px;
+  }
+  /* Key-value row inside a rows-type drill section. Two columns only —
+     label on the left, value on the right. Non-clickable (drill rows
+     don't trigger anything), so no cursor/hover. */
+  .drill-kv {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 16px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .drill-kv:last-child { border-bottom: none; }
+  .drill-kv-label { font-weight: 500; }
+  .drill-kv-value { font-family: 'DM Mono', monospace; font-size: 13px; text-align: right; min-width: 80px; }
+  .drill-kv-value.emphasize { font-weight: 700; color: var(--brand); }
+  .drill-callout {
+    background: var(--surface-warm);
+    border-left: 3px solid var(--brand);
+    padding: 14px 16px;
+    font-size: 12px;
+    color: var(--text-2);
+    line-height: 1.55;
+    margin-top: 16px;
+  }
+  .drill-actions {
+    display: flex;
+    gap: 8px;
+    padding: 16px 28px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-alt);
+  }
+  .drill-actions button {
+    background: var(--surface);
+    color: var(--text-1);
+    border: 1px solid var(--border-strong);
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .drill-actions button.primary {
+    background: var(--brand);
+    color: white;
+    border-color: var(--brand);
+    font-weight: 500;
+  }
+
+  /* Polymorphic drill sections (Phase 1C) */
+  .drill-status-chip {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 2px;
+    margin-bottom: 16px;
+  }
+  .drill-status-chip.good { background: var(--good-soft); color: var(--good); }
+  .drill-status-chip.watch { background: var(--watch-soft); color: var(--watch); }
+  .drill-status-chip.critical { background: var(--critical-soft); color: var(--critical); }
+  .drill-status-chip.neutral { background: var(--surface-alt); color: var(--text-3); }
+
+  /* Table section */
+  .drill-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .drill-table th {
+    text-align: left;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    font-weight: 600;
+    padding: 6px 10px 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .drill-table th.right, .drill-table td.right { text-align: right; padding-right: 0; padding-left: 10px; }
+  .drill-table td {
+    padding: 8px 10px 8px 0;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .drill-table td.num { font-family: 'DM Mono', monospace; font-variant-numeric: tabular-nums; }
+  .drill-table tr.total td {
+    font-weight: 600;
+    border-top: 1px solid var(--border-strong);
+    background: var(--surface-alt);
+  }
+  .drill-table tr:last-child td { border-bottom: none; }
+
+  /* Chart section — inline SVG */
+  .drill-chart { width: 100%; height: auto; font-family: 'Figtree', sans-serif; }
+  .drill-chart-axis { stroke: var(--border-strong); stroke-width: 1; }
+  .drill-chart-tick { font-size: 9px; font-family: 'DM Mono', monospace; fill: var(--text-3); }
+  .drill-chart-label { font-size: 10px; fill: var(--text-2); }
+  .drill-chart-value { font-size: 10px; font-family: 'DM Mono', monospace; font-weight: 600; }
+  .drill-chart-bar { }
+  .drill-chart-bar.good { fill: var(--good); }
+  .drill-chart-bar.watch { fill: var(--watch); }
+  .drill-chart-bar.critical { fill: var(--critical); }
+  .drill-chart-bar.neutral { fill: var(--brand); }
+  .drill-chart-refline { stroke-dasharray: 3 3; stroke-width: 1; }
+  .drill-chart-refline.good { stroke: var(--good); }
+  .drill-chart-refline.watch { stroke: var(--watch); }
+  .drill-chart-refline.critical { stroke: var(--critical); }
+
+  /* Prose section */
+  .drill-prose { font-size: 13px; line-height: 1.55; color: var(--text-1); }
+
+  /* Verdict section (drill variant — smaller headline than body .verdict) */
+  .drill-verdict {
+    padding: 14px 16px;
+    border-left: 3px solid var(--brand);
+    background: var(--surface-warm);
+  }
+  .drill-verdict.good { background: var(--good-soft); border-left-color: var(--good); }
+  .drill-verdict.watch { background: var(--watch-soft); border-left-color: var(--watch); }
+  .drill-verdict.critical { background: var(--critical-soft); border-left-color: var(--critical); }
+  .drill-verdict .headline {
+    font-family: 'Instrument Serif', serif;
+    font-size: 18px;
+    line-height: 1.25;
+    margin-bottom: 6px;
+  }
+  .drill-verdict .body { font-size: 13px; line-height: 1.55; color: var(--text-2); }
+
+  /* Timeline section */
+  .drill-timeline { display: flex; flex-direction: column; gap: 10px; }
+  .drill-timeline-event {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 12px;
+    align-items: baseline;
+    font-size: 13px;
+  }
+  .drill-timeline-date { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-3); }
+  .drill-timeline-title.good { color: var(--good); }
+  .drill-timeline-title.watch { color: var(--watch); }
+  .drill-timeline-title.critical { color: var(--critical); }
+  .drill-timeline-title.neutral { color: var(--text-1); }
+
+  /* Action items section */
+  .drill-action-items { display: flex; flex-direction: column; gap: 10px; }
+  .drill-action-item {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .drill-action-item:last-child { border-bottom: none; }
+  .drill-action-priority {
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 2px;
+    align-self: start;
+    text-align: center;
+  }
+  .drill-action-priority.high { background: var(--critical-soft); color: var(--critical); }
+  .drill-action-priority.medium { background: var(--watch-soft); color: var(--watch); }
+  .drill-action-priority.low { background: var(--surface-alt); color: var(--text-3); }
+  .drill-action-owner { font-size: 11px; color: var(--text-3); letter-spacing: 0.04em; text-transform: uppercase; }
+  .drill-action-text { grid-column: 2; color: var(--text-1); line-height: 1.45; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="main">
+
+    <!-- Top bar -->
+    <div class="topbar">
+      <div class="left">
+        <span class="brand-mark">Computing for All</span>
+        <span class="meta">K8341 · WJI Good Jobs Challenge · Backbone Cockpit</span>
+      </div>
+      <div class="right">
+        <span class="mockup-tag">Live · {{ summary.today }}</span>
+      </div>
+    </div>
+
+    <!-- Hero -->
+    <div class="hero">
+      <div class="hero-eyebrow">Status as of {{ summary.today }} — {{ summary.months_remaining }} months remaining</div>
+      <h1 class="display hero-title">Are we okay?</h1>
+      <p class="hero-subtitle">A daily glance at runway, placements, and what needs your attention this week.</p>
+
+      <div class="hero-grid">
+        <div class="hero-cell" data-drill="backbone">
+          <div class="label">Backbone Runway</div>
+          <div class="value num">${{ "{:,.0f}".format(summary.backbone_runway_combined) }}</div>
+          <div class="sub">${{ "{:,.0f}".format(summary.backbone_remaining) }} staff &amp; overhead · ${{ "{:,.0f}".format(summary.cfa_contractor_remaining) }} recovery contractors</div>
+          <span class="badge watch">Tight · On Track</span>
+        </div>
+        <div class="hero-cell" data-drill="placements">
+          <div class="label">Placements <span style="color:var(--good);font-size:9px;letter-spacing:0.04em;text-transform:none;font-weight:500;">● live · {{ placements.live_synced_minutes_ago }} min ago</span></div>
+          <div class="value"><span class="num">{{ placements.confirmed_total }}</span> <span style="color:var(--text-3);font-size:18px;">/ {{ "{:,}".format(placements.grant_goal) }}</span></div>
+          <div class="sub">PIP threshold ({{ placements.pip_threshold }}) cleared · {{ placements.grant_goal - placements.confirmed_total }} to grant goal</div>
+          <span class="badge good">Above PIP</span>
+        </div>
+        <div class="hero-cell" data-drill="reimbursement">
+          <div class="label">Cash Position</div>
+          <div class="value num">${{ "{:,.0f}".format(trailing_q1_total) }}</div>
+          <div class="sub">Q1 provider reimbursement pending from ESD</div>
+          <span class="badge watch">Awaiting ESD</span>
+        </div>
+        <div class="hero-cell" data-drill="flags">
+          <div class="label">Critical Flags</div>
+          <div class="value num">{{ high_priority_count }}</div>
+          <div class="sub">From v3 reconciliation Action Items · HIGH priority</div>
+          <span class="badge critical">Action Needed</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Decisions -->
+    <div class="decisions">
+      <div class="section-head">
+        <h2 class="display">This week's decisions</h2>
+        <span class="helper">{{ action_items|length }} items from v3 reconciliation Action Items · prioritized</span>
+      </div>
+      <div class="decision-list">
+        {% for item in action_items %}
+        <div class="decision" data-drill="decision:{{ loop.index0 }}">
+          <div class="marker {% if item.priority == 'HIGH' %}critical{% elif item.priority == 'MEDIUM' %}watch{% else %}neutral{% endif %}"></div>
+          <div class="body">
+            <div class="title">{{ item.area }} — {{ item.action }}</div>
+            <div class="meta">Owner: {{ item.owner }}</div>
+          </div>
+          <div class="meta-right"><div class="age">{{ item.priority }}</div><div>open</div></div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-bar">
+      <div class="tab active" data-tab="budget">Budget &amp; Burn</div>
+      <div class="tab" data-tab="placements">Placements</div>
+      <div class="tab" data-tab="providers">Providers <span class="count">9</span></div>
+      <div class="tab" data-tab="transactions">Transactions <span class="count">53</span></div>
+      <div class="tab" data-tab="reporting">ESD Reporting <span class="count">2</span></div>
+      <div class="tab" data-tab="audit">Audit Readiness</div>
+    </div>
+
+    <!-- Budget & Burn -->
+    <div class="tab-pane active" id="budget">
+      <div class="verdict watch">
+        <div class="label">Runway verdict</div>
+        <div class="headline">You'll get to September 30 — with about $9k/month of slack and one assumption that needs to hold.</div>
+        <div class="body">At current burn ($78k/month across backbone + contractors), the four backbone categories run out roughly aligned with grant end. CFA Contractors finishes with ~$0 if AI Engage and Pete &amp; Kelly stay at current pace. The $700k+ unspent in GJC Contractors is the lever — moving even $200k of it into CFA Contractors via budget amendment buys substantial recovery-work runway. <strong>The assumption that needs to hold:</strong> Krista's confirmation that March personnel was ~$34k, not higher.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Budget Allocation — $4.875M</h3>
+          <span class="helper">Width = budget share · dark portion = spent · light portion = remaining</span>
+        </div>
+        <div class="panel-body">
+          {% set ba = charts.budget_allocation %}
+          <svg viewBox="0 0 1000 160" style="width:100%;height:auto;font-family:'Figtree',sans-serif;">
+            <!-- Segment bars, 64px tall, y=30 -->
+            {% for seg in ba.segments %}
+            <!-- Full segment (light) -->
+            <rect x="{{ seg.x }}" y="30" width="{{ seg.width - 1 }}" height="48" fill="{{ seg.color }}" opacity="0.25"/>
+            <!-- Spent portion (full opacity) -->
+            <rect x="{{ seg.x }}" y="30" width="{{ seg.spent_width - 1 }}" height="48" fill="{{ seg.color }}"/>
+
+            <!-- Category label above (only if segment wide enough) -->
+            {% if seg.width > 40 %}
+            <text x="{{ seg.x + seg.width / 2 }}" y="22" text-anchor="middle" font-size="10" font-weight="600" letter-spacing="0.04em" fill="#1A1A1A">{{ seg.name }}</text>
+            {% endif %}
+
+            <!-- Dollar amount inside bar (only if wide enough) -->
+            {% if seg.width > 60 %}
+            <text x="{{ seg.x + 6 }}" y="48" font-size="11" font-weight="600" font-family="DM Mono, monospace" fill="white">${{ "{:.1f}".format(seg.budget / 1000000) }}M</text>
+            <text x="{{ seg.x + 6 }}" y="65" font-size="9" font-family="DM Mono, monospace" fill="white" opacity="0.85">{{ "{:.0f}".format(seg.pct_used) }}% used</text>
+            {% elif seg.width > 25 %}
+            <text x="{{ seg.x + seg.width/2 }}" y="105" text-anchor="middle" font-size="9" font-weight="600" font-family="DM Mono, monospace" fill="{{ seg.color }}">{{ seg.name }}</text>
+            <text x="{{ seg.x + seg.width/2 }}" y="118" text-anchor="middle" font-size="9" font-family="DM Mono, monospace" fill="#8C8A82">${{ "{:.0f}".format(seg.budget / 1000) }}k</text>
+            {% endif %}
+            {% endfor %}
+
+            <!-- Horizontal reference line showing overall spent -->
+            {% set overall_pct = ba.total_spent / ba.total_budget %}
+            <line x1="0" y1="90" x2="1000" y2="90" stroke="#E8E5DC" stroke-width="1"/>
+            <line x1="0" y1="90" x2="{{ overall_pct * 1000 }}" y2="90" stroke="#2E4D3E" stroke-width="2"/>
+
+            <!-- Totals -->
+            <text x="0" y="142" font-size="11" font-weight="600" letter-spacing="0.08em" fill="#5C5A52">TOTAL SPENT</text>
+            <text x="0" y="155" font-size="13" font-weight="600" font-family="DM Mono, monospace" fill="#1A1A1A">${{ "{:,.0f}".format(ba.total_spent) }} <tspan fill="#8C8A82">of ${{ "{:,.0f}".format(ba.total_budget) }}</tspan> <tspan fill="#2E4D3E">· {{ "{:.0f}".format(overall_pct * 100) }}%</tspan></text>
+
+            <text x="1000" y="142" text-anchor="end" font-size="11" font-weight="600" letter-spacing="0.08em" fill="#5C5A52">REMAINING</text>
+            <text x="1000" y="155" text-anchor="end" font-size="13" font-weight="600" font-family="DM Mono, monospace" fill="#1A1A1A">${{ "{:,.0f}".format(ba.total_budget - ba.total_spent) }} <tspan fill="#B8821B">· {{ "{:.0f}".format((1 - overall_pct) * 100) }}%</tspan></text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Budget Categories — Amendment 1 Baseline</h3>
+          <span class="helper">QB actuals through 3/26/26 · Salaries/benefits/other/indirect pro-rated pending breakout</span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data" style="width:100%;">
+            <thead>
+              <tr>
+                <th style="padding-left:20px;">Category</th>
+                <th class="right">Budget</th>
+                <th class="right">Spent</th>
+                <th class="right">Remaining</th>
+                <th class="right" style="width:160px;">% Used</th>
+                <th class="right" style="padding-right:20px;">6-mo runway</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for cat in summary.categories %}
+              <tr data-drill="category:{{ cat.name }}">
+                <td style="padding-left:20px;">{{ cat.name }}{% if cat.prorated %} <span style="font-size:11px;color:var(--text-3);">·  pro-rated*</span>{% endif %}</td>
+                <td class="right num">${{ "{:,.0f}".format(cat.budget) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(cat.spent) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(cat.remaining) }}</td>
+                <td class="right">
+                  <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;"><span class="num" style="font-size:11px;color:var(--text-2);">{{ "{:.1f}".format(cat.pct) }}%</span><div class="bar {{ cat.color }}" style="width:80px;"><div style="width:{{ cat.pct }}%;"></div></div></div>
+                </td>
+                <td class="right num" style="padding-right:20px;">${{ "{:,.0f}".format(cat.remaining / summary.months_remaining) }}/mo</td>
+              </tr>
+              {% endfor %}
+              <tr class="total">
+                <td style="padding-left:20px;">Total</td>
+                <td class="right num">${{ "{:,.0f}".format(summary.grant_total_budget) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(summary.gjc_paid + summary.cfa_contractor_paid + summary.backbone_qb_paid) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(summary.grant_total_budget - (summary.gjc_paid + summary.cfa_contractor_paid + summary.backbone_qb_paid)) }}</td>
+                <td class="right num" style="font-size:11px;color:var(--text-2);">{{ "{:.1f}".format((summary.gjc_paid + summary.cfa_contractor_paid + summary.backbone_qb_paid) / summary.grant_total_budget * 100) }}%</td>
+                <td class="right num" style="padding-right:20px;">${{ "{:,.0f}".format((summary.grant_total_budget - (summary.gjc_paid + summary.cfa_contractor_paid + summary.backbone_qb_paid)) / summary.months_remaining) }}/mo</td>
+              </tr>
+            </tbody>
+          </table>
+          <div style="padding:12px 20px;font-size:11px;color:var(--text-3);background:var(--surface-alt);border-top:1px solid var(--border);">
+            * Personnel and overhead lines pro-rated from $1,227,851 lump sum pending QB category breakout from Krista.
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Backbone Burn Projection — April through September</h3>
+            <span class="helper">Salaries + Benefits + Other + Indirect</span>
+          </div>
+          <div class="panel-body">
+            <div class="trajectory">
+              <div class="traj-cell current">
+                <div class="month">Apr</div>
+                <div class="amt">$51.7k</div>
+                <div class="cum">$259k left</div>
+              </div>
+              <div class="traj-cell">
+                <div class="month">May</div>
+                <div class="amt">$51.7k</div>
+                <div class="cum">$207k left</div>
+              </div>
+              <div class="traj-cell">
+                <div class="month">Jun</div>
+                <div class="amt">$51.7k</div>
+                <div class="cum">$155k left</div>
+              </div>
+              <div class="traj-cell">
+                <div class="month">Jul</div>
+                <div class="amt">$51.7k</div>
+                <div class="cum">$104k left</div>
+              </div>
+              <div class="traj-cell">
+                <div class="month">Aug</div>
+                <div class="amt">$51.7k</div>
+                <div class="cum">$52k left</div>
+              </div>
+              <div class="traj-cell">
+                <div class="month">Sep</div>
+                <div class="amt">$51.7k</div>
+                <div class="cum">$0</div>
+              </div>
+            </div>
+            <p style="font-size:12px;color:var(--text-2);margin-top:18px;line-height:1.55;">
+              At a steady $51,700/month, backbone categories land essentially at zero on September 30. No slack for an unexpected expense (an extra travel reimbursement, a benefit true-up, an indirect cost adjustment). <strong>Recommended buffer: confirm with Krista that March actual was at or below this run-rate.</strong>
+            </p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h3>Contractor Burn — Recovery Engine</h3>
+            <span class="helper">AI Engage + Pete &amp; Kelly</span>
+          </div>
+          <div class="panel-body">
+            <div class="three-col" style="margin-bottom:16px;">
+              <div class="stat">
+                <div class="label">$/recovered placement</div>
+                <div class="value num">$3,165</div>
+                <div class="sub">256 recovered to date</div>
+              </div>
+              <div class="stat">
+                <div class="label">Q2-Q3 budget</div>
+                <div class="value num">$210k</div>
+                <div class="sub">~66 placements at current rate</div>
+              </div>
+              <div class="stat">
+                <div class="label">Need from pool</div>
+                <div class="value num">231</div>
+                <div class="sub">to reach 1,000</div>
+              </div>
+            </div>
+            <p style="font-size:12px;color:var(--text-2);line-height:1.55;">
+              <strong>Capacity gap:</strong> Current contractor budget funds ~66 more recoveries; you need 231. Either (a) cost-per-recovered drops sharply as outreach scales, (b) GJC budget gets reallocated to extend contractor runway, or (c) the 1,000 target gets renegotiated. Worth flagging in the next ESD conversation.
+            </p>
+          </div>
+        </div>
+
+        {# ----- Personnel & Contractors sub-section -----
+           Spec: agents/finance/design/personnel_contractors_view_spec.md
+           Data: agents/finance/personnel.py via cockpit_data.extract_all["personnel"] #}
+        <div class="panel" style="margin-top:24px;">
+          <div class="panel-head">
+            <h3>Personnel &amp; Contractors</h3>
+            <span class="helper">Per-person allocations · grant-funded only</span>
+          </div>
+          <div class="panel-body">
+            {# Reconciliation drift surfaces prominently — never silently absorbed #}
+            {% set _err_warnings = personnel.reconciliation_warnings | selectattr('level', 'equalto', 'error') | list %}
+            {% if _err_warnings %}
+            <div style="background:var(--critical-soft,#FBE9E9);color:var(--critical,#B43E3E);border:1px solid var(--critical,#B43E3E);padding:10px 14px;margin-bottom:14px;font-size:13px;">
+              <strong>Reconciliation drift — fix before relying on these numbers:</strong>
+              <ul style="margin:6px 0 0;padding-left:20px;">
+                {% for w in _err_warnings %}
+                <li>{{ w.message }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+
+            {# Three summary stat cards (matches existing .three-col + .stat pattern) #}
+            <div class="three-col" style="margin-bottom:16px;">
+              <div class="stat">
+                <div class="label">Grant-funded people</div>
+                <div class="value num">{{ "{:,}".format(personnel.distinct_person_count) }}</div>
+                <div class="sub">{% if personnel.people | length == 0 %}Awaiting initial population{% else %}{{ personnel.people | length }} budget rows{% endif %}</div>
+              </div>
+              <div class="stat">
+                <div class="label">Paid to date (all categories)</div>
+                <div class="value num">${{ "{:,.0f}".format(personnel.summary.paid_to_date) }}</div>
+                <div class="sub">Sum of recorded actuals</div>
+              </div>
+              <div class="stat">
+                <div class="label">Projected variance through Sept 30, 2026</div>
+                {% set _v = personnel.summary.variance_vs_amended %}
+                <div class="value num" style="color:{% if _v >= 0 %}var(--good)
+                  {%- else %}var(--critical){% endif %};">
+                  {% if _v >= 0 %}+{% endif %}${{ "{:,.0f}".format(_v) }}
+                </div>
+                <div class="sub">{% if _v >= 0 %}under budget{% else %}projected overrun{% endif %}</div>
+              </div>
+            </div>
+
+            {# Empty state — pre-step-8 #}
+            {% if personnel.people | length == 0 %}
+            <div style="padding:16px;background:var(--surface-alt);border:1px dashed var(--border-strong);color:var(--text-2);font-size:13px;">
+              <strong>Awaiting initial data population.</strong> The personnel
+              workbook at <code>agents/finance/design/fixtures/K8341_Personnel_and_Contractors.xlsx</code>
+              is empty pending the complete person list from Ritu and Krista
+              (spec §"Open questions for Ritu"). Once populated, each person
+              appears here grouped by budget line, with rate, amended budget,
+              paid-to-date, projected remaining, and variance.
+            </div>
+            {% else %}
+              {# Grouped table — one block per budget line that has people #}
+              {% for rollup in personnel.rollups %}
+                {% set _line_people = personnel.people | selectattr('budget_line', 'equalto', rollup.budget_line) | list %}
+                {% if _line_people %}
+                <div style="margin-bottom:16px;">
+                  <div style="background:var(--surface-alt);padding:8px 12px;border-top:1px solid var(--border);border-bottom:1px solid var(--border);display:flex;gap:16px;align-items:center;font-size:13px;">
+                    <strong>{{ rollup.label }}</strong>
+                    <span class="num" style="color:var(--text-2);">
+                      Amended ${{ "{:,.0f}".format(rollup.amended_budget_total) }}
+                      {% if rollup.amendment_1_reference is not none and rollup.reconciles == false %}
+                        <span style="color:var(--critical);margin-left:6px;">(Amendment 1: ${{ "{:,.0f}".format(rollup.amendment_1_reference) }})</span>
+                      {% endif %}
+                    </span>
+                    <span class="num" style="color:var(--text-2);">Paid ${{ "{:,.0f}".format(rollup.paid_to_date) }}</span>
+                    <span class="num" style="color:var(--text-2);">Projected ${{ "{:,.0f}".format(rollup.projected_total_remaining) }}</span>
+                    <span class="num" style="margin-left:auto;color:{% if rollup.variance_vs_amended >= 0 %}var(--good)
+                      {%- else %}var(--critical){% endif %};">
+                      Variance {% if rollup.variance_vs_amended >= 0 %}+{% endif %}${{ "{:,.0f}".format(rollup.variance_vs_amended) }}
+                    </span>
+                  </div>
+                  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <thead>
+                      <tr>
+                        <th class="left">Name</th>
+                        <th class="left">Role</th>
+                        <th class="left">Engagement</th>
+                        <th class="right">Rate</th>
+                        <th class="right">Amended</th>
+                        <th class="right">Paid</th>
+                        <th class="right">Projected remaining</th>
+                        <th class="right">Variance</th>
+                        <th class="right">Variance %</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {% for p in _line_people | sort(attribute='amended_budget_total', reverse=true) %}
+                      <tr data-drill="{{ p.drill_key }}" style="cursor:pointer;">
+                        <td>
+                          {{ p.name }}
+                          {% if p.documentation_incomplete %}
+                            <span style="margin-left:6px;font-size:10px;color:var(--watch);text-transform:uppercase;letter-spacing:0.04em;" title="Missing: {{ p.missing_required_fields | join(', ') }}">doc incomplete</span>
+                          {% endif %}
+                        </td>
+                        <td>{{ p.role or "—" }}</td>
+                        <td>{{ p.engagement_type or "—" }}</td>
+                        <td class="right num">{% if p.rate_amount and p.rate_unit %}${{ "{:,.0f}".format(p.rate_amount) }} / {{ p.rate_unit }}{% else %}—{% endif %}</td>
+                        <td class="right num">${{ "{:,.0f}".format(p.amended_budget_total) }}</td>
+                        <td class="right num">${{ "{:,.0f}".format(p.paid_to_date) }}</td>
+                        <td class="right num">{% if p.projections_missing %}<span style="color:var(--watch);">not yet projected</span>{% else %}${{ "{:,.0f}".format(p.projected_total_remaining) }}{% endif %}</td>
+                        <td class="right num" style="color:{% if p.variance_vs_amended >= 0 %}var(--good){% else %}var(--critical){% endif %};">{% if p.variance_vs_amended >= 0 %}+{% endif %}${{ "{:,.0f}".format(p.variance_vs_amended) }}</td>
+                        <td class="right num" style="color:{% if p.variance_vs_amended >= 0 %}var(--good){% else %}var(--critical){% endif %};">{{ "{:.1f}".format(p.variance_pct * 100) }}%</td>
+                      </tr>
+                      {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+
+            {# What's not in this view — transparency footer (per spec) #}
+            <div style="background:var(--surface-alt);padding:10px 14px;margin-top:14px;font-size:11px;color:var(--text-3);border-left:3px solid var(--border-strong);">
+              <strong style="color:var(--text-2);">What's not in this view:</strong>
+              Training provider staff (paid through providers, not directly by CFA),
+              AI Engage's internal team (surfaced as the contractor entity),
+              and CFA staff funded from non-grant sources.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Placements -->
+    <div class="tab-pane" id="placements">
+      <div class="verdict good">
+        <div class="label">Placement verdict</div>
+        <div class="headline">PIP threshold cleared. The story now is the gap to 1,000 — and the recovery engine is the only thing that closes it.</div>
+        <div class="body">745 confirmed at end of Q1 (102% of 730 PIP threshold). All GJC provider contracts ended March 31, with the exception of Vets2Tech's Q2 extension (24 guaranteed) and Apprenti's late-finalizing contract (18-32 expected). The remaining 231 placements to reach 1,000 must come from CFA's verification pool of 731 reachable candidates — a 32% conversion rate over Q2 + Q3.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Cumulative Placements Over Time</h3>
+          <span class="helper">Provider-reported build · recovery layered in · PIP and grant-goal reference lines</span>
+        </div>
+        <div class="panel-body">
+          {% set c = charts.cumulative_placements %}
+          <svg viewBox="0 0 {{ c.width }} {{ c.height }}" style="width:100%;height:auto;font-family:'Figtree',sans-serif;">
+            <!-- Goal line at 1000 -->
+            <line x1="{{ c.pad_l }}" y1="{{ c.y_goal }}" x2="{{ c.width - c.pad_r }}" y2="{{ c.y_goal }}" stroke="#2E4D3E" stroke-width="1" stroke-dasharray="4,3"/>
+            <text x="{{ c.width - c.pad_r - 4 }}" y="{{ c.y_goal - 4 }}" text-anchor="end" font-size="10" font-weight="600" letter-spacing="0.08em" fill="#2E4D3E">GRANT GOAL · 1,000</text>
+
+            <!-- PIP line at 730 -->
+            <line x1="{{ c.pad_l }}" y1="{{ c.y_pip }}" x2="{{ c.width - c.pad_r }}" y2="{{ c.y_pip }}" stroke="#B8821B" stroke-width="1" stroke-dasharray="4,3"/>
+            <text x="{{ c.width - c.pad_r - 4 }}" y="{{ c.y_pip - 4 }}" text-anchor="end" font-size="10" font-weight="600" letter-spacing="0.08em" fill="#B8821B">PIP THRESHOLD · 730</text>
+
+            <!-- Y axis ticks -->
+            {% for v in [0, 250, 500, 750, 1000] %}
+            {% set yy = c.pad_t + c.chart_h - (v / c.y_max) * c.chart_h %}
+            <line x1="{{ c.pad_l - 4 }}" y1="{{ yy }}" x2="{{ c.pad_l }}" y2="{{ yy }}" stroke="#D4D0C4"/>
+            <text x="{{ c.pad_l - 8 }}" y="{{ yy + 3 }}" text-anchor="end" font-size="10" font-family="DM Mono, monospace" fill="#8C8A82">{{ v }}</text>
+            {% endfor %}
+
+            <!-- Reported area (filled) -->
+            <path d="{{ c.reported_area_path }}" fill="#2E4D3E" opacity="0.18"/>
+
+            <!-- Recovery band (stacked on top of reported) -->
+            <path d="M{{ c.quarter_x[0] }},{{ c.pad_t + c.chart_h - (c.reported_cum[0] / c.y_max) * c.chart_h }} {{ c.recovery_band_path }} Z" fill="#1F6B5C" opacity="0.35"/>
+
+            <!-- Reported line -->
+            <polyline points="{{ c.reported_path }}" fill="none" stroke="#2E4D3E" stroke-width="2.5"/>
+
+            <!-- Combined (reported + recovered) line -->
+            <polyline points="{{ c.combined_path }}" fill="none" stroke="#1F6B5C" stroke-width="2.5"/>
+
+            <!-- Data points -->
+            {% for i in range(c.quarters|length) %}
+            <circle cx="{{ c.quarter_x[i] }}" cy="{{ c.pad_t + c.chart_h - (c.reported_cum[i] / c.y_max) * c.chart_h }}" r="3" fill="#2E4D3E"/>
+            {% if c.recovered_cum[i] > 0 %}
+            <circle cx="{{ c.quarter_x[i] }}" cy="{{ c.pad_t + c.chart_h - (c.combined_cum[i] / c.y_max) * c.chart_h }}" r="4" fill="#1F6B5C"/>
+            <text x="{{ c.quarter_x[i] }}" y="{{ c.pad_t + c.chart_h - (c.combined_cum[i] / c.y_max) * c.chart_h - 10 }}" text-anchor="middle" font-size="11" font-weight="700" font-family="DM Mono, monospace" fill="#1F6B5C">{{ c.combined_cum[i] }}</text>
+            {% endif %}
+            {% endfor %}
+
+            <!-- X axis quarter labels -->
+            {% for q in c.quarters %}
+            <text x="{{ c.quarter_x[loop.index0] }}" y="{{ c.height - c.pad_b + 20 }}" text-anchor="middle" font-size="10" font-family="DM Mono, monospace" fill="#5C5A52">{{ q }}</text>
+            {% endfor %}
+
+            <!-- Axis line -->
+            <line x1="{{ c.pad_l }}" y1="{{ c.pad_t + c.chart_h }}" x2="{{ c.width - c.pad_r }}" y2="{{ c.pad_t + c.chart_h }}" stroke="#D4D0C4"/>
+          </svg>
+          <div style="margin-top:8px;font-size:11px;color:var(--text-3);display:flex;gap:20px;align-items:center;">
+            <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:10px;background:#2E4D3E;opacity:0.5;"></span>Provider-reported (cumulative)</span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:10px;background:#1F6B5C;opacity:0.5;"></span>CFA recovered (Q1 '26)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-head">
+            <h3>The Funnel — Where 1,000 Comes From</h3>
+            <span class="helper"><span style="color:var(--good);">● Live</span> · synced from WJI TWC tracking · 3 min ago · <a href="#" style="color:var(--brand);text-decoration:none;">Sync now</a></span>
+          </div>
+          <div class="panel-body">
+            <div class="funnel-row">
+              <div class="lbl"><strong>Coalition reported placements</strong> · Q4 net of retractions</div>
+              <div class="val">{{ placements.coalition_reported }}</div>
+            </div>
+            <div class="funnel-row">
+              <div class="lbl"><strong>CFA verified Good Jobs</strong> · AI Engage + P&amp;K recovery</div>
+              <div class="val">{{ placements.cfa_verified }}</div>
+            </div>
+            <div class="funnel-row">
+              <div class="lbl"><strong>Provider Q1 actuals</strong> · April 6 reconciled</div>
+              <div class="val">{{ placements.q1_provider_actuals }}</div>
+            </div>
+            <div class="funnel-row target">
+              <div class="lbl"><strong>Confirmed total — exceeds {{ placements.pip_threshold }} PIP target</strong></div>
+              <div class="val">{{ placements.confirmed_total }}</div>
+            </div>
+            <div class="funnel-row delta">
+              <div class="lbl">Vets2Tech Q2 guaranteed (no-cost extension)</div>
+              <div class="val">+ {{ placements.vets2tech_q2_guaranteed }}</div>
+            </div>
+            <div class="funnel-row delta">
+              <div class="lbl">Apprenti Q1-Q3 expected</div>
+              <div class="val">+ {{ placements.apprenti_expected_low }}-{{ placements.apprenti_expected_high }}</div>
+            </div>
+            <div class="funnel-row delta">
+              <div class="lbl">Recovery target Q2-Q3 (need to hit {{ "{:,}".format(placements.grant_goal) }})</div>
+              <div class="val">+ {{ placements.recovery_target }}</div>
+            </div>
+            <div class="funnel-row" style="margin-top:8px;border-top:1px solid var(--border-strong);padding-top:14px;">
+              <div class="lbl"><strong>Goal · September 30, 2026</strong></div>
+              <div class="val" style="color:var(--brand);font-weight:700;font-size:20px;">{{ "{:,}".format(placements.grant_goal) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Reachable Pool</h3>
+              <span class="helper">Q2-Q3 outreach universe</span>
+            </div>
+            <div class="panel-body">
+              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+                <span>Total participants 2026</span>
+                <span class="num">1,785</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-2);">
+                <span>− Confirmed + guaranteed</span>
+                <span class="num">769</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;color:var(--text-2);">
+                <span>− Cannot locate on LinkedIn</span>
+                <span class="num">285</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:14px 0 0;font-weight:600;font-size:14px;">
+                <span>Active outreach pool</span>
+                <span class="num" style="color:var(--brand);">731</span>
+              </div>
+              <p style="font-size:12px;color:var(--text-2);margin-top:12px;line-height:1.55;">
+                Need <strong>32% conversion</strong> of reachable candidates to close the 231 gap by Sept 30.
+              </p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h3>Recovery Pace</h3>
+              <span class="helper">AI Engage + P&amp;K weekly</span>
+            </div>
+            <div class="panel-body">
+              <div class="stat" style="border:none;padding:0;margin-bottom:12px;">
+                <div class="label">Required weekly pace</div>
+                <div class="value num">~9</div>
+                <div class="sub">231 placements ÷ 25 weeks</div>
+              </div>
+              <div class="stat" style="border:none;padding:0;">
+                <div class="label">Q1 actual pace</div>
+                <div class="value num">~20</div>
+                <div class="sub">256 verified ÷ ~13 weeks</div>
+              </div>
+              <p style="font-size:12px;color:var(--text-2);margin-top:12px;line-height:1.55;">
+                Pace is well above what's needed — but Q1 was lower-hanging fruit. Q2-Q3 conversion likely harder.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Provider Contribution — Reported + Recovered vs. Target</h3>
+          <span class="helper">Stacked bars · reported in dark · recovered in teal · target marker shows contracted goal</span>
+        </div>
+        <div class="panel-body">
+          {% set pc = charts.provider_contribution %}
+          <svg viewBox="0 0 820 {{ 30 + pc.total_height + 40 }}" style="width:100%;height:auto;font-family:'Figtree',sans-serif;">
+            <!-- Axis labels top -->
+            <text x="{{ pc.label_width }}" y="16" font-size="10" font-weight="600" letter-spacing="0.08em" fill="#8C8A82">0</text>
+            {% for tick in [50, 100, 150, 200, 250] %}
+              {% if tick <= pc.max_plac %}
+              {% set tx = pc.label_width + (tick / pc.max_plac) * pc.bar_width %}
+              <text x="{{ tx }}" y="16" text-anchor="middle" font-size="10" font-family="DM Mono, monospace" fill="#8C8A82">{{ tick }}</text>
+              <line x1="{{ tx }}" y1="22" x2="{{ tx }}" y2="{{ 22 + pc.total_height }}" stroke="#E8E5DC" stroke-width="1"/>
+              {% endif %}
+            {% endfor %}
+
+            {% for bar in pc.bars %}
+            {% set y = 26 + loop.index0 * (pc.bar_height + pc.bar_gap) %}
+            <!-- Provider name -->
+            <text x="{{ pc.label_width - 10 }}" y="{{ y + pc.bar_height/2 + 4 }}" text-anchor="end" font-size="12" fill="#1A1A1A" font-weight="500">{{ bar.provider }}</text>
+
+            <!-- Reported portion -->
+            {% if bar.reported_width - bar.recovered_width > 0 %}
+            <rect x="{{ pc.label_width }}" y="{{ y }}" width="{{ bar.reported_width - bar.recovered_width }}" height="{{ pc.bar_height }}" fill="#2E4D3E"/>
+            {% endif %}
+            <!-- Recovered portion on top -->
+            {% if bar.recovered_width > 0 %}
+            <rect x="{{ pc.label_width + (bar.reported_width - bar.recovered_width) }}" y="{{ y }}" width="{{ bar.recovered_width }}" height="{{ pc.bar_height }}" fill="#1F6B5C"/>
+            {% endif %}
+
+            <!-- Target tick mark -->
+            {% if bar.target > 0 %}
+            <line x1="{{ pc.label_width + bar.target_x }}" y1="{{ y - 2 }}" x2="{{ pc.label_width + bar.target_x }}" y2="{{ y + pc.bar_height + 2 }}" stroke="#1A1A1A" stroke-width="2"/>
+            <text x="{{ pc.label_width + bar.target_x }}" y="{{ y - 5 }}" text-anchor="middle" font-size="9" font-family="DM Mono, monospace" fill="#5C5A52">target {{ bar.target }}</text>
+            {% endif %}
+
+            <!-- True total label at end of bar -->
+            <text x="{{ pc.label_width + bar.reported_width + 8 }}" y="{{ y + pc.bar_height/2 + 4 }}" font-size="12" font-weight="600" font-family="DM Mono, monospace" fill="#1A1A1A">{{ bar.true_placements }}</text>
+            {% if bar.target > 0 %}
+              <text x="{{ pc.label_width + bar.reported_width + 50 }}" y="{{ y + pc.bar_height/2 + 4 }}" font-size="10" font-family="DM Mono, monospace" fill="var(--{{ bar.pct_tone }})">{{ bar.pct_of_target }}%</text>
+            {% endif %}
+            {% endfor %}
+          </svg>
+          <div style="margin-top:12px;font-size:11px;color:var(--text-3);display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+            <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:10px;background:#2E4D3E;"></span>Reported</span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:10px;background:#1F6B5C;"></span>Recovered</span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:2px;height:14px;background:#1A1A1A;"></span>Contracted target</span>
+            <span>% = True placements as % of target</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Quarterly Placements by Provider — Q1 2024 through Q1 2026</h3>
+          <span class="helper">Source: WSAC-verified placements via WJI TWC tracking · live-synced</span>
+        </div>
+        <div class="panel-body" style="padding:0;overflow-x:auto;">
+          <table class="data" style="width:100%;">
+            <thead>
+              <tr>
+                <th style="padding-left:20px;">Provider</th>
+                {% for label in placements.quarter_labels %}
+                <th class="right">{{ label }}</th>
+                {% endfor %}
+                <th class="right" style="border-left:1px solid var(--border-strong);padding-left:14px;">Through Q4'25</th>
+                <th class="right">Q1'26 actual</th>
+                <th class="right">Q1'26 retr.</th>
+                <th class="right" style="border-left:1px solid var(--border-strong);padding-left:14px;">Net</th>
+                <th class="right">Target</th>
+                <th class="right" style="padding-right:20px;">% to target</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in placements.quarterly_placements %}
+              {% set net = row.net %}
+              {% set pct = row.pct %}
+              <tr data-drill="provider:{{ canonical_provider(row.provider) }}">
+                <td style="padding-left:20px;">{{ row.provider }}</td>
+                {% for v in row.q %}
+                <td class="right num" style="color:{% if v == 0 %}var(--text-3){% else %}var(--text-1){% endif %};">{{ v if v > 0 else '—' }}</td>
+                {% endfor %}
+                <td class="right num" style="border-left:1px solid var(--border-strong);padding-left:14px;font-weight:500;">{{ row.total_through_q4_25 }}</td>
+                <td class="right num" style="color:{% if row.q1_26_actual > 0 %}var(--good){% else %}var(--text-3){% endif %};">{{ row.q1_26_actual if row.q1_26_actual > 0 else '—' }}</td>
+                <td class="right num" style="color:{% if row.q1_26_retraction < 0 %}var(--critical){% else %}var(--text-3){% endif %};">{{ row.q1_26_retraction if row.q1_26_retraction != 0 else '—' }}</td>
+                <td class="right num" style="border-left:1px solid var(--border-strong);padding-left:14px;font-weight:600;">{{ net }}</td>
+                <td class="right num" style="color:var(--text-2);">{{ row.target }}</td>
+                <td class="right" style="padding-right:20px;">
+                  <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;">
+                    <span class="num" style="font-size:11px;color:var(--{{ row.pct_tone }});">{{ "{:.0f}".format(pct) }}%</span>
+                    <div class="bar" style="width:50px;background:var(--surface-warm);border-radius:3px;height:6px;overflow:hidden;">
+                      <div style="width:{{ pct if pct <= 100 else 100 }}%;height:100%;background:var(--{{ row.pct_tone }});"></div>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+              {% set qtr_totals = [0, 0, 0, 0, 0, 0, 0, 0] %}
+              {% set ns = namespace(t=0, q1a=0, q1r=0, target=0) %}
+              {% for row in placements.quarterly_placements %}
+                {% for i in range(8) %}{% if qtr_totals.__setitem__(i, qtr_totals[i] + row.q[i]) %}{% endif %}{% endfor %}
+                {% set ns.t = ns.t + row.total_through_q4_25 %}
+                {% set ns.q1a = ns.q1a + row.q1_26_actual %}
+                {% set ns.q1r = ns.q1r + row.q1_26_retraction %}
+                {% set ns.target = ns.target + row.target %}
+              {% endfor %}
+              <tr class="total">
+                <td style="padding-left:20px;">Total</td>
+                {% for v in qtr_totals %}
+                <td class="right num">{{ v }}</td>
+                {% endfor %}
+                <td class="right num" style="border-left:1px solid var(--border-strong);padding-left:14px;">{{ ns.t }}</td>
+                <td class="right num" style="color:var(--good);">{{ ns.q1a }}</td>
+                <td class="right num" style="color:var(--critical);">{{ ns.q1r }}</td>
+                <td class="right num" style="border-left:1px solid var(--border-strong);padding-left:14px;">{{ ns.t + ns.q1a + ns.q1r }}</td>
+                <td class="right num" style="color:var(--text-2);">{{ ns.target }}</td>
+                <td class="right num" style="padding-right:20px;">{{ "{:.0f}".format((ns.t + ns.q1a + ns.q1r) / ns.target * 100) }}%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:12px 20px;font-size:11px;color:var(--text-3);background:var(--surface-alt);border-top:1px solid var(--border);line-height:1.55;">
+          <strong>Reading the table:</strong> Training providers (rows 1-9) delivered through their contracted programs. AI Engage (row 10) is the recovery operation — placements found through LinkedIn outreach where the original training provider didn't report the outcome. AIE has no contractual per-placement target; the 256 in target column reflects delivered count. <strong>Net total of 747</strong> across all rows — 2 above the dashboard's headline 745, the documented WSAC vs. provider-reported reconciliation gap (worth confirming with Bethany before the next ESD report).
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Provider Q1 Actuals — Final GJC Contributions</h3>
+          <span class="helper">All GJC contracts ended March 31 except Vets2Tech (extended) and Apprenti (finalizing)</span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data" style="width:100%;">
+            <thead>
+              <tr>
+                <th style="padding-left:20px;">Provider</th>
+                <th class="right">Q1 Expected</th>
+                <th class="right">Q1 Actual</th>
+                <th class="right">Rate</th>
+                <th class="right" style="padding-right:20px;">Final Q1 Invoice</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in placements.q1_provider_actuals_breakdown %}
+              <tr data-drill="provider:{{ canonical_provider(row.provider) }}">
+                <td style="padding-left:20px;">{{ row.provider }}{% if row.actual is none %} <span style="font-size:11px;color:var(--critical);">· contract not finalized</span>{% endif %}</td>
+                <td class="right num">{{ row.expected }}</td>
+                <td class="right num">{% if row.actual is none %}—{% else %}{{ row.actual }}{% endif %}</td>
+                <td class="right num">${{ "{:,}".format(row.rate) }}</td>
+                <td class="right num" style="padding-right:20px;">{% if row.invoice is none %}<span style="color:var(--text-3);">—</span>{% else %}${{ "{:,}".format(row.invoice) }}{% endif %}</td>
+              </tr>
+              {% endfor %}
+              <tr class="total">
+                <td style="padding-left:20px;">Total</td>
+                <td class="right num">99</td>
+                <td class="right num">{{ placements.q1_provider_actuals }}</td>
+                <td class="right">—</td>
+                <td class="right num" style="padding-right:20px;">${{ "{:,.0f}".format(trailing_q1_total) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Providers -->
+    <div class="tab-pane" id="providers">
+      <div class="three-col" style="margin-bottom:24px;">
+        <div class="stat">
+          <div class="label">Total providers</div>
+          <div class="value num">{{ providers.terminated|length + providers.active|length + providers.closed_with_placements|length + providers.closed_support|length + providers.cfa_contractors|length }}</div>
+          <div class="sub">Across all statuses</div>
+        </div>
+        <div class="stat">
+          <div class="label">Active — closing out</div>
+          <div class="value num">{{ providers.active|length }}</div>
+          <div class="sub">Plus {{ providers.cfa_contractors|length }} recovery contractors</div>
+        </div>
+        <div class="stat">
+          <div class="label">Closed or terminated</div>
+          <div class="value num">{{ providers.closed_with_placements|length + providers.closed_support|length + providers.terminated|length }}</div>
+          <div class="sub">{{ providers.terminated|length }} ESD-directed terminations</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Provider Reconciliation — v3 (3/27/2026)</h3>
+          <span class="helper">Amended Budget vs. Tracker vs. QB Actual</span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data" style="width:100%;">
+            <thead>
+              <tr>
+                <th style="padding-left:20px;">Provider</th>
+                <th class="right">Amended Budget</th>
+                <th class="right">QB Actual</th>
+                <th class="right">Balance</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="subhead"><td colspan="5" style="padding-left:20px;">Active — closing out</td></tr>
+              {% for p in providers.active %}
+              <tr data-drill="provider:{{ canonical_provider(p.name) }}">
+                <td style="padding-left:20px;">{{ p.name }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.budget) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.qb_actual) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.balance) }}</td>
+                <td style="font-size:11px;color:var(--text-2);padding-right:20px;">{{ p.notes }}</td>
+              </tr>
+              {% endfor %}
+
+              <tr class="subhead"><td colspan="5" style="padding-left:20px;">Closed — placement-based</td></tr>
+              {% for p in providers.closed_with_placements %}
+              <tr data-drill="provider:{{ canonical_provider(p.name) }}">
+                <td style="padding-left:20px;">{{ p.name }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.budget) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.qb_actual) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.balance) }}</td>
+                <td style="font-size:11px;color:var(--text-2);padding-right:20px;">{{ p.notes }}</td>
+              </tr>
+              {% endfor %}
+
+              <tr class="subhead"><td colspan="5" style="padding-left:20px;">Closed — support / engagement</td></tr>
+              {% for p in providers.closed_support %}
+              <tr data-drill="provider:{{ canonical_provider(p.name) }}">
+                <td style="padding-left:20px;">{{ p.name }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.budget) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.qb_actual) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.balance) }}</td>
+                <td style="font-size:11px;color:var(--text-2);padding-right:20px;">{{ p.notes }}</td>
+              </tr>
+              {% endfor %}
+
+              <tr class="subhead"><td colspan="5" style="padding-left:20px;">ESD-directed terminations — no further payments</td></tr>
+              {% for p in providers.terminated %}
+              <tr data-drill="provider:{{ canonical_provider(p.name) }}">
+                <td style="padding-left:20px;">{{ p.name }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.budget) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.qb_actual) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.balance) }}</td>
+                <td style="font-size:11px;color:var(--text-2);padding-right:20px;">{{ p.notes }}</td>
+              </tr>
+              {% endfor %}
+
+              <tr class="subhead"><td colspan="5" style="padding-left:20px;">CFA Contractors — recovery engine</td></tr>
+              {% for p in providers.cfa_contractors %}
+              <tr data-drill="provider:{{ canonical_provider(p.name) }}">
+                <td style="padding-left:20px;">{{ p.name }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.budget) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.qb_actual) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(p.balance) }}</td>
+                <td style="font-size:11px;color:var(--text-2);padding-right:20px;">{{ p.notes }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>True Cost Per Placement — Ranked</h3>
+          <span class="helper">Including recovered placements · sorted low to high · color-coded by threshold</span>
+        </div>
+        <div class="panel-body">
+          <svg viewBox="0 0 820 {{ 40 + (charts.cpp_ranking.rows|length) * (charts.cpp_ranking.bar_height + charts.cpp_ranking.bar_gap) + 30 }}" style="width:100%;height:auto;font-family:'Figtree',sans-serif;">
+            <!-- Threshold zones -->
+            <rect x="{{ charts.cpp_ranking.label_width }}" y="10"
+                  width="{{ charts.cpp_ranking.threshold_good }}"
+                  height="{{ charts.cpp_ranking.rows|length * (charts.cpp_ranking.bar_height + charts.cpp_ranking.bar_gap) + 10 }}"
+                  fill="#1F6B5C" opacity="0.04"/>
+            <rect x="{{ charts.cpp_ranking.label_width + charts.cpp_ranking.threshold_good }}" y="10"
+                  width="{{ charts.cpp_ranking.threshold_watch - charts.cpp_ranking.threshold_good }}"
+                  height="{{ charts.cpp_ranking.rows|length * (charts.cpp_ranking.bar_height + charts.cpp_ranking.bar_gap) + 10 }}"
+                  fill="#B8821B" opacity="0.04"/>
+            <rect x="{{ charts.cpp_ranking.label_width + charts.cpp_ranking.threshold_watch }}" y="10"
+                  width="{{ charts.cpp_ranking.bar_width - charts.cpp_ranking.threshold_watch }}"
+                  height="{{ charts.cpp_ranking.rows|length * (charts.cpp_ranking.bar_height + charts.cpp_ranking.bar_gap) + 10 }}"
+                  fill="#B8462E" opacity="0.04"/>
+
+            <!-- Threshold labels -->
+            <text x="{{ charts.cpp_ranking.label_width + charts.cpp_ranking.threshold_good/2 }}" y="8" text-anchor="middle" font-size="9" font-weight="600" letter-spacing="0.1em" fill="#1F6B5C">GREEN · ≤ $2.5k</text>
+            <text x="{{ charts.cpp_ranking.label_width + (charts.cpp_ranking.threshold_good + charts.cpp_ranking.threshold_watch)/2 }}" y="8" text-anchor="middle" font-size="9" font-weight="600" letter-spacing="0.1em" fill="#B8821B">AMBER · ≤ $4k</text>
+            <text x="{{ charts.cpp_ranking.label_width + (charts.cpp_ranking.threshold_watch + charts.cpp_ranking.bar_width)/2 }}" y="8" text-anchor="middle" font-size="9" font-weight="600" letter-spacing="0.1em" fill="#B8462E">RED · > $4k</text>
+
+            {% for r in charts.cpp_ranking.rows %}
+            {% set y = 18 + loop.index0 * (charts.cpp_ranking.bar_height + charts.cpp_ranking.bar_gap) %}
+            <!-- Label -->
+            <text x="{{ charts.cpp_ranking.label_width - 10 }}" y="{{ y + charts.cpp_ranking.bar_height/2 + 4 }}" text-anchor="end" font-size="12" fill="#1A1A1A" font-weight="500">{{ r.provider }}</text>
+            <!-- Reported CPP bar (lighter, inner) -->
+            {% if r.cpp > 0 and r.cpp > r.true_cpp %}
+            <rect x="{{ charts.cpp_ranking.label_width }}" y="{{ y }}"
+                  width="{{ r.reported_cpp_width }}" height="{{ charts.cpp_ranking.bar_height }}"
+                  fill="{{ r.cpp_color }}" opacity="0.3"/>
+            {% endif %}
+            <!-- True CPP bar -->
+            <rect x="{{ charts.cpp_ranking.label_width }}" y="{{ y }}"
+                  width="{{ r.cpp_width }}" height="{{ charts.cpp_ranking.bar_height }}"
+                  fill="{{ r.cpp_color }}"/>
+            <!-- Value label -->
+            <text x="{{ charts.cpp_ranking.label_width + r.cpp_width + 8 }}" y="{{ y + charts.cpp_ranking.bar_height/2 + 4 }}" font-size="11" font-weight="600" font-family="DM Mono, monospace" fill="{{ r.cpp_color }}">${{ "{:,.0f}".format(r.true_cpp) }}</text>
+            {% if r.cpp > r.true_cpp %}
+            <text x="{{ charts.cpp_ranking.label_width + r.cpp_width + 68 }}" y="{{ y + charts.cpp_ranking.bar_height/2 + 4 }}" font-size="9" font-family="DM Mono, monospace" fill="#8C8A82">(was ${{ "{:,.0f}".format(r.cpp) }})</text>
+            {% endif %}
+            {% endfor %}
+
+            <!-- X axis -->
+            {% set axis_y = 18 + charts.cpp_ranking.rows|length * (charts.cpp_ranking.bar_height + charts.cpp_ranking.bar_gap) + 4 %}
+            <line x1="{{ charts.cpp_ranking.label_width }}" y1="{{ axis_y }}" x2="{{ charts.cpp_ranking.label_width + charts.cpp_ranking.bar_width }}" y2="{{ axis_y }}" stroke="#D4D0C4" stroke-width="1"/>
+            {% for tick_val in [0, 2000, 4000, 6000, 8000] %}
+            {% set tx = charts.cpp_ranking.label_width + (tick_val / charts.cpp_ranking.max_cpp_axis) * charts.cpp_ranking.bar_width %}
+            <line x1="{{ tx }}" y1="{{ axis_y }}" x2="{{ tx }}" y2="{{ axis_y + 4 }}" stroke="#D4D0C4"/>
+            <text x="{{ tx }}" y="{{ axis_y + 16 }}" text-anchor="middle" font-size="10" font-family="DM Mono, monospace" fill="#8C8A82">${{ "{:,}".format(tick_val) }}</text>
+            {% endfor %}
+          </svg>
+          <div style="margin-top:12px;font-size:11px;color:var(--text-3);display:flex;gap:20px;align-items:center;">
+            <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:10px;background:#1F6B5C;"></span>True CPP (with recovered)</span>
+            <span style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:10px;background:#1F6B5C;opacity:0.3;"></span>Reported-only CPP (higher)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Provider Financial Performance — $ Paid vs. Placements Delivered</h3>
+          <span class="helper">Quarterly payments × placements · cost per placement (CPP) · cash-basis</span>
+        </div>
+        <div class="panel-body" style="padding:0;overflow-x:auto;">
+          <table class="data" style="width:100%;min-width:1280px;font-size:12px;">
+            <thead>
+              <tr style="border-bottom:2px solid var(--border-strong);">
+                <th rowspan="2" style="padding-left:20px;vertical-align:bottom;padding-bottom:8px;">Provider</th>
+                <th colspan="8" style="text-align:center;font-size:10px;color:var(--text-3);padding-bottom:4px;">Quarterly Payments — $ paid / placements delivered</th>
+                <th rowspan="2" class="right" style="vertical-align:bottom;padding-bottom:8px;border-left:1px solid var(--border-strong);padding-left:14px;">Q1 '26 invoice</th>
+                <th rowspan="2" class="right" style="vertical-align:bottom;padding-bottom:8px;">Total Paid</th>
+                <th rowspan="2" class="right" style="vertical-align:bottom;padding-bottom:8px;">Reported</th>
+                <th rowspan="2" class="right" style="vertical-align:bottom;padding-bottom:8px;border-left:1px solid var(--border-strong);padding-left:14px;">Recovered</th>
+                <th rowspan="2" class="right" style="vertical-align:bottom;padding-bottom:8px;">True Plac.</th>
+                <th rowspan="2" class="right" style="vertical-align:bottom;padding-bottom:8px;">CPP</th>
+                <th rowspan="2" class="right" style="vertical-align:bottom;padding-bottom:8px;padding-right:20px;">True CPP</th>
+              </tr>
+              <tr>
+                {% for q in placements.quarter_labels %}
+                <th class="right" style="font-family:'DM Mono',monospace;font-size:10px;font-weight:500;">{{ q }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in financial_performance %}
+              <tr data-drill="provider:{{ canonical_provider(row.provider) }}" {% if row.category == 'recovery' %}style="background:var(--surface-warm);"{% elif row.category == 'cfa_direct' %}style="background:var(--surface-alt);"{% endif %}>
+                <td style="padding-left:20px;font-weight:500;">{{ row.provider }}{% if row.category == 'recovery' %} <span style="font-size:10px;color:var(--text-3);font-weight:400;">· LinkedIn outreach</span>{% endif %}</td>
+                {% for i in range(8) %}
+                  {% set pmt = row.quarterly_payments[i] %}
+                  {% set plc = row.quarterly_placements[i] %}
+                  <td class="right" style="padding-right:8px;">
+                    {% if pmt > 0 or plc > 0 %}
+                      <div class="num" style="font-size:11px;">{% if pmt > 0 %}${{ "{:,.0f}".format(pmt) }}{% else %}—{% endif %}</div>
+                      <div style="font-size:10px;color:var(--text-3);font-family:'DM Mono',monospace;">{% if plc > 0 %}{{ plc }} pl{% else %}—{% endif %}</div>
+                    {% else %}
+                      <div style="color:var(--text-3);">—</div>
+                    {% endif %}
+                  </td>
+                {% endfor %}
+                <td class="right" style="border-left:1px solid var(--border-strong);padding-left:14px;">
+                  {% if row.q1_26_invoice %}
+                    <div class="num" style="font-size:11px;color:var(--watch);">${{ "{:,.0f}".format(row.q1_26_invoice) }}</div>
+                    <div style="font-size:10px;color:var(--text-3);">pending</div>
+                  {% else %}
+                    <div style="color:var(--text-3);">—</div>
+                  {% endif %}
+                  {% if row.q1_26_placements > 0 %}
+                  <div style="font-size:10px;color:var(--text-3);font-family:'DM Mono',monospace;">{{ row.q1_26_placements }} pl</div>
+                  {% endif %}
+                </td>
+                <td class="right num" style="font-weight:600;">${{ "{:,.0f}".format(row.total_paid) }}</td>
+                <td class="right num">{{ row.total_placements_net }}</td>
+                <td class="right num" style="border-left:1px solid var(--border-strong);padding-left:14px;color:{% if row.recovered > 0 %}var(--good){% else %}var(--text-3){% endif %};">{{ row.recovered if row.recovered > 0 else '—' }}</td>
+                <td class="right num" style="font-weight:600;">{{ row.true_placements }}</td>
+                <td class="right" style="">
+                  {% if row.cpp > 0 %}
+                    <span class="num" style="color:var(--{{ row.cpp_tone }});">${{ "{:,.0f}".format(row.cpp) }}</span>
+                  {% else %}
+                    <span style="color:var(--text-3);">—</span>
+                  {% endif %}
+                </td>
+                <td class="right" style="padding-right:20px;">
+                  {% if row.true_cpp > 0 %}
+                    <span class="num" style="font-weight:700;color:var(--{{ row.true_cpp_tone }});">${{ "{:,.0f}".format(row.true_cpp) }}</span>
+                  {% else %}
+                    <span style="color:var(--text-3);">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+              {% set tot_paid = financial_performance | map(attribute='total_paid') | sum %}
+              {% set tot_plac = financial_performance | map(attribute='total_placements_net') | sum %}
+              {% set tot_recovered = financial_performance | map(attribute='recovered') | sum %}
+              {% set tot_true = financial_performance | map(attribute='true_placements') | sum %}
+              {% set tot_q1_inv = financial_performance | selectattr('q1_26_invoice') | map(attribute='q1_26_invoice') | sum %}
+              <tr class="total">
+                <td style="padding-left:20px;">Total — placement-producing entities</td>
+                <td colspan="8"></td>
+                <td class="right num" style="border-left:1px solid var(--border-strong);padding-left:14px;color:var(--watch);">${{ "{:,.0f}".format(tot_q1_inv) }}</td>
+                <td class="right num">${{ "{:,.0f}".format(tot_paid) }}</td>
+                <td class="right num">{{ tot_plac }}</td>
+                <td class="right num" style="border-left:1px solid var(--border-strong);padding-left:14px;color:var(--good);">{{ tot_recovered }}</td>
+                <td class="right num">{{ tot_true }}</td>
+                <td class="right num">${{ "{:,.0f}".format(tot_paid / tot_plac) }}</td>
+                <td class="right num" style="padding-right:20px;">${{ "{:,.0f}".format(tot_paid / tot_true) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:14px 20px;font-size:11px;color:var(--text-3);background:var(--surface-alt);border-top:1px solid var(--border);line-height:1.55;">
+          <strong>Reading the table:</strong> "Reported" is what the provider claimed in WSAC. "Recovered" is what CFA's recovery operation found via LinkedIn outreach (placements the provider didn't report) — sourced from {{ recovered.total_validated }} validated rows in WJI TWC Candidate Tracking. "True Plac." = Reported + Recovered. <strong>True CPP recasts cost-effectiveness:</strong> Year Up's true CPP drops from $1,701 to $673 because they had 148 unreported placements; PNW CCG drops to $638. NCESD and Riipen stay expensive even with recovery. <strong>This reframes the story for ESD:</strong> training providers didn't underperform on placements — they underperformed on <em>reporting</em>. The recovery work is making that gap visible.
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Closeout Checklist — Ada Developers Academy</h3>
+          <span class="helper">Example: drill into any provider for full checklist</span>
+        </div>
+        <div class="panel-body">
+          <div class="checklist">
+            <div class="row done"><div class="check done">✓</div><div class="lbl">Final placement count locked in WSAC</div><div style="font-size:11px;color:var(--text-3);">Bethany · Apr 6</div></div>
+            <div class="row done"><div class="check done">✓</div><div class="lbl">Renegotiation to $2,500/placement documented</div><div style="font-size:11px;color:var(--text-3);">Nov 2025</div></div>
+            <div class="row done"><div class="check done">✓</div><div class="lbl">Q4 $65k anomaly explanation on file</div><div style="font-size:11px;color:var(--text-3);">Bethany · Mar 30</div></div>
+            <div class="row"><div class="check pending">·</div><div class="lbl">Final invoice received and validated against WSAC</div><div style="font-size:11px;color:var(--watch);">Today</div></div>
+            <div class="row"><div class="check"></div><div class="lbl">Final payment processed in QB</div><div style="font-size:11px;color:var(--text-3);">Pending</div></div>
+            <div class="row"><div class="check"></div><div class="lbl">Subrecipient monitoring file complete</div><div style="font-size:11px;color:var(--text-3);">Pending</div></div>
+            <div class="row"><div class="check"></div><div class="lbl">Closeout letter sent to provider</div><div style="font-size:11px;color:var(--text-3);">Pending</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transactions -->
+    <div class="tab-pane" id="transactions">
+      <div class="three-col" style="margin-bottom:24px;">
+        <div class="stat">
+          <div class="label">Mirrored from QB</div>
+          <div class="value num">53</div>
+          <div class="sub">Sandbox · production sync pending</div>
+        </div>
+        <div class="stat">
+          <div class="label">Tagged with Class</div>
+          <div class="value num">0 / 53</div>
+          <div class="sub">Class tracking status pending Krista</div>
+        </div>
+        <div class="stat">
+          <div class="label">Anomalies open</div>
+          <div class="value num" style="color:var(--watch);">2</div>
+          <div class="sub">Missing docs · 1 over-threshold CC</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Recent Transactions</h3>
+          <span class="helper">Filters: All categories · All providers · Anomalies only · Missing docs</span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data" style="width:100%;">
+            <thead>
+              <tr>
+                <th style="padding-left:20px;">Date</th>
+                <th>Type</th>
+                <th>Vendor</th>
+                <th>Memo</th>
+                <th>Category</th>
+                <th class="right" style="padding-right:20px;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding-left:20px;" class="num">2026-04-14</td>
+                <td>Bill</td>
+                <td data-drill="provider:{{ canonical_provider('AI Engage Group LLC') }}">AI Engage Group LLC</td>
+                <td>March recovery work — 47 candidates reviewed</td>
+                <td>CFA Contractors</td>
+                <td class="right num" style="padding-right:20px;">$12,000</td>
+              </tr>
+              <tr>
+                <td style="padding-left:20px;" class="num">2026-04-12</td>
+                <td>Purchase</td>
+                <td>Brosnahan Insurance Agency</td>
+                <td>Workers comp Q2 2026</td>
+                <td>Personnel — Benefits</td>
+                <td class="right num" style="padding-right:20px;">$1,847</td>
+              </tr>
+              <tr>
+                <td style="padding-left:20px;" class="num">2026-04-10</td>
+                <td>Purchase</td>
+                <td style="color:var(--watch);">Unknown vendor ●</td>
+                <td>Office supplies</td>
+                <td>Other Direct</td>
+                <td class="right num" style="padding-right:20px;color:var(--watch);">$1,243</td>
+              </tr>
+              <tr>
+                <td style="padding-left:20px;" class="num">2026-04-08</td>
+                <td>Bill</td>
+                <td data-drill="provider:{{ canonical_provider('Pete & Kelly Vargo') }}">Pete &amp; Kelly Vargo</td>
+                <td>March outreach contract</td>
+                <td>CFA Contractors</td>
+                <td class="right num" style="padding-right:20px;">$18,500</td>
+              </tr>
+              <tr>
+                <td style="padding-left:20px;" class="num">2026-04-05</td>
+                <td>JE</td>
+                <td>Payroll Apr 1-15</td>
+                <td>K8341 allocation</td>
+                <td>Personnel — Salaries</td>
+                <td class="right num" style="padding-right:20px;">$17,184</td>
+              </tr>
+              <tr>
+                <td style="padding-left:20px;" class="num">2026-04-02</td>
+                <td>Bill</td>
+                <td data-drill="provider:{{ canonical_provider('Code Day X MinT') }}">Code Day X MinT</td>
+                <td>Q1 final invoice — 8 placements × $3,222</td>
+                <td>GJC Contractors</td>
+                <td class="right num" style="padding-right:20px;">$25,776</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div style="padding:12px 20px;font-size:12px;color:var(--text-3);background:var(--surface-alt);border-top:1px solid var(--border);">
+          Showing 6 of 53 · <a href="#" style="color:var(--brand);">View all</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- ESD Reporting -->
+    <div class="tab-pane" id="reporting">
+      <div class="panel">
+        <div class="panel-head">
+          <h3>April 2026 Monthly Advance Cycle</h3>
+          <span class="helper">First month under new monthly cadence — provider line drops out</span>
+        </div>
+        <div class="panel-body">
+          <div class="cycle">
+            <div class="cycle-step done">
+              <div class="step-num">01</div>
+              <div class="step-name">March reconciled</div>
+              <div class="step-date">Apr 5 · ✓</div>
+            </div>
+            <div class="cycle-step current">
+              <div class="step-num">02</div>
+              <div class="step-name">April advance drafted</div>
+              <div class="step-date">Apr 17 · today</div>
+            </div>
+            <div class="cycle-step">
+              <div class="step-num">03</div>
+              <div class="step-name">Submit to ESD</div>
+              <div class="step-date">Apr 30 · due</div>
+            </div>
+            <div class="cycle-step">
+              <div class="step-num">04</div>
+              <div class="step-name">ESD funds advance</div>
+              <div class="step-date">~May 21 · est.</div>
+            </div>
+            <div class="cycle-step">
+              <div class="step-num">05</div>
+              <div class="step-name">Spend through April</div>
+              <div class="step-date">Apr 30 close</div>
+            </div>
+            <div class="cycle-step">
+              <div class="step-num">06</div>
+              <div class="step-name">Reconcile vs. actual</div>
+              <div class="step-date">May 5 · est.</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:24px;">
+            <div>
+              <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px;">April advance request — projected</div>
+              <table style="width:100%;font-size:13px;">
+                <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;">Personnel — Salaries</td><td style="text-align:right;" class="num">$36,852</td></tr>
+                <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;">Personnel — Benefits</td><td style="text-align:right;" class="num">$5,815</td></tr>
+                <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;">Other Direct</td><td style="text-align:right;" class="num">$2,992</td></tr>
+                <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;">Indirect</td><td style="text-align:right;" class="num">$6,024</td></tr>
+                <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;">CFA Contractors (P&amp;K + AIE)</td><td style="text-align:right;" class="num">$35,000</td></tr>
+                <tr style="font-weight:600;background:var(--surface-alt);"><td style="padding:8px 0;padding-left:6px;">Total request</td><td style="text-align:right;padding-right:6px;" class="num">$86,683</td></tr>
+              </table>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px;">Trailing Q1 provider invoices</div>
+              <table style="width:100%;font-size:13px;">
+                <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;">Ada · 28 placements</td><td style="text-align:right;" class="num">$70,000</td></tr>
+                <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;">Vets2Tech · 12 placements</td><td style="text-align:right;" class="num">$30,000</td></tr>
+                <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;">Year Up · 11 placements</td><td style="text-align:right;" class="num">$28,853</td></tr>
+                <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;">Per Scholas · 9 placements</td><td style="text-align:right;" class="num">$30,987</td></tr>
+                <tr style="border-bottom:1px solid var(--border);"><td style="padding:6px 0;">Code Day · 8 placements</td><td style="text-align:right;" class="num">$25,776</td></tr>
+                <tr style="font-weight:600;background:var(--surface-alt);"><td style="padding:8px 0;padding-left:6px;">Reimbursement total</td><td style="text-align:right;padding-right:6px;" class="num">$185,616</td></tr>
+              </table>
+            </div>
+          </div>
+
+          <div style="margin-top:20px;display:flex;gap:8px;">
+            <button style="background:var(--brand);color:white;border:none;padding:10px 18px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;">Generate ESD package</button>
+            <button style="background:var(--surface);color:var(--text-1);border:1px solid var(--border-strong);padding:10px 18px;font-family:inherit;font-size:13px;cursor:pointer;">Preview cover letter</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Monthly Placement Report — for Andrew Clemons &amp; Jenny Benson</h3>
+          <span class="helper">Auto-generates from Placements tab data</span>
+        </div>
+        <div class="panel-body">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:13px;margin-bottom:4px;">April report draft ready · last generated Apr 17</div>
+              <div style="font-size:12px;color:var(--text-2);">745 confirmed · 256 from CFA verification · 231 to go for 1,000</div>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button style="background:var(--surface);color:var(--text-1);border:1px solid var(--border-strong);padding:8px 14px;font-family:inherit;font-size:13px;cursor:pointer;">Preview</button>
+              <button style="background:var(--brand);color:white;border:none;padding:8px 14px;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audit Readiness -->
+    <div class="tab-pane" id="audit">
+      <div class="verdict">
+        <div class="label">Audit readiness verdict</div>
+        <div class="headline">73% audit-ready. The biggest gap is time &amp; effort certifications, which haven't been collected for 2024-2025.</div>
+        <div class="body">Single Audit covering K8341 spend will be due roughly September 2027 if CFA's fiscal year ends December 31 — about 17 months from now. ESD monitoring visits can happen anytime with 2-4 weeks notice. Worth closing the documentation gaps now while institutional memory is fresh, not in a year when staff may have turned over.</div>
+      </div>
+
+      <div class="three-col" style="margin-bottom:24px;">
+        <div class="stat">
+          <div class="label">Overall readiness</div>
+          <div class="value num" style="color:var(--watch);">73%</div>
+          <div class="sub">Across 6 audit dimensions</div>
+        </div>
+        <div class="stat">
+          <div class="label">Documentation gap</div>
+          <div class="value num">12</div>
+          <div class="sub">Transactions over $2,500 missing invoices</div>
+        </div>
+        <div class="stat">
+          <div class="label">T&amp;E certifications</div>
+          <div class="value num" style="color:var(--critical);">0 / 9</div>
+          <div class="sub">Quarterly certs since grant start</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Audit Dimensions</h3>
+          <span class="helper">Click any dimension for the underlying gap list</span>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data" style="width:100%;">
+            <thead>
+              <tr>
+                <th style="padding-left:20px;">Dimension</th>
+                <th>What auditors look for</th>
+                <th class="right" style="width:200px;">Readiness</th>
+                <th style="padding-right:20px;">Owner</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-drill="audit:allowable_costs">
+                <td style="padding-left:20px;">Allowable costs</td>
+                <td style="color:var(--text-2);font-size:12px;">Every transaction maps to an allowable category</td>
+                <td class="right">
+                  <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;"><span class="num" style="font-size:11px;color:var(--good);">96%</span><div class="bar green" style="width:120px;"><div style="width:96%;"></div></div></div>
+                </td>
+                <td style="padding-right:20px;">Krista</td>
+              </tr>
+              <tr data-drill="audit:transaction_documentation">
+                <td style="padding-left:20px;">Transaction documentation</td>
+                <td style="color:var(--text-2);font-size:12px;">Vendor invoices, receipts, approvals on file</td>
+                <td class="right">
+                  <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;"><span class="num" style="font-size:11px;color:var(--watch);">88%</span><div class="bar amber" style="width:120px;"><div style="width:88%;"></div></div></div>
+                </td>
+                <td style="padding-right:20px;">Krista</td>
+              </tr>
+              <tr data-drill="audit:time_effort">
+                <td style="padding-left:20px;">Time &amp; effort certifications</td>
+                <td style="color:var(--text-2);font-size:12px;">Quarterly attestations from federally-funded staff</td>
+                <td class="right">
+                  <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;"><span class="num" style="font-size:11px;color:var(--critical);">0%</span><div class="bar red" style="width:120px;"><div style="width:100%;background:var(--critical);"></div></div></div>
+                </td>
+                <td style="padding-right:20px;">Ritu</td>
+              </tr>
+              <tr data-drill="audit:procurement">
+                <td style="padding-left:20px;">Procurement &amp; competition</td>
+                <td style="color:var(--text-2);font-size:12px;">Competitive process or sole-source justification per contract</td>
+                <td class="right">
+                  <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;"><span class="num" style="font-size:11px;color:var(--good);">92%</span><div class="bar green" style="width:120px;"><div style="width:92%;"></div></div></div>
+                </td>
+                <td style="padding-right:20px;">Ritu</td>
+              </tr>
+              <tr data-drill="audit:subrecipient_monitoring">
+                <td style="padding-left:20px;">Subrecipient monitoring</td>
+                <td style="color:var(--text-2);font-size:12px;">Risk assessment, monitoring, follow-up per provider</td>
+                <td class="right">
+                  <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;"><span class="num" style="font-size:11px;color:var(--watch);">81%</span><div class="bar amber" style="width:120px;"><div style="width:81%;"></div></div></div>
+                </td>
+                <td style="padding-right:20px;">Ritu · Bethany</td>
+              </tr>
+              <tr data-drill="audit:performance_reporting">
+                <td style="padding-left:20px;">Performance reporting accuracy</td>
+                <td style="color:var(--text-2);font-size:12px;">Reported placements reconcilable to source data</td>
+                <td class="right">
+                  <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;"><span class="num" style="font-size:11px;color:var(--good);">95%</span><div class="bar green" style="width:120px;"><div style="width:95%;"></div></div></div>
+                </td>
+                <td style="padding-right:20px;">Bethany · Gage</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity feed -->
+    <div class="feed">
+      <h4>Recent activity</h4>
+      <div class="feed-item"><div class="ts">10:42 AM</div><div><span class="who">Bethany</span> · 2 placements verified via LinkedIn · count now <span class="num">745</span></div></div>
+      <div class="feed-item"><div class="ts">9:42 AM</div><div><span class="who">QB sync</span> · 4 new transactions mirrored · 1 anomaly flagged (vendor field empty on $1,243 charge)</div></div>
+      <div class="feed-item"><div class="ts">Yesterday</div><div><span class="who">Bethany</span> · Updated WJI TWC tracking · 3 new placements verified via LinkedIn</div></div>
+      <div class="feed-item"><div class="ts">Yesterday</div><div><span class="who">Krista</span> · Approved Pete &amp; Kelly March invoice · $18,500 paid</div></div>
+      <div class="feed-item"><div class="ts">Apr 15</div><div><span class="who">Agent</span> · Generated April monthly placement dashboard for Andrew &amp; Jenny</div></div>
+      <div class="feed-item"><div class="ts">Apr 12</div><div><span class="who">Ritu</span> · Updated CLAUDE.md with monthly advance cycle context</div></div>
+    </div>
+  </div>
+
+  <!-- Chat -->
+  <div class="chat">
+    <div class="chat-head">
+      <div class="title">Finance Assistant</div>
+      <div class="ctx">Context: Budget &amp; Burn tab</div>
+    </div>
+    <div class="chat-body">
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:12px;">Try asking</div>
+      <div class="chat-pills">
+        <div class="pill"><span class="icon">→</span>Will we have enough money to pay people through September?</div>
+        <div class="pill"><span class="icon">→</span>What changed since last month?</div>
+        <div class="pill"><span class="icon">→</span>Show me the case for a budget amendment</div>
+        <div class="pill"><span class="icon">→</span>Draft this month's update for Andrew</div>
+        <div class="pill"><span class="icon">→</span>What's in next month's advance request?</div>
+      </div>
+
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-3);margin-bottom:12px;">Recent</div>
+      <div class="chat-msg user">Are we on track to spend the budget by September?</div>
+      <div class="chat-msg agent">
+        <div class="body">
+          <strong>Mostly yes, with one big asterisk.</strong><br><br>
+          Backbone categories (Salaries, Benefits, Other Direct, Indirect) will land at roughly $0 on Sept 30 if April's burn matches recent quarters — about <span class="num">$51,700/month</span>. No slack for surprises.<br><br>
+          CFA Contractors finishes around $0 too if AI Engage and P&amp;K continue their current pace.<br><br>
+          The asterisk: <strong>GJC Contractors will be ~<span class="num">$700k</span> underspent</strong> because all provider contracts ended March 31. That money goes back to ESD unless a budget amendment moves it. Worth raising with Andrew.
+        </div>
+      </div>
+    </div>
+    <div class="chat-input">
+      <div class="input-box">Ask about runway, anomalies, providers, audit prep…</div>
+      <div class="chat-meta">⌘ Enter to send</div>
+    </div>
+  </div>
+</div>
+
+<!-- Drill-down panel -->
+<div class="drill-overlay" id="drillOverlay"></div>
+<div class="drill-panel" id="drillPanel">
+  <div class="drill-head">
+    <button class="drill-close" id="drillClose">×</button>
+    <div class="eyebrow" id="drillEyebrow">Backbone Runway</div>
+    <h2 id="drillTitle">$520,317 across 5.5 months</h2>
+    <div class="summary" id="drillSummary">All CFA-side operations — staff, overhead, and recovery contractors</div>
+  </div>
+  <div class="drill-body" id="drillBody">
+    <!-- content swapped per drill -->
+  </div>
+  <div class="drill-actions">
+    <button class="primary">Open Budget &amp; Burn tab</button>
+    <button>Ask the agent about this</button>
+    <button>Export</button>
+  </div>
+</div>
+
+<script>
+  // Tab switching
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.tab).classList.add('active');
+      document.querySelector('.chat-head .ctx').textContent = 'Context: ' + tab.textContent.replace(/\d+/g, '').trim() + ' tab';
+    });
+  });
+
+  // =====================================================================
+  // Drill-down system — registry-driven. Any element with data-drill="type:id"
+  // opens a slide-out panel with the content from the registry below.
+  // =====================================================================
+
+  // Registry populated from Python at render time. Every drill — hero,
+  // category, decision, provider, audit — lives in this one dict.
+  const drillRegistry = {{ drills | tojson }};
+
+  // =====================================================================
+  // Drill section renderers — one per section.type. Dispatched from
+  // renderDrill() based on the "type" discriminator in each section dict.
+  // Adding a new section type = add a new render function + register it
+  // in SECTION_RENDERERS below.
+  // =====================================================================
+
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function renderRowsSection(s) {
+    const rows = (s.rows || []).map(r => `
+      <div class="drill-kv">
+        <div class="drill-kv-label">${escapeHtml(r.label)}</div>
+        <div class="drill-kv-value${r.emphasize ? ' emphasize' : ''}">${escapeHtml(r.value)}</div>
+      </div>`).join('');
+    const note = s.note ? `<div class="drill-callout">${escapeHtml(s.note)}</div>` : '';
+    return `<h3>${escapeHtml(s.title)}</h3>${rows}${note}`;
+  }
+
+  function renderTableSection(s) {
+    const thead = s.columns.map(c => {
+      const cls = c.align === 'right' ? ' class="right"' : '';
+      return `<th${cls}>${escapeHtml(c.label)}</th>`;
+    }).join('');
+    const tbody = (s.rows || []).map(r => {
+      const cells = s.columns.map(c => {
+        const val = r[c.key];
+        const classes = [];
+        if (c.align === 'right') classes.push('right');
+        if (c.numeric) classes.push('num');
+        const cls = classes.length ? ` class="${classes.join(' ')}"` : '';
+        return `<td${cls}>${escapeHtml(val)}</td>`;
+      }).join('');
+      return `<tr${r.total ? ' class="total"' : ''}>${cells}</tr>`;
+    }).join('');
+    const note = s.note ? `<div class="drill-callout">${escapeHtml(s.note)}</div>` : '';
+    return `<h3>${escapeHtml(s.title)}</h3>` +
+           `<table class="drill-table"><thead><tr>${thead}</tr></thead><tbody>${tbody}</tbody></table>` +
+           note;
+  }
+
+  function renderChartSection(s) {
+    // Small inline SVG bar chart. Line/area variants fall through to bar
+    // for now — can be expanded when a migration needs them.
+    const data = s.data || [];
+    const refLines = s.reference_lines || [];
+    const xKey = s.x_axis.key;
+    const yKey = s.y_axis.key;
+    const values = data.map(d => Number(d[yKey]) || 0);
+    const refVals = refLines.map(r => Number(r.value) || 0);
+    const maxY = Math.max(...values, ...refVals, 1);
+    const W = 480, H = 180, PL = 36, PR = 16, PT = 14, PB = 28;
+    const cW = W - PL - PR, cH = H - PT - PB;
+    const gap = 4;
+    const barW = data.length ? (cW - gap * (data.length - 1)) / data.length : 0;
+
+    const bars = data.map((d, i) => {
+      const v = Number(d[yKey]) || 0;
+      const h = (v / maxY) * cH;
+      const x = PL + i * (barW + gap);
+      const y = PT + cH - h;
+      const tone = d.tone && ['good','watch','critical','neutral'].includes(d.tone) ? d.tone : 'neutral';
+      return `<rect class="drill-chart-bar ${tone}" x="${x}" y="${y}" width="${barW}" height="${h}"/>` +
+             `<text class="drill-chart-value" x="${x + barW/2}" y="${y - 3}" text-anchor="middle">${v}</text>` +
+             `<text class="drill-chart-tick" x="${x + barW/2}" y="${PT + cH + 14}" text-anchor="middle">${escapeHtml(d[xKey])}</text>`;
+    }).join('');
+
+    const refs = refLines.map(r => {
+      const y = PT + cH - (Number(r.value) / maxY) * cH;
+      const tone = r.tone && ['good','watch','critical'].includes(r.tone) ? r.tone : 'watch';
+      return `<line class="drill-chart-refline ${tone}" x1="${PL}" y1="${y}" x2="${W - PR}" y2="${y}"/>` +
+             `<text class="drill-chart-tick" x="${W - PR}" y="${y - 4}" text-anchor="end" fill="var(--${tone})">${escapeHtml(r.label)}: ${r.value}</text>`;
+    }).join('');
+
+    const axisLabel = s.y_axis.label
+      ? `<text class="drill-chart-label" x="${PL}" y="${PT - 4}">${escapeHtml(s.y_axis.label)}</text>`
+      : '';
+    return `<h3>${escapeHtml(s.title)}</h3>` +
+           `<svg class="drill-chart" viewBox="0 0 ${W} ${H}">${axisLabel}<line class="drill-chart-axis" x1="${PL}" y1="${PT + cH}" x2="${W - PR}" y2="${PT + cH}"/>${bars}${refs}</svg>`;
+  }
+
+  function renderProseSection(s) {
+    const header = s.title ? `<h3>${escapeHtml(s.title)}</h3>` : '';
+    return `${header}<p class="drill-prose">${escapeHtml(s.body)}</p>`;
+  }
+
+  function renderVerdictSection(s) {
+    const tone = ['good','watch','critical','neutral'].includes(s.tone) ? s.tone : 'neutral';
+    return `<div class="drill-verdict ${tone}">` +
+           `<div class="headline">${escapeHtml(s.headline)}</div>` +
+           `<div class="body">${escapeHtml(s.body)}</div>` +
+           `</div>`;
+  }
+
+  function renderTimelineSection(s) {
+    const events = (s.events || []).map(e => {
+      const tone = ['good','watch','critical','neutral'].includes(e.tone) ? e.tone : 'neutral';
+      return `<div class="drill-timeline-event">` +
+             `<div class="drill-timeline-date">${escapeHtml(e.date)}</div>` +
+             `<div class="drill-timeline-title ${tone}">${escapeHtml(e.title)}</div>` +
+             `</div>`;
+    }).join('');
+    return `<h3>${escapeHtml(s.title)}</h3><div class="drill-timeline">${events}</div>`;
+  }
+
+  function renderActionItemsSection(s) {
+    const items = (s.items || []).map(it => {
+      const pri = (it.priority || 'LOW').toLowerCase();
+      const owner = it.owner ? `<div class="drill-action-owner">${escapeHtml(it.owner)}</div>` : `<div></div>`;
+      return `<div class="drill-action-item">` +
+             `<div class="drill-action-priority ${pri}">${escapeHtml(it.priority)}</div>` +
+             `${owner}` +
+             `<div class="drill-action-text">${escapeHtml(it.text)}</div>` +
+             `</div>`;
+    }).join('');
+    return `<h3>${escapeHtml(s.title)}</h3><div class="drill-action-items">${items}</div>`;
+  }
+
+  const SECTION_RENDERERS = {
+    rows: renderRowsSection,
+    table: renderTableSection,
+    chart: renderChartSection,
+    prose: renderProseSection,
+    verdict: renderVerdictSection,
+    timeline: renderTimelineSection,
+    action_items: renderActionItemsSection,
+  };
+
+  function renderSection(s) {
+    const render = SECTION_RENDERERS[s.type] || renderRowsSection;
+    return `<div class="drill-section">${render(s)}</div>`;
+  }
+
+  function renderDrill(content) {
+    if (!content) return '';
+    const chip = content.status_chip
+      ? `<div class="drill-status-chip ${content.status_chip.tone}">${escapeHtml(content.status_chip.label)}</div>`
+      : '';
+    const sections = (content.sections || []).map(renderSection).join('');
+    const footer = content.note ? `<div class="drill-callout">${escapeHtml(content.note)}</div>` : '';
+    return chip + sections + footer;
+  }
+
+  // Drill open/close
+  const overlay = document.getElementById('drillOverlay');
+  const panel = document.getElementById('drillPanel');
+
+  function openDrill(key) {
+    const content = drillRegistry[key];
+    if (!content) {
+      console.warn('No drill content for:', key);
+      return;
+    }
+    document.getElementById('drillEyebrow').textContent = content.eyebrow;
+    document.getElementById('drillTitle').textContent = content.title;
+    document.getElementById('drillSummary').textContent = content.summary || '';
+    document.getElementById('drillBody').innerHTML = renderDrill(content);
+    overlay.classList.add('open');
+    panel.classList.add('open');
+  }
+
+  // Attach handler to every element with data-drill
+  document.querySelectorAll('[data-drill]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openDrill(el.dataset.drill);
+    });
+    // Visual affordance: pointer cursor + subtle hover
+    el.style.cursor = 'pointer';
+  });
+
+  function closeDrill() {
+    overlay.classList.remove('open');
+    panel.classList.remove('open');
+  }
+  document.getElementById('drillClose').addEventListener('click', closeDrill);
+  overlay.addEventListener('click', closeDrill);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrill(); });
+</script>
+
+
+</body>
+</html>

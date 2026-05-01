@@ -14,7 +14,11 @@ import { Card } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 
-const API_BASE = "http://localhost:8003/api"
+// Relative path goes through the Next.js rewrite in next.config.mjs
+// (/api/consulting/:path* -> http://localhost:8003/api/consulting/:path*).
+// Using the rewrite keeps the page working on ngrok and any other
+// host, not only localhost:3000.
+const API_BASE = "/api"
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   scoping: { label: "Scoping", color: "text-slate-600", bg: "bg-slate-100" },

@@ -13,8 +13,10 @@ Endpoints:
 Run: uvicorn student_api:app --reload --port 8001
 """
 import json
+import os
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2
@@ -22,7 +24,10 @@ import psycopg2.extras
 import numpy as np
 
 
-from wfdos_common.auth import SessionMiddleware
+from wfdos_common.auth import (
+    SessionMiddleware,
+    build_auth_router,
+)
 from wfdos_common.config import settings
 from wfdos_common.errors import NotFoundError, install_error_handlers
 from wfdos_common.logging import RequestContextMiddleware, configure as configure_logging, get_logger
@@ -49,6 +54,549 @@ app.add_middleware(
 
 # #29 — structured error envelope on every 4xx/5xx.
 install_error_handlers(app)
+
+# -----------------------------------------------------------------------------
+# Auth — magic-link flow + dev-only instant sign-in shortcut. Both routes
+# are mounted by build_auth_router on every portal-facing service, so the
+# front-end's /auth/* rewrite works regardless of which backend it points
+# at. Session cookies are signed with settings.auth.secret_key and trusted
+# across all services that share it.
+# -----------------------------------------------------------------------------
+
+app.include_router(build_auth_router())
+
+
+# =============================================================================
+# Public intake endpoints — used by /careers (the student-facing intake page).
+# Unauthenticated on purpose: new students haven't signed in yet, this is the
+# first touch. Keep the payload minimal and validate server-side.
+# =============================================================================
+
+
+class QuickAnalysisBody(BaseModel):
+    resume_text: str
+    job_description: str
+
+
+class QuickAnalysisResult(BaseModel):
+    """What Gemini returns — mirrors the prompt's JSON schema."""
+    job_title: str | None = None
+    match_score: int
+    verdict: str
+    matched_skills: list[str] = []
+    missing_skills: list[str] = []
+    partial_matches: list[str] = []
+    narrative: str
+    growth_tips: list[str] = []
+
+
+class IntakeBody(BaseModel):
+    name: str
+    email: str
+    skills: list[str] = []
+    target_roles: list[str] = []
+    # Optional: attach a prior quick-gap-analysis result so it gets
+    # persisted as a gap_analyses row against the new student. Enables
+    # the "save this analysis — create profile" flow on /careers.
+    quick_analysis: QuickAnalysisResult | None = None
+
+
+_QUICK_ANALYSIS_PROMPT = """You are a career advisor analyzing a candidate's fit for a specific job.
+
+CANDIDATE RESUME / SKILLS SUMMARY:
+{resume_text}
+
+JOB DESCRIPTION:
+{job_description}
+
+Return ONLY valid JSON with this exact structure, no markdown fences, no commentary:
+
+{{
+  "job_title": "inferred job title from the JD (short form)",
+  "match_score": 0,
+  "verdict": "Strong fit" or "Match" or "Weak match" or "Not a fit",
+  "matched_skills": [],
+  "missing_skills": [],
+  "partial_matches": [],
+  "narrative": "2-3 sentence plain-English explanation of the candidate's fit",
+  "growth_tips": []
+}}
+
+Rules:
+- match_score is an integer 0-100 reflecting genuine overlap (70+ strong, 50-69 decent, 30-49 weak, <30 bad).
+- matched_skills: specific skills/technologies the candidate HAS that the job EXPLICITLY wants.
+- missing_skills: specific skills/technologies the job WANTS that the resume doesn't show.
+- partial_matches: related-but-not-exact (e.g., "React Native" when job wants "React").
+- growth_tips: 2-4 specific, actionable things to work on. Plain English. No jargon like "upskill" or "competency".
+- Use exact skill / technology names from the candidate and job. Don't invent generic fluff.
+- Narrative: speak TO the candidate ("You're well-positioned…"), not ABOUT them.
+
+Return ONLY the JSON."""
+
+
+# Cap: 8 MB is plenty for a typical 2-3 page resume and keeps Gemini
+# call sizes bounded. Raise if you start seeing legitimate rejects.
+_RESUME_MAX_BYTES = 8 * 1024 * 1024
+
+
+@app.post("/api/student/parse-resume")
+async def parse_resume(file: UploadFile = File(...)):
+    """Public pre-signup endpoint — accept a resume PDF or DOCX, return the
+    extracted plain text. Consumer (the /careers page's 'Upload your resume'
+    drop zone) drops the text into the quick-gap-analysis textarea so the
+    user doesn't have to copy-paste.
+
+    Not a structured parse — returns raw text only. The full extraction
+    (institution, degree, skills, etc.) is what scripts/phase_a_parse_cohort1_resumes.py
+    does for committed cohort students; this endpoint is the lighter
+    browser-upload path for prospects.
+
+    Size-capped at 8MB, stateless (no DB writes, no file storage).
+    PDF -> Gemini inline_data. DOCX -> python-docx local extraction.
+    """
+    filename = (file.filename or "resume").strip()
+    lower = filename.lower()
+
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty file.")
+    if len(content) > _RESUME_MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large ({len(content):,} bytes). Max {_RESUME_MAX_BYTES:,}.",
+        )
+
+    # Pick extraction path by extension (content-type header is unreliable
+    # across browsers + drag-drop paths).
+    text: str
+    method: str
+    try:
+        if lower.endswith(".pdf"):
+            text = _extract_text_from_pdf_via_gemini(content)
+            method = "gemini-pdf"
+        elif lower.endswith(".docx"):
+            text = _extract_text_from_docx(content)
+            method = "python-docx"
+        elif lower.endswith(".doc"):
+            # Legacy .doc (not .docx) — python-docx doesn't support it.
+            # Reject with a clear message rather than producing garbage.
+            raise HTTPException(
+                status_code=415,
+                detail="Legacy .doc not supported — please save as .docx or PDF and retry.",
+            )
+        elif lower.endswith(".txt"):
+            text = content.decode("utf-8", errors="replace")
+            method = "plain-text"
+        else:
+            raise HTTPException(
+                status_code=415,
+                detail="Unsupported file type — use PDF, DOCX, or TXT.",
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("parse_resume.extract_failed", filename=filename, error=str(e), exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Couldn't extract text: {e}")
+
+    text_clean = (text or "").strip()
+    if len(text_clean) < 30:
+        raise HTTPException(
+            status_code=422,
+            detail="Extracted text is very short — file may be scanned/image-based. Paste your skills manually instead.",
+        )
+    # Cap at 10,000 chars to match the quick-gap-analysis input limit.
+    if len(text_clean) > 10000:
+        text_clean = text_clean[:10000]
+
+    log.info(
+        "parse_resume.ok",
+        filename=filename,
+        bytes=len(content),
+        chars_extracted=len(text_clean),
+        method=method,
+    )
+    return {
+        "filename": filename,
+        "bytes_received": len(content),
+        "method": method,
+        "text": text_clean,
+        "chars_extracted": len(text_clean),
+    }
+
+
+def _extract_text_from_pdf_via_gemini(pdf_bytes: bytes) -> str:
+    """Ask Gemini for raw text only — not structured extraction. Matches
+    the inline_data pattern used by scripts/phase_a_parse_cohort1_resumes.py."""
+    import base64 as _base64
+    import google.generativeai as _genai  # type: ignore
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY not set")
+    _genai.configure(api_key=api_key)
+    model_name = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+    pdf_b64 = _base64.standard_b64encode(pdf_bytes).decode("utf-8")
+    model = _genai.GenerativeModel(model_name)
+    prompt = (
+        "Extract the raw text content from this resume PDF verbatim. "
+        "Preserve section headers (EDUCATION, EXPERIENCE, SKILLS, etc.) "
+        "and line breaks between entries. Do NOT summarize or reformat. "
+        "Return ONLY the extracted text, no commentary."
+    )
+    resp = model.generate_content([
+        {"mime_type": "application/pdf", "data": pdf_b64},
+        prompt,
+    ])
+    return (resp.text or "").strip()
+
+
+def _extract_text_from_docx(docx_bytes: bytes) -> str:
+    """Local extraction via python-docx — no LLM needed for structured
+    Word documents. Fast and free; doesn't need Gemini."""
+    import io as _io
+    from docx import Document  # type: ignore
+    doc = Document(_io.BytesIO(docx_bytes))
+    paragraphs: list[str] = []
+    for p in doc.paragraphs:
+        t = p.text.strip()
+        if t:
+            paragraphs.append(t)
+    # Also pull text from any tables (resumes sometimes put skills in tables).
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                t = cell.text.strip()
+                if t:
+                    paragraphs.append(t)
+    return "\n".join(paragraphs)
+
+
+@app.get("/api/student/jobs-search")
+def jobs_search(q: str = "", limit: int = 10):
+    """Public job-board search for the /careers quick-gap-analysis
+    picker. Students type a keyword ('data analyst', 'python', etc.),
+    see up to N jobs from our enriched pool (jobs_enriched — CFA +
+    WSB tenants), and pick one. The picked job's full description is
+    then used as the JD input to /quick-gap-analysis. No auth.
+
+    Query jobs_enriched rather than the legacy job_listings pool
+    because enriched rows carry skills_required + a cleaner
+    job_description column. Smaller pool (~140 rows) but richer data.
+    """
+    limit = max(1, min(limit, 50))
+    q_clean = (q or "").strip()
+
+    if q_clean:
+        like = f"%{q_clean}%"
+        rows = query(
+            """
+            SELECT
+                id, title, company, city, state, is_remote,
+                skills_required, job_description,
+                enriched_at
+            FROM jobs_enriched
+            WHERE (
+                title ILIKE %s
+                OR company ILIKE %s
+                OR job_description ILIKE %s
+            )
+              AND COALESCE(is_suppressed, FALSE) = FALSE
+            ORDER BY enriched_at DESC NULLS LAST
+            LIMIT %s
+            """,
+            (like, like, like, limit),
+        )
+    else:
+        # No query -> newest enriched jobs first, so the picker isn't
+        # empty on first open.
+        rows = query(
+            """
+            SELECT
+                id, title, company, city, state, is_remote,
+                skills_required, job_description,
+                enriched_at
+            FROM jobs_enriched
+            WHERE COALESCE(is_suppressed, FALSE) = FALSE
+            ORDER BY enriched_at DESC NULLS LAST
+            LIMIT %s
+            """,
+            (limit,),
+        )
+
+    # Trim description preview; full description still included for
+    # "fill textarea on click" without a second round trip.
+    out: list[dict] = []
+    for r in rows:
+        desc = (r.get("job_description") or "").strip()
+        preview = desc[:220]
+        if len(desc) > 220:
+            preview += "…"
+        out.append({
+            "id": r["id"],
+            "title": r["title"],
+            "company": r.get("company"),
+            "city": r.get("city"),
+            "state": r.get("state"),
+            "is_remote": bool(r.get("is_remote")),
+            "skills_required": r.get("skills_required") or [],
+            "description": desc,
+            "description_preview": preview,
+            "enriched_at": r["enriched_at"].isoformat() if r.get("enriched_at") else None,
+        })
+
+    return {"jobs": out, "count": len(out), "query": q_clean}
+
+
+@app.post("/api/student/quick-gap-analysis")
+def quick_gap_analysis(body: QuickAnalysisBody):
+    """Pre-signup value delivery: candidate pastes a job + their resume,
+    we return a match score + skill gaps + growth tips. Stateless — the
+    analysis isn't persisted here. To persist, the client passes the
+    result back as `quick_analysis` on /api/student/intake, which writes
+    it as a gap_analyses row against the new student."""
+
+    resume_text = (body.resume_text or "").strip()
+    jd_text = (body.job_description or "").strip()
+    if len(resume_text) < 50:
+        raise HTTPException(status_code=400, detail="Resume text is too short — paste at least a short skills summary.")
+    if len(jd_text) < 50:
+        raise HTTPException(status_code=400, detail="Job description is too short — paste at least a paragraph.")
+    # Hard caps — prevent abuse + keep Gemini cost bounded.
+    if len(resume_text) > 10000 or len(jd_text) > 10000:
+        raise HTTPException(status_code=400, detail="Input too large — cap each field at 10,000 characters.")
+
+    # Gemini call. NOTE: policy debt — per CLAUDE.md .cursor/rules/llm-provider.mdc
+    # we should route through wfdos_common.llm (Azure OpenAI default). This direct
+    # google.generativeai call matches the existing pattern in phase_a scripts +
+    # verdict_generator; should be swapped together in a focused LLM-adapter pass.
+    import os as _os
+    import google.generativeai as _genai  # type: ignore
+
+    api_key = _os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Gap-analysis service temporarily unavailable (GEMINI_API_KEY not set).",
+        )
+    _genai.configure(api_key=api_key)
+    model_name = _os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+
+    prompt = _QUICK_ANALYSIS_PROMPT.format(
+        resume_text=resume_text,
+        job_description=jd_text,
+    )
+
+    try:
+        model = _genai.GenerativeModel(model_name)
+        resp = model.generate_content(prompt)
+        text = (resp.text or "").strip()
+        # Strip markdown fences if the model added any.
+        if text.startswith("```"):
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1])
+        data = json.loads(text)
+    except json.JSONDecodeError as je:
+        log.error("quick_gap.json_decode_failed", error=str(je))
+        raise HTTPException(status_code=502, detail="Couldn't parse the analysis response — please try again.")
+    except Exception as e:
+        log.error("quick_gap.llm_call_failed", error=str(e), exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Analysis failed: {e}")
+
+    # Light validation + normalization so the frontend gets consistent shape.
+    out = {
+        "job_title": data.get("job_title") or None,
+        "match_score": int(data.get("match_score") or 0),
+        "verdict": data.get("verdict") or "Match",
+        "matched_skills": data.get("matched_skills") or [],
+        "missing_skills": data.get("missing_skills") or [],
+        "partial_matches": data.get("partial_matches") or [],
+        "narrative": data.get("narrative") or "",
+        "growth_tips": data.get("growth_tips") or [],
+    }
+    log.info("quick_gap.ok", match_score=out["match_score"], gaps=len(out["missing_skills"]))
+    return out
+
+
+@app.post("/api/student/intake")
+def student_intake(body: IntakeBody):
+    """Create a new student row from the /careers intake form, or return
+    the existing one if this email is already in the pipeline (idempotent
+    so resubmits don't duplicate). Tenant defaults to CFA — WSB intake
+    goes through the separate phase_a_parse_cohort1_resumes.py flow.
+
+    Returns the new/existing student_id so the frontend can redirect to
+    /student?id=<uuid> and show the user their own portal.
+    """
+    name = (body.name or "").strip()
+    email = (body.email or "").strip().lower()
+    if not name or "@" not in email:
+        raise HTTPException(status_code=400, detail="name and a valid email are required")
+
+    from psycopg2 import sql as _sql  # noqa: F401 — keeps intent clear
+
+    cfa_tenant_id_row = query_one("SELECT id FROM tenants WHERE code='CFA'")
+    if not cfa_tenant_id_row:
+        raise HTTPException(status_code=500, detail="CFA tenant not seeded; run migration 014")
+    tenant_uuid = str(cfa_tenant_id_row["id"])
+
+    # Idempotent check — duplicates collapse to the existing student.
+    existing = query_one(
+        "SELECT id, full_name FROM students WHERE LOWER(email) = %s AND tenant_id = %s::uuid",
+        (email, tenant_uuid),
+    )
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        if existing:
+            student_id = str(existing["id"])
+            action = "existing"
+        else:
+            cur.execute(
+                """
+                INSERT INTO students (
+                    id, tenant_id,
+                    full_name, email,
+                    pipeline_status, pipeline_stage,
+                    source_system,
+                    availability_status,
+                    resume_parsed, showcase_eligible, showcase_active,
+                    legacy_data,
+                    created_at, updated_at
+                ) VALUES (
+                    gen_random_uuid(), %s::uuid,
+                    %s, %s,
+                    'enrolled', 'intake',
+                    'careers-intake',
+                    'Available now',
+                    FALSE, FALSE, FALSE,
+                    %s::jsonb,
+                    NOW(), NOW()
+                )
+                RETURNING id
+                """,
+                (
+                    tenant_uuid,
+                    name,
+                    email,
+                    json.dumps({
+                        "intake_source": "/careers",
+                        "target_roles": body.target_roles,
+                    }),
+                ),
+            )
+            student_id = str(cur.fetchone()[0])
+            action = "created"
+
+        # Insert student_skills for any selected skills that match the taxonomy
+        # (exact case-insensitive match on skills.skill_name). Unknown skills
+        # are silently dropped — the intake form's fixed list should all match.
+        matched = 0
+        for skill_name in (body.skills or [])[:20]:  # cap for sanity
+            clean = skill_name.strip()
+            if not clean:
+                continue
+            cur.execute(
+                """
+                INSERT INTO student_skills (student_id, skill_id, source)
+                SELECT %s, skill_id, 'careers-intake'
+                FROM skills
+                WHERE LOWER(skill_name) = LOWER(%s)
+                ON CONFLICT DO NOTHING
+                RETURNING student_id
+                """,
+                (student_id, clean),
+            )
+            if cur.fetchone():
+                matched += 1
+
+        # Persist the quick-gap-analysis result (if supplied from /careers)
+        # as a gap_analyses row, so it shows up on the student's dashboard
+        # immediately under "Gap Analysis". We only do this on the CREATED
+        # path — re-submitting an intake for an existing student shouldn't
+        # overwrite their existing analyses.
+        gap_persisted = False
+        if body.quick_analysis is not None and action == "created":
+            qa = body.quick_analysis
+            cur.execute(
+                """
+                INSERT INTO gap_analyses (
+                    id, student_id, tenant_id,
+                    target_role, target_job_listing_id,
+                    gap_score, missing_skills,
+                    recommendations, analyzed_at
+                ) VALUES (
+                    gen_random_uuid(), %s, %s::uuid,
+                    %s, NULL,
+                    %s, %s,
+                    %s::jsonb, NOW()
+                )
+                """,
+                (
+                    student_id,
+                    tenant_uuid,
+                    qa.job_title or "Pasted job description",
+                    float(qa.match_score),
+                    qa.missing_skills,
+                    json.dumps({
+                        "source": "careers-quick-gap",
+                        "verdict": qa.verdict,
+                        "narrative": qa.narrative,
+                        "matched_skills": qa.matched_skills,
+                        "partial_matches": qa.partial_matches,
+                        "growth_tips": qa.growth_tips,
+                    }),
+                ),
+            )
+            gap_persisted = True
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    log.info(
+        "student.intake",
+        action=action,
+        email=email,
+        student_id=student_id,
+        skills_requested=len(body.skills or []),
+        skills_matched=matched,
+        gap_persisted=gap_persisted,
+    )
+    return {
+        "student_id": student_id,
+        "email": email,
+        "full_name": name,
+        "action": action,  # "created" or "existing"
+        "skills_matched": matched,
+        "gap_persisted": gap_persisted,
+    }
+
+
+@app.get("/api/student/lookup")
+def student_lookup(email: str):
+    """Email-based lookup for the 'Already have an account?' flow on
+    /careers. Case-insensitive. 404 if not found so the frontend can
+    nudge the user to fill out the intake form instead."""
+    email_norm = (email or "").strip().lower()
+    if not email_norm or "@" not in email_norm:
+        raise HTTPException(status_code=400, detail="valid email required")
+
+    row = query_one(
+        "SELECT id, full_name FROM students WHERE LOWER(email) = %s LIMIT 1",
+        (email_norm,),
+    )
+    if not row:
+        raise NotFoundError("student")
+
+    return {
+        "student_id": str(row["id"]),
+        "full_name": row["full_name"],
+    }
 
 
 def get_conn():
@@ -98,6 +646,7 @@ def get_profile(student_id: str):
                resume_parsed, parse_confidence_score,
                availability_status, work_authorization,
                data_quality, engagement_level, last_active_date,
+               legacy_data,
                created_at
         FROM students WHERE id = %s
     """, (student_id,))
@@ -125,6 +674,34 @@ def get_profile(student_id: str):
     student['skills'] = [s['skill_name'] for s in skills]
     student['skill_count'] = len(skills)
 
+    # --- Resume summary additions (for the Student Portal summary card) ---
+    # Pull career_objective and certifications out of legacy_data (the
+    # resume parser stores them there for cohort-1 WSB students).
+    legacy = student.get('legacy_data') or {}
+    if not isinstance(legacy, dict):
+        legacy = {}
+    student['career_objective'] = legacy.get('career_objective')
+    student['certifications'] = legacy.get('certifications') or []
+
+    # Work experience from student_work_experience (denormalized, sorted
+    # by start_date DESC — most recent first).
+    work_experience = query("""
+        SELECT company, title, start_date, end_date, is_current,
+               description
+        FROM student_work_experience
+        WHERE student_id = %s
+        ORDER BY COALESCE(start_date, '1900-01-01') DESC
+    """, (student_id,))
+    # Serialize dates.
+    for row in work_experience:
+        for k in ("start_date", "end_date"):
+            if row.get(k) is not None:
+                row[k] = row[k].isoformat()
+    student['work_experience'] = work_experience
+
+    # legacy_data is large + noisy; strip before return.
+    student.pop('legacy_data', None)
+
     # Serialize datetimes
     for k, v in student.items():
         if isinstance(v, datetime):
@@ -138,7 +715,62 @@ def get_profile(student_id: str):
 # ============================================================
 @app.get("/api/student/{student_id}/matches")
 def get_matches(student_id: str):
-    """Top job matches using embedding similarity."""
+    """Top job matches. Prefers pre-computed cohort_matches rows (produced
+    by the Phase B pipeline for tenant-scoped cohorts) when any exist for
+    this student; otherwise falls back to on-the-fly embedding similarity
+    against job_listings (legacy Lightcast pool)."""
+
+    # Fast path: did Phase B already compute matches for this student?
+    # If yes, return them — same shape the frontend expects.
+    cohort = query("""
+        SELECT cm.job_id,
+               cm.cosine_similarity,
+               cm.match_rank,
+               je.title,
+               je.company,
+               je.city,
+               je.state,
+               je.is_remote,
+               je.skills_required
+        FROM cohort_matches cm
+        JOIN jobs_enriched je ON je.id = cm.job_id
+        WHERE cm.student_id = %s
+        ORDER BY cm.cosine_similarity DESC
+        LIMIT 3
+    """, (student_id,))
+
+    if cohort:
+        # Get the student's skills to compute matched / missing per-row.
+        student_skill_rows = query(
+            "SELECT LOWER(sk.skill_name) AS s FROM student_skills ss "
+            "JOIN skills sk ON sk.skill_id = ss.skill_id WHERE ss.student_id = %s",
+            (student_id,),
+        )
+        student_skill_set = {r['s'] for r in student_skill_rows}
+
+        matches = []
+        for r in cohort:
+            job_skills = [s.strip() for s in (r.get('skills_required') or []) if s]
+            job_skill_lc = {s.lower() for s in job_skills}
+            matched = sorted(student_skill_set & job_skill_lc)[:10]
+            missing = sorted(job_skill_lc - student_skill_set)[:5]
+            matches.append({
+                "job_id": str(r['job_id']),
+                "title": r['title'],
+                "company": r['company'],
+                "city": r['city'],
+                "state": r['state'],
+                "salary_min": None,
+                "salary_max": None,
+                "match_score": round(float(r['cosine_similarity']) * 100, 1),
+                "matched_skills": matched,
+                "missing_skills": missing,
+                "total_job_skills": len(job_skills),
+                "match_source": "cohort_matches",
+            })
+        return {"matches": matches}
+
+    # Fallback: on-the-fly embedding match against legacy job_listings.
     # Get student skills + embeddings
     student_skills = query("""
         SELECT DISTINCT sk.skill_name, sk.embedding_vector::text as vec
@@ -217,6 +849,113 @@ def get_matches(student_id: str):
 
     scored.sort(key=lambda x: -x['match_score'])
     return {"matches": scored[:3]}
+
+
+# ============================================================
+# GET /api/student/{student_id}/gap-detail/{job_id}
+# ============================================================
+@app.get("/api/student/{student_id}/gap-detail/{job_id}")
+def get_gap_detail(student_id: str, job_id: int):
+    """Detailed per-(student, job) gap view for the Student Portal drill:
+    LLM narrative + structured strengths/gaps/verdict + career pathway
+    (the student's other top matches as context for progression).
+
+    Reads from match_narratives + gap_analyses + jobs_enriched + cohort_matches
+    — all populated by the Phase B pipeline. Assumes the (student, job) pair
+    exists in cohort_matches; returns 404 otherwise."""
+
+    # The job + match core
+    core = query_one("""
+        SELECT je.id AS job_id, je.title, je.company, je.city, je.state,
+               je.is_remote, je.skills_required, je.job_description,
+               cm.cosine_similarity, cm.match_rank
+        FROM jobs_enriched je
+        JOIN cohort_matches cm ON cm.job_id = je.id AND cm.student_id = %s
+        WHERE je.id = %s
+    """, (student_id, job_id))
+
+    if not core:
+        raise NotFoundError("cohort_match")
+
+    # The LLM narrative (Priority 1 per spec)
+    narrative = query_one("""
+        SELECT verdict_line, narrative_text,
+               match_strengths, match_gaps, match_partial,
+               calibration_label, cosine_similarity, generated_at
+        FROM match_narratives
+        WHERE student_id = %s AND job_id = %s
+    """, (student_id, job_id))
+
+    # Gap analysis for this specific (student, job) pair. The
+    # gap_analyses table stores target_role as a string rather than an
+    # FK id (target_job_listing_id is nullable and not populated by
+    # Phase B4), so match by title-equality via jobs_enriched.
+    gap = query_one("""
+        SELECT ga.id, ga.target_role, ga.gap_score, ga.missing_skills,
+               ga.recommendations, ga.analyzed_at
+        FROM gap_analyses ga
+        WHERE ga.student_id = %s
+          AND ga.target_role = (SELECT title FROM jobs_enriched WHERE id = %s)
+        ORDER BY ga.analyzed_at DESC
+        LIMIT 1
+    """, (student_id, job_id))
+
+    # Career pathway — the student's other matches, for progression context
+    pathway = query("""
+        SELECT cm.job_id, cm.cosine_similarity, cm.match_rank,
+               je.title, je.company, je.city, je.state,
+               mn.verdict_line, mn.calibration_label,
+               ga.gap_score,
+               ga.missing_skills
+        FROM cohort_matches cm
+        JOIN jobs_enriched je ON je.id = cm.job_id
+        LEFT JOIN match_narratives mn
+               ON mn.student_id = cm.student_id AND mn.job_id = cm.job_id
+        LEFT JOIN gap_analyses ga
+               ON ga.student_id = cm.student_id AND ga.target_role = je.title
+        WHERE cm.student_id = %s AND cm.job_id <> %s
+        ORDER BY cm.cosine_similarity DESC
+        LIMIT 5
+    """, (student_id, job_id))
+
+    # Serialize datetimes + floats
+    def ser(row):
+        if not row:
+            return row
+        for k, v in row.items():
+            if isinstance(v, datetime):
+                row[k] = v.isoformat()
+            elif hasattr(v, "quantize"):  # Decimal
+                row[k] = float(v)
+        return row
+
+    ser(core)
+    if core:
+        # cosine_similarity Decimal → float
+        if core.get('cosine_similarity') is not None:
+            core['cosine_similarity'] = float(core['cosine_similarity'])
+    ser(narrative) if narrative else None
+    if narrative and narrative.get('cosine_similarity') is not None:
+        narrative['cosine_similarity'] = float(narrative['cosine_similarity'])
+    ser(gap) if gap else None
+    if gap and gap.get('gap_score') is not None:
+        gap['gap_score'] = float(gap['gap_score'])
+
+    pathway_out = []
+    for p in pathway:
+        ser(p)
+        if p.get('cosine_similarity') is not None:
+            p['cosine_similarity'] = float(p['cosine_similarity'])
+        if p.get('gap_score') is not None:
+            p['gap_score'] = float(p['gap_score'])
+        pathway_out.append(p)
+
+    return {
+        "core": core,
+        "narrative": narrative,
+        "gap_analysis": gap,
+        "career_pathway": pathway_out,
+    }
 
 
 # ============================================================
@@ -455,11 +1194,11 @@ class ChatMessage(BaseModel):
 
 @app.post("/api/student/{student_id}/chat")
 def chat(student_id: str, msg: ChatMessage):
-    """Route to the Student Agent (Gemini Flash) on port 8009."""
+    """Route to the Student Agent (Gemini Flash) on the assistant service."""
     import httpx
     try:
         r = httpx.post(
-            "http://localhost:8009/api/assistant/chat",
+            f"{settings.platform.assistant_api_base_url.rstrip('/')}/api/assistant/chat",
             json={
                 "session_id": f"student-{student_id}",
                 "agent_type": "student",

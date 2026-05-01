@@ -28,6 +28,10 @@ from agents.assistant.staff_agent import staff_agent
 from agents.assistant.college_agent import college_agent
 from agents.assistant.youth_agent import youth_agent
 
+from agents.assistant.bd_agent import bd_agent
+from agents.assistant.marketing_agent import marketing_agent
+from agents.assistant.finance_agent import finance_agent
+
 from wfdos_common.auth import SessionMiddleware
 from wfdos_common.config import settings
 from wfdos_common.errors import NotFoundError, ValidationFailure, install_error_handlers
@@ -45,7 +49,8 @@ install_error_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=settings.platform.allowed_origins,
+    allow_origin_regex=settings.platform.allowed_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -109,6 +114,9 @@ _REGISTERED_AGENTS: dict[str, BaseAgent] = {
     "staff": staff_agent,
     "college": college_agent,
     "youth": youth_agent,
+    "bd": bd_agent,
+    "marketing": marketing_agent,
+    "finance": finance_agent,
 }
 
 
@@ -151,6 +159,10 @@ class ChatResponse(BaseModel):
     action: Optional[dict] = None
     signals: Optional[list] = None
     suggestions: Optional[list[str]] = None
+    # Drill-chat surface (Finance Cockpit). Null for broad-chat and
+    # non-finance agents. See agents/finance/design/chat_spec.md.
+    out_of_scope: Optional[bool] = None
+    sources: Optional[list[str]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -179,6 +191,8 @@ async def chat(req: ChatRequest):
         action=result.get("action"),
         signals=result.get("signals"),
         suggestions=result.get("suggestions"),
+        out_of_scope=result.get("out_of_scope"),
+        sources=result.get("sources"),
     )
 
 

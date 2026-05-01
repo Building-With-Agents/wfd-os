@@ -46,11 +46,14 @@ introduced it.
 | Service | Phase | Doc |
 |---|---|---|
 | `portal/{student,showcase,consulting,college,wji}_api.py` | 3-4 (migrated) | `phase-3-exit-report.md` (errors), `phase-4-exit-report.md` (auth) |
-| `assistant/` | 3-4 | `phase-3-exit-report.md`, `phase-4-exit-report.md` |
+| `assistant/` (incl. `bd_agent`, `marketing_agent`, `finance_agent`) | 3-4 + reconciliation | `phase-3-exit-report.md`, `phase-4-exit-report.md`; CLAUDE.md "Nine Conversational Agents" |
 | `apollo/`, `marketing/`, `reporting/` | 3-4 | `phase-3-exit-report.md` |
 | `scoping/` | 2-3 | `phase-2-exit-report.md` (models), `phase-3-exit-report.md` |
 | `market-intelligence/` | 1-4 (various migrations) | PR bodies + `phase-3-exit-report.md` |
 | `grant/` | 1-4 | PR bodies + `phase-4-exit-report.md` |
+| `grant-compliance/` (engine + `compliance_requirements_agent/`) | reconciliation | Alembic migrations under `agents/grant-compliance/alembic/versions/`; CLAUDE.md "Non-Conversational Agents" |
+| `finance/` (cockpit API + verdict generator + audit labels) | reconciliation | Mounted at :8013; tier-decorated per `wfdos_common.auth` (read_only + llm_gated for /cockpit/tabs) |
+| `job_board/` (Recruiting API) | reconciliation | Mounted at :8012 |
 | `profile/` | 1-3 | PR bodies + `phase-3-exit-report.md` |
 | `laborpulse/` | LaborPulse | `laborpulse-exit-report.md`, `docs/laborpulse.md` |
 
@@ -76,6 +79,10 @@ Cross-platform Python smoke scripts referenced from every §N in
 | `edge/`         | `nginx_t.py`                                                  | §10           |
 | `cta/`          | `contract_urls.py`                                            | §11           |
 | `laborpulse/`   | `health.py`, `mock_query.py`, `feedback.py`, `jie_503.py`     | §13           |
+| `cockpit/`      | `health.py`, `status_unauth_401.py`                           | reconciliation |
+| `recruiting/`   | `health.py`                                                   | reconciliation |
+| `grant-compliance/` | `health.py`                                               | reconciliation |
+| `assistant/`    | `agent_registry.py` (verifies bd/marketing/finance agents present) | reconciliation |
 
 Conventions: `scripts/smoke/README.md`.
 Shared helpers: `scripts/smoke/_common.py` (`ok`/`fail`/`skip`/`build_parser`).

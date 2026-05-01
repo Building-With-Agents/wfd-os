@@ -1,0 +1,45 @@
+========================================================================
+CITATION:        2 CFR 200.333
+TITLE:           Fixed amount subawards
+SUBPART:         D — Post Federal Award Requirements (Subrecipient Monitoring and Management)
+PART:            200 — Uniform Administrative Requirements, Cost Principles, and Audit Requirements for Federal Awards
+SOURCE_URL:      https://www.ecfr.gov/current/title-2/section-200.333
+EFFECTIVE_DATE:  2024-10-01  (per 89 FR 30046, April 22, 2024 final rule)
+VERIFICATION:    structured-paraphrase
+LAST_UPDATED:    2026-04-30
+NOTES:           Fixed-amount subawards are a specific subaward variant — the pass-through
+                 entity pays the subrecipient based on milestones / deliverables / units of
+                 work completed, NOT actual costs. The 2024 final rule raised the cap on
+                 fixed-amount subawards to the Simplified Acquisition Threshold ($250,000).
+                 Prior approval of the Federal awarding agency is required.
+                 Verify exact wording at the SOURCE_URL above before citing in formal work.
+========================================================================
+
+§ 200.333  Fixed amount subawards.
+
+With prior written approval from the Federal awarding agency, a
+pass-through entity may provide subawards based on fixed amounts up to
+the Simplified Acquisition Threshold, provided that the subawards meet
+the requirements for fixed amount awards in § 200.201.
+
+------------------------------------------------------------------------
+APPLICABILITY NOTES (not part of the regulation):
+
+- The reference to §200.201 (fixed amount awards) is essential reading
+  alongside §200.333. Among other constraints, §200.201 requires the
+  fixed-amount subaward to provide "reasonable assurance" the relevant
+  cost principles in Subpart E have been met (the deliverable's price
+  reflects allowable, reasonable, and allocable cost), and prohibits
+  cost-share or matching beyond a fixed dollar amount.
+- For CFA's K8341 grant: the GJC training providers' "per placement"
+  payment structure (e.g., $2,500 per verified placement to Ada,
+  $3,222 per placement to Code Day) has the structural shape of a
+  fixed-amount subaward. Verify that ESD (the K8341 pass-through to
+  CFA) has provided written approval for any sub-subaward that CFA
+  treats as fixed-amount, and that the per-placement contract sums
+  do not exceed $250,000 to any single subrecipient.
+- If the per-placement structure is, on examination, a procurement
+  contract (under §200.331 substance test) rather than a subaward,
+  §200.333 doesn't apply at all — but §200.318–.327 procurement
+  standards do.
+========================================================================

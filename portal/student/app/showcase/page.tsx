@@ -45,7 +45,11 @@ interface FilterOption {
   count: number
 }
 
-const API_BASE = "http://localhost:8002/api"
+// Relative path goes through the Next.js rewrite in next.config.mjs
+// (/api/showcase/:path* -> http://localhost:8002/api/showcase/:path*).
+// Using the rewrite — not a hardcoded host — keeps the page working on
+// ngrok and any other host, not just localhost:3000.
+const API_BASE = "/api"
 
 const TRACK_LABELS: Record<string, string> = {
   ojt: "OJT Track",
