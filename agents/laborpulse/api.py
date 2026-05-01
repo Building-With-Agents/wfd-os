@@ -1,4 +1,4 @@
-"""LaborPulse — FastAPI service (port 8012).
+"""LaborPulse — FastAPI service (port 8015).
 
   POST /api/laborpulse/query     — workforce-development Q&A, request/
                                     response JSON. Proxies to JIE
@@ -23,7 +23,7 @@ Mock mode:
   production deploy accidentally running in mock mode is greppable.
 
 Run:
-  uvicorn agents.laborpulse.api:app --port 8012
+  uvicorn agents.laborpulse.api:app --port 8015
 """
 
 from __future__ import annotations

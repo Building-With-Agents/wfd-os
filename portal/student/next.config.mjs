@@ -75,56 +75,34 @@ const nextConfig = {
         source: "/api/student/:path*",
         destination: "http://localhost:8001/api/student/:path*",
       },
-      // grant-compliance FastAPI runs on :8000. Its routes are at the
-      // root of that service (/qb/status, /grants, /transactions, etc.)
-      // — not under an /api prefix — so the rewrite strips our /api/grant-compliance
-      // prefix entirely. Example: /api/grant-compliance/qb/status (portal)
-      // → http://localhost:8000/qb/status (scaffold).
+      // grant-compliance FastAPI runs on :8014 (per Procfile). Its routes
+      // are at the root of that service (/qb/status, /grants, /transactions,
+      // etc.) — not under an /api prefix — so the rewrite strips our
+      // /api/grant-compliance prefix entirely. Example:
+      //   /api/grant-compliance/qb/status (portal)
+      //   → http://localhost:8014/qb/status (scaffold).
+      // If the Procfile port changes, update this destination too.
       {
         source: "/api/grant-compliance/:path*",
-        destination: "http://localhost:8000/:path*",
+        destination: "http://localhost:8014/:path*",
       },
-      // Gary's magic-link auth routes (mounted on student_api.py on :8001):
-      //   POST /auth/login, GET /auth/verify, POST /auth/logout, GET /auth/me
-      //   PLUS GET /auth/dev-login (env-gated, DEV_AUTH_BYPASS=1 only).
-      // Session cookies set by these endpoints are shared across every
-      // backend using settings.auth.secret_key (laborpulse, showcase,
-      // consulting_api, cockpit_api) — sign in once, all services honor
-      // the same cookie.
-      {
-        source: "/auth/:path*",
-        destination: "http://localhost:8001/auth/:path*",
-      },
-      // LaborPulse Q&A API (agents/laborpulse/api.py on :8015). The
-      // default port in its docstring is 8012 but we moved it to 8015
-      // to avoid colliding with the Recruiting/job_board service
-      // already on 8012. Service routes live under /api/laborpulse/*
-      // at the root, so this is a pass-through rewrite (no prefix
-      // strip). Runs in mock mode when JIE_BASE_URL is unset —
-      // returns canned Borderplex answers after ~10s.
+      // LaborPulse Q&A API (agents/laborpulse/api.py on :8015). Moved
+      // from the docstring's default 8012 to avoid colliding with the
+      // Recruiting/job_board service that owns 8012. Service routes live
+      // under /api/laborpulse/* at the root, so this is a pass-through
+      // rewrite (no prefix strip). Runs in mock mode when JIE_BASE_URL
+      // is unset — returns canned Borderplex answers after ~10s.
       {
         source: "/api/laborpulse/:path*",
         destination: "http://localhost:8015/api/laborpulse/:path*",
       },
       // Platform-wide stats (student count, showcase-eligible count, etc.)
-      // served by student_api.py on :8001 — NOT :8005 (which was a stale
-      // placeholder). /coalition + /for-employers consume this to render
-      // the hero stats bar dynamically with hardcoded fallback.
-      {
-        source: "/api/laborpulse/:path*",
-        destination: "http://localhost:8012/api/laborpulse/:path*",
-      },
-      {
-        source: "/api/student/:path*",
-        destination: "http://localhost:8001/api/student/:path*",
-      },
+      // served by student_api.py on :8001. /coalition + /for-employers
+      // consume this to render the hero stats bar dynamically with
+      // hardcoded fallback.
       {
         source: "/api/stats",
         destination: "http://localhost:8001/api/stats",
-      },
-      {
-        source: "/api/:path*",
-        destination: "http://localhost:8011/api/:path*",
       },
     ]
   },

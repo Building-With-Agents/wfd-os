@@ -4,6 +4,7 @@
 #   # One-time install of every dep needed to run the stack:
 #   python -m pip install -r requirements-dev.txt
 #   python -m pip install -e packages/wfdos-common
+#   python -m pip install -e agents/grant-compliance
 #   cd portal/student && npm install && cd ../..
 #
 #   # Start the whole stack:
@@ -40,9 +41,20 @@ consulting-api: uvicorn agents.portal.consulting_api:app --host 0.0.0.0 --port 8
 college-api: uvicorn agents.portal.college_api:app --host 0.0.0.0 --port 8004
 wji-api: uvicorn agents.portal.wji_api:app --host 0.0.0.0 --port 8007
 marketing-api: uvicorn agents.marketing.api:app --host 0.0.0.0 --port 8008
-assistant-api: uvicorn agents.assistant.api:app --host 0.0.0.0 --port 8009
+assistant-api: GRANT_COMPLIANCE_API_BASE=http://127.0.0.1:8014 uvicorn agents.assistant.api:app --host 0.0.0.0 --port 8009
 apollo-api: uvicorn agents.apollo.api:app --host 0.0.0.0 --port 8010
-laborpulse-api: uvicorn agents.laborpulse.api:app --host 0.0.0.0 --port 8012
+recruiting-api: uvicorn agents.job_board.api:app --host 0.0.0.0 --port 8012
+cockpit-api: GRANT_COMPLIANCE_ENGINE_URL=http://127.0.0.1:8014 uvicorn agents.finance.cockpit_api:app --host 0.0.0.0 --port 8013
+laborpulse-api: uvicorn agents.laborpulse.api:app --host 0.0.0.0 --port 8015
+
+# grant-compliance is its own installable package (src/ layout, separate
+# pyproject.toml). Requires `pip install -e agents/grant-compliance` first
+# — the module path below resolves via that install, not via repo root.
+# Port 8014 chosen to avoid 8013 (cockpit-api) and 8000 (reporting-api,
+# where next.config.mjs historically pointed grant-compliance). Whenever
+# this port changes, also update next.config.mjs's /api/grant-compliance/*
+# rewrite destination.
+grant-compliance-api: uvicorn grant_compliance.main:app --host 0.0.0.0 --port 8014
 
 # aiohttp services (Teams bots + scoping webhook).
 # These use `cd <dir> && python <file>.py` because their own imports
