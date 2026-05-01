@@ -552,3 +552,246 @@ class ComplianceQALog(Base):
     prompt_hash: Mapped[Optional[str]] = mapped_column(String(64))
     input_tokens: Mapped[Optional[int]] = mapped_column(Integer)
     output_tokens: Mapped[Optional[int]] = mapped_column(Integer)
+
+
+# ---------------------------------------------------------------------------
+# Contracts inventory — canonical entity for every K8341 third-party agreement.
+# Spec: agents/grant-compliance/docs/contracts_inventory_spec.md
+#
+# Hub entity that downstream features reference:
+#   - Compliance Requirements documentation_status (Session 2) — applicable_target
+#     references contract_id when a requirement applies to specific contracts
+#   - Monitoring engagements — ContractUnderReview sub-records
+#   - Audit Readiness procurement / subrecipient dimensions — sweep contracts
+#     filtered by classification
+#   - Personnel — Person.vendor_legal_entity loose-couples to
+#     Contract.vendor_legal_entity for CFA contractors
+# ---------------------------------------------------------------------------
+
+
+class ContractType(str, enum.Enum):
+    training_provider = "training_provider"
+    strategic_partner_subrecipient = "strategic_partner_subrecipient"
+    cfa_contractor = "cfa_contractor"
+    subrecipient_other = "subrecipient_other"
+    other = "other"
+
+
+class ComplianceClassification(str, enum.Enum):
+    contractor_200_331b = "contractor_200_331b"
+    subrecipient_200_331a = "subrecipient_200_331a"
+    unclassified = "unclassified"
+
+
+class ContractStatus(str, enum.Enum):
+    active = "active"
+    closed_normally = "closed_normally"
+    closed_with_findings = "closed_with_findings"
+    terminated_by_cfa = "terminated_by_cfa"
+    terminated_by_funder = "terminated_by_funder"
+
+
+class PaymentBasis(str, enum.Enum):
+    per_placement = "per_placement"
+    fixed_fee = "fixed_fee"
+    time_and_materials = "time_and_materials"
+    milestone = "milestone"
+    cost_reimbursement = "cost_reimbursement"
+    other = "other"
+
+
+class ProcurementMethod(str, enum.Enum):
+    """Categorical procurement method per Contract.
+
+    Promoted from v1.1 to v1 per the 2026-04-30 amendment in
+    contracts_inventory_spec.md — needed by the Compliance Requirements
+    Display Session 2 documentation status workflow to filter Contracts
+    for sole-source-only requirements.
+
+    Only the categorical enum is in v1. The associated artifacts (RFP
+    files, evaluations, sole-source justification narratives) remain in
+    v1.1 per the deferred section. `unknown` is the bootstrap default
+    for contracts whose method has not yet been confirmed by Krista —
+    intentionally visible rather than silently mis-classified.
+    """
+
+    competitive_rfp = "competitive_rfp"
+    competitive_proposals = "competitive_proposals"
+    small_purchase = "small_purchase"
+    micro_purchase = "micro_purchase"
+    sole_source = "sole_source"
+    informal = "informal"
+    unknown = "unknown"
+    not_applicable_subaward = "not_applicable_subaward"
+
+
+class AmendmentType(str, enum.Enum):
+    value_change = "value_change"
+    period_extension = "period_extension"
+    scope_change = "scope_change"
+    termination = "termination"
+    other = "other"
+
+
+class TerminatedBy(str, enum.Enum):
+    cfa = "cfa"
+    funder = "funder"
+    mutual = "mutual"
+
+
+class Contract(Base):
+    """A formal agreement under which CFA pays a third party with K8341
+    grant funds. See contracts_inventory_spec.md for the complete contract.
+
+    All money is integer cents (BigInteger). Reconciliation against
+    Amendment 1 budget lines is computed at query time, not stored.
+    """
+
+    __tablename__ = "contracts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    grant_id: Mapped[str] = mapped_column(
+        ForeignKey("grants.id"), nullable=False, index=True
+    )
+
+    # Vendor identity. vendor_party_id is reserved for a future parties
+    # table (v1.1+ vendor master); for v1, free-text matching against
+    # vendor_qb_names handles the AI Engage / Jason Mangold / AIE Group
+    # name-variation problem.
+    vendor_party_id: Mapped[Optional[str]] = mapped_column(String(36))
+    vendor_name_display: Mapped[str] = mapped_column(String(255), nullable=False)
+    vendor_legal_entity: Mapped[str] = mapped_column(String(255), nullable=False)
+    vendor_qb_names: Mapped[list] = mapped_column(JSON, default=list)
+
+    # Classification. compliance_classification follows §200.331 characteristics.
+    # `unclassified` is a visible bootstrap state — not silently inferred.
+    contract_type: Mapped[ContractType] = mapped_column(
+        Enum(ContractType), nullable=False, index=True
+    )
+    compliance_classification: Mapped[ComplianceClassification] = mapped_column(
+        Enum(ComplianceClassification),
+        nullable=False,
+        default=ComplianceClassification.unclassified,
+        index=True,
+    )
+    classification_rationale: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Procurement method — promoted to v1 per 2026-04-30 amendment.
+    # Default `unknown` so any unseen contract is explicitly visible
+    # rather than silently mis-classified.
+    procurement_method: Mapped[ProcurementMethod] = mapped_column(
+        Enum(ProcurementMethod),
+        nullable=False,
+        default=ProcurementMethod.unknown,
+        index=True,
+    )
+
+    # Dates
+    original_executed_date: Mapped[Optional[date]] = mapped_column(Date)
+    original_effective_date: Mapped[Optional[date]] = mapped_column(Date)
+    current_end_date: Mapped[Optional[date]] = mapped_column(Date)
+
+    # Money — cents, BigInteger per engine convention. original_* is the
+    # value at first execution; current_* reflects accumulated amendments.
+    original_contract_value_cents: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0
+    )
+    current_contract_value_cents: Mapped[int] = mapped_column(
+        BigInteger, nullable=False, default=0
+    )
+
+    # Status + payment terms
+    status: Mapped[ContractStatus] = mapped_column(
+        Enum(ContractStatus),
+        nullable=False,
+        default=ContractStatus.active,
+        index=True,
+    )
+    payment_basis: Mapped[PaymentBasis] = mapped_column(
+        Enum(PaymentBasis), nullable=False, default=PaymentBasis.other
+    )
+    payment_basis_detail: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Documentation
+    executed_contract_link: Mapped[Optional[str]] = mapped_column(String(1024))
+    scope_of_work_summary: Mapped[Optional[str]] = mapped_column(Text)
+    notes: Mapped[Optional[str]] = mapped_column(Text)
+
+    # Provenance
+    record_created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    record_updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    record_updated_by: Mapped[Optional[str]] = mapped_column(String(255))
+
+    amendments: Mapped[list["ContractAmendment"]] = relationship(
+        back_populates="contract", cascade="all, delete-orphan",
+        order_by="ContractAmendment.amendment_number",
+    )
+    termination_detail: Mapped[Optional["ContractTerminationDetail"]] = relationship(
+        back_populates="contract", uselist=False, cascade="all, delete-orphan",
+    )
+
+
+class ContractAmendment(Base):
+    """One row per amendment to a Contract. Chronological by amendment_number.
+
+    Amendments record the before/after values and end dates so the
+    history is auditable without scanning prior versions of the parent
+    Contract row. The parent Contract.current_contract_value_cents and
+    .current_end_date hold the cumulative result.
+    """
+
+    __tablename__ = "contract_amendments"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    contract_id: Mapped[str] = mapped_column(
+        ForeignKey("contracts.id"), nullable=False, index=True
+    )
+    amendment_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    amendment_type: Mapped[AmendmentType] = mapped_column(
+        Enum(AmendmentType), nullable=False
+    )
+    executed_date: Mapped[Optional[date]] = mapped_column(Date)
+    effective_date: Mapped[Optional[date]] = mapped_column(Date)
+    previous_value_cents: Mapped[Optional[int]] = mapped_column(BigInteger)
+    new_value_cents: Mapped[Optional[int]] = mapped_column(BigInteger)
+    previous_end_date: Mapped[Optional[date]] = mapped_column(Date)
+    new_end_date: Mapped[Optional[date]] = mapped_column(Date)
+    summary_of_changes: Mapped[Optional[str]] = mapped_column(Text)
+    document_link: Mapped[Optional[str]] = mapped_column(String(1024))
+    record_created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    contract: Mapped[Contract] = relationship(back_populates="amendments")
+
+
+class ContractTerminationDetail(Base):
+    """Optional one-row-per-terminated-contract record. Only populated when
+    Contract.status indicates termination (terminated_by_cfa or
+    terminated_by_funder). Closeout findings and correspondence links live
+    here so the active-contract row stays focused.
+    """
+
+    __tablename__ = "contract_termination_details"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    contract_id: Mapped[str] = mapped_column(
+        ForeignKey("contracts.id"), nullable=False, unique=True, index=True
+    )
+    terminated_by: Mapped[TerminatedBy] = mapped_column(
+        Enum(TerminatedBy), nullable=False
+    )
+    termination_date: Mapped[Optional[date]] = mapped_column(Date)
+    termination_reason: Mapped[Optional[str]] = mapped_column(Text)
+    termination_correspondence_link: Mapped[Optional[str]] = mapped_column(String(1024))
+    final_reconciliation_link: Mapped[Optional[str]] = mapped_column(String(1024))
+    closeout_findings: Mapped[Optional[str]] = mapped_column(Text)
+    record_created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    contract: Mapped[Contract] = relationship(back_populates="termination_detail")
