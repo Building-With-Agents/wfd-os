@@ -44,6 +44,33 @@ STOP. Ask Ritu first.
 
 =============================================================
 
+=============================================================
+!! REUSE FIRST — `packages/wfdos-common` IS THE SHARED LAYER !!
+=============================================================
+
+Before writing new code in `agents/*` (or anywhere else), check
+`packages/wfdos-common/wfdos_common/` for an existing primitive.
+This package is the canonical home for shared service code —
+config, db, models, auth, llm, graph, email, logging, errors,
+tenancy, agent base class, testing helpers. See its `README.md`
+for module-by-module status and the shim+flip migration pattern.
+
+Defaults:
+- New agent / service code: import from `wfdos_common.*` instead
+  of duplicating. If the primitive doesn't exist yet, add it to
+  `wfdos-common` (and its tests) rather than copying logic into
+  an agent.
+- Touching legacy `agents/*` modules that have a `wfdos_common`
+  equivalent: prefer flipping the importer to the new path
+  (the shims exist for exactly this).
+- Microsoft Graph / email / LLM / auth / DB sessions: always go
+  through `wfdos_common`, never re-instantiate clients per agent.
+
+If a piece of logic feels generic enough that a second agent
+would want it, it belongs in `wfdos-common`, not the agent.
+
+=============================================================
+
 ## Project Overview
 
 WFD OS is CFA's internal agent-first platform for managing the
