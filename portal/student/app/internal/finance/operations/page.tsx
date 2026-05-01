@@ -1,3 +1,4 @@
+import { headers } from "next/headers"
 import FinanceClient from "./finance-client"
 
 // Server component wrapper. Fetches initial dashboard state from the
@@ -44,13 +45,23 @@ export interface ComplianceFlag {
 
 // Server-side fetch helper. The grant-compliance API has no /api prefix
 // on its routes (unlike consulting_api etc.) — routes are at /grants,
-// /transactions, /qb/status, etc. We hit localhost:8000 directly at
-// request time.
-const GC_API = "http://localhost:8000"
+// /transactions, /qb/status, etc. We hit localhost:8014 directly at
+// request time (matches Procfile + the /api/grant-compliance/* rewrite
+// in next.config.mjs).
+const GC_API = "http://localhost:8014"
 
 async function fetchJson<T>(path: string): Promise<T | null> {
   try {
-    const r = await fetch(`${GC_API}${path}`, { cache: "no-store" })
+    // Forward the user's session cookie — direct localhost fetch bypasses
+    // the Next.js rewrite proxy that would otherwise carry it, so without
+    // this grant-compliance's auth-gated routes return 401. Forward the
+    // raw header verbatim — cookies().toString() mangles the JSON-encoded
+    // wfdos_session value.
+    const cookieHeader = (await headers()).get("cookie")
+    const r = await fetch(`${GC_API}${path}`, {
+      cache: "no-store",
+      headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
+    })
     if (!r.ok) {
       console.error(`[Finance page] GET ${path} -> HTTP ${r.status}`)
       return null

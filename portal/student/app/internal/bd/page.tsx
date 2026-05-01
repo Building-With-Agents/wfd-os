@@ -16,6 +16,7 @@
 // See CLAUDE.md "Standing rule — Portal pages that show live data" for
 // the full rationale and checklist.
 
+import { headers } from "next/headers"
 import BDClient from "./bd-client"
 
 // Force dynamic rendering. This page fetches from localhost APIs on every
@@ -29,7 +30,16 @@ const BD_API_BASE = "http://localhost:8003/api/consulting/bd"
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
-    const r = await fetch(url, { cache: "no-store" })
+    // Forward the user's session cookie — direct localhost fetch bypasses
+    // the Next.js rewrite proxy that would otherwise carry it, so without
+    // this consulting-api's @read_only routes return 401. Forward the
+    // raw header verbatim — cookies().toString() mangles the JSON-encoded
+    // wfdos_session value.
+    const cookieHeader = (await headers()).get("cookie")
+    const r = await fetch(url, {
+      cache: "no-store",
+      headers: cookieHeader ? { Cookie: cookieHeader } : undefined,
+    })
     if (!r.ok) {
       console.error(`[BD page] ${url} -> HTTP ${r.status}`)
       return null

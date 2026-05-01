@@ -29,8 +29,25 @@ function base(): string {
   return typeof window === "undefined" ? SERVER_BASE : CLIENT_BASE
 }
 
+// On the server we must forward the user's session cookie ourselves —
+// fetch() to 127.0.0.1 bypasses the Next.js rewrite proxy that would
+// otherwise carry it. We forward the *raw* incoming Cookie header
+// verbatim rather than round-tripping through cookies().toString(),
+// because the wfdos_session value contains JSON braces + commas that
+// don't round-trip cleanly through Next's cookie serializer.
+// Dynamic import keeps `next/headers` out of the client bundle
+// (recruiting client components import from this module).
+async function ssrCookieHeader(): Promise<string | null> {
+  if (typeof window !== "undefined") return null
+  const { headers } = await import("next/headers")
+  return (await headers()).get("cookie") || null
+}
+
 async function getJSON<T>(path: string): Promise<T> {
-  const r = await fetch(`${base()}${path}`, { cache: "no-store" })
+  const opts: RequestInit = { cache: "no-store" }
+  const cookie = await ssrCookieHeader()
+  if (cookie) opts.headers = { Cookie: cookie }
+  const r = await fetch(`${base()}${path}`, opts)
   if (!r.ok) throw new Error(`GET ${path} -> HTTP ${r.status}`)
   return (await r.json()) as T
 }
@@ -104,9 +121,12 @@ export function fetchApplications(filters: ApplicationsFilters, limit = 500): Pr
 }
 
 export async function postApplication(body: CreateApplicationBody): Promise<ApplicationRow> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  const cookie = await ssrCookieHeader()
+  if (cookie) headers.Cookie = cookie
   const r = await fetch(`${base()}/applications`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
     cache: "no-store",
   })

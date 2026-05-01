@@ -24,11 +24,27 @@ function base(): string {
   return typeof window === "undefined" ? SERVER_BASE : CLIENT_BASE
 }
 
+// On the server we must forward the user's session cookie ourselves —
+// fetch() to 127.0.0.1 bypasses the Next.js rewrite proxy that would
+// otherwise carry it. We forward the *raw* incoming Cookie header
+// verbatim rather than round-tripping through cookies().toString(),
+// because the wfdos_session value contains JSON braces + commas that
+// don't round-trip cleanly through Next's cookie serializer.
+// Dynamic import keeps `next/headers` out of the client bundle
+// (cockpit-client.tsx imports from this module).
+async function ssrCookieHeader(): Promise<string | null> {
+  if (typeof window !== "undefined") return null
+  const { headers } = await import("next/headers")
+  return (await headers()).get("cookie") || null
+}
+
 async function getJSON<T>(path: string, init?: RequestInit): Promise<T> {
-  const r = await fetch(`${base()}${path}`, {
-    cache: "no-store",
-    ...init,
-  })
+  const opts: RequestInit = { cache: "no-store", ...init }
+  const cookie = await ssrCookieHeader()
+  if (cookie) {
+    opts.headers = { ...(opts.headers as Record<string, string> | undefined), Cookie: cookie }
+  }
+  const r = await fetch(`${base()}${path}`, opts)
   if (!r.ok) {
     throw new Error(`GET ${path} -> HTTP ${r.status}`)
   }
@@ -60,10 +76,10 @@ export function fetchDrill(drillKey: string): Promise<DrillEntry> {
 }
 
 export async function postRefresh(): Promise<CockpitStatusPayload> {
-  const r = await fetch(`${base()}/cockpit/refresh`, {
-    method: "POST",
-    cache: "no-store",
-  })
+  const opts: RequestInit = { method: "POST", cache: "no-store" }
+  const cookie = await ssrCookieHeader()
+  if (cookie) opts.headers = { Cookie: cookie }
+  const r = await fetch(`${base()}/cockpit/refresh`, opts)
   if (!r.ok) throw new Error(`POST /cockpit/refresh -> HTTP ${r.status}`)
   return (await r.json()) as CockpitStatusPayload
 }
