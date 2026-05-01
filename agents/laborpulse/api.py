@@ -80,12 +80,8 @@ app.add_middleware(
 )
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://platform.thewaifinder.com",
-        "https://talent.borderplexwfs.org",
-    ],
+    allow_origins=settings.platform.allowed_origins,
+    allow_origin_regex=settings.platform.allowed_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],

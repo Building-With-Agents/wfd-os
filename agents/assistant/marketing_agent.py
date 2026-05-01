@@ -7,31 +7,23 @@ company_scores (recommended_content), marketing_leads.
 from __future__ import annotations
 import os
 import re
-import sys
 import json
 from datetime import datetime, timezone
 
-import psycopg2
-import psycopg2.extras
 import google.generativeai as genai
 
+from agents.assistant._db import _conn, _execute, _query
 from agents.assistant.base import BaseAgent, Tool
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-try:
-    from pgconfig import PG_CONFIG
-except Exception:
-    PG_CONFIG = {
-        "host": "127.0.0.1",
-        "database": "wfd_os",
-        "user": "postgres",
-        "password": os.getenv("PG_PASSWORD", "wfdos2026"),
-        "port": 5432,
-    }
+from wfdos_common.config import settings
 
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 if os.getenv("GEMINI_API_KEY"):
     genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+# Portal base URL drives the published-blog live_url returned by the
+# update_blog_content tool. Settings default is the local Next.js dev
+# server; CLIENT_PORTAL_BASE_URL overrides for prod / preview deploys.
+_PORTAL_BASE_URL = settings.platform.portal_base_url
 
 
 SYSTEM_PROMPT = """You are Jessica's Marketing Assistant for Waifinder.
@@ -76,41 +68,6 @@ replace a blog post, follow this exact flow:
 
 Never invent slugs. If unsure which article Jessica means, ask her to confirm
 the URL."""
-
-
-def _conn():
-    return psycopg2.connect(**PG_CONFIG)
-
-
-def _query(sql, params=None):
-    conn = _conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    try:
-        cur.execute(sql, params or ())
-        rows = [dict(r) for r in cur.fetchall()]
-        for r in rows:
-            for k, v in r.items():
-                if isinstance(v, datetime):
-                    r[k] = v.isoformat()
-        return rows
-    finally:
-        conn.close()
-
-
-def _execute(sql, params=None):
-    conn = _conn()
-    cur = conn.cursor()
-    try:
-        cur.execute(sql, params or ())
-        result_id = None
-        try:
-            result_id = cur.fetchone()
-        except Exception:
-            pass
-        conn.commit()
-        return result_id[0] if result_id else cur.rowcount
-    finally:
-        conn.close()
 
 
 # ============================================================
@@ -481,7 +438,7 @@ def _update_blog_content(slug: str, new_body: str, update_date: bool = False) ->
             "ok": True,
             "slug": safe,
             "file_path": file_path,
-            "live_url": f"http://localhost:3000/resources/blog/{safe}",
+            "live_url": f"{_PORTAL_BASE_URL.rstrip('/')}/resources/blog/{safe}",
             "bytes_written": len(new_raw.encode("utf-8")),
         }
     except Exception as e:

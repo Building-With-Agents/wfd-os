@@ -34,6 +34,10 @@ from typing import Optional
 
 import google.generativeai as genai
 
+from wfdos_common.logging import get_logger
+
+log = get_logger(__name__)
+
 # Repo root on sys.path so `agents.*` imports resolve when this module
 # is loaded via uvicorn from various cwds. Mirrors cockpit_api's setup.
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -395,10 +399,12 @@ def generate_verdict(
     try:
         parsed, usage = _call_llm(prompt_text)
         # Cost-awareness log — no prompt text, no verdict text.
-        print(
-            f"[verdict] LLM call model={usage['model']} "
-            f"in={usage['input_tokens']} out={usage['output_tokens']} "
-            f"latency_ms={usage['latency_ms']}"
+        log.info(
+            "agents.finance.verdict.llm_call",
+            model=usage["model"],
+            input_tokens=usage["input_tokens"],
+            output_tokens=usage["output_tokens"],
+            latency_ms=usage["latency_ms"],
         )
         headline = str(parsed.get("headline", "")).strip()
         body = str(parsed.get("body", "")).strip()
@@ -412,7 +418,11 @@ def generate_verdict(
             "source": "llm",
         }
     except Exception as exc:  # noqa: BLE001 — intentional catch-all
-        print(f"[verdict] LLM call failed: {exc}; using data-driven fallback")
+        log.warning(
+            "agents.finance.verdict.llm_failed",
+            error=str(exc),
+            fallback="data_driven",
+        )
         verdict = _data_driven_fallback(stats, dimensions, tone, now_iso)
 
     _cache_put(key, verdict)

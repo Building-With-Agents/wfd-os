@@ -34,7 +34,7 @@
 
 - **Finance cockpit Phase 1A–2E (pre-Phase A, ~23 commits)**: `agents/finance/`, `portal/student/app/internal/finance/`, `portal/student/app/internal/recruiting/`, `portal/student/app/internal/_shared/`, `agents/job_board/` (api.py, data_source.py), job_board migration 011.
 - **Phase A (Cohort 1 data setup, 3 commits)**: `scripts/014-tenants-seed.sql` (tenants table + tenant_id on 5 tables), `scripts/phase_a_fetch_sharepoint_resumes.py`, `scripts/phase_a_parse_cohort1_resumes.py`, `scripts/phase_a_ingest_elpaso_jobs.py`, `.gitignore` additions.
-- **Phase B (matching, 6 commits)**: `scripts/016-cohort-matches.sql`, `scripts/phase_b_task[1–6]_*.py`, `docs/cohort1_placement_report.md`. Added `agents/assistant/api.py` registry entries for bd_agent/marketing_agent/finance_agent (pre-dates my Phase A work — part of Phase 2G/integrate work that was on this branch already).
+- **Phase B (matching, 6 commits)**: `scripts/016-cohort-matches.sql`, `scripts/phase_b_task[1–6]_*.py`, `docs/reports/cohort1_placement_2026-04-21.md`. Added `agents/assistant/api.py` registry entries for bd_agent/marketing_agent/finance_agent (pre-dates my Phase A work — part of Phase 2G/integrate work that was on this branch already).
 
 ### Gary's 39 commits (in theme order)
 

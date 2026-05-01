@@ -229,20 +229,8 @@ export default function BDCommandCenter(props: BDClientProps) {
   // id so callers can force a fresh session (for pill clicks) or continue the
   // existing session (for typed follow-ups). See sendMessage / sendPill below
   // for the two public wrappers.
-  //
-  // Diagnostic logging is emitted under the [BD chat] prefix so we can
-  // debug pill-click issues through the browser DevTools console on both
-  // localhost and ngrok. If a user reports "nothing happens when I click
-  // a pill", they can open F12 → Console, filter for "BD chat", click a
-  // pill, and see which step (fetch start / fetch end / error) fires.
   const sendMessageWithSession = async (msg: string, sessionOverride: string | null) => {
     if (!msg.trim()) return
-
-    console.log("[BD chat] sendMessageWithSession start", {
-      msg,
-      sessionOverride,
-      origin: typeof window !== "undefined" ? window.location.origin : "(ssr)",
-    })
 
     // If starting a fresh session, clear prior messages so the user sees a
     // clean chat panel. Prior Gemini contexts were poisoning responses —
@@ -261,7 +249,6 @@ export default function BDCommandCenter(props: BDClientProps) {
       // Use apiFetch so the ngrok-skip-browser-warning header is applied —
       // this lets remote reviewers (via ngrok tunnel) reach the assistant API
       // without being intercepted by the ngrok free-tier interstitial page.
-      console.log("[BD chat] POST", `${ASSISTANT_API}/chat`)
       const res = await apiFetch(`${ASSISTANT_API}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -271,11 +258,6 @@ export default function BDCommandCenter(props: BDClientProps) {
           session_id: sessionOverride,
           user_role: "jason",
         }),
-      })
-      console.log("[BD chat] POST response", {
-        status: res.status,
-        ok: res.ok,
-        contentType: res.headers.get("content-type"),
       })
 
       // If we got a non-JSON response (e.g. ngrok interstitial HTML), surface
@@ -292,11 +274,6 @@ export default function BDCommandCenter(props: BDClientProps) {
       }
 
       const data = await res.json()
-      console.log("[BD chat] parsed response", {
-        hasResponse: !!data.response,
-        sessionId: data.session_id,
-        suggestionsCount: (data.suggestions || []).length,
-      })
       setMessages(prev => [...prev, { role: "assistant", content: data.response || "(no response)" }])
       if (data.session_id) setSessionId(data.session_id)
       // Update suggestion pills from the agent's extract_suggestions override.

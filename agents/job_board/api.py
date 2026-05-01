@@ -70,14 +70,15 @@ except ImportError:  # pragma: no cover
 
 from agents.job_board.data_source import DataSource, default_source  # noqa: E402
 from agents.job_board import match_narrative as mn  # noqa: E402
+from wfdos_common.config import settings  # noqa: E402
 
 
 app = FastAPI(title="WFD OS Recruiting API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+    allow_origins=settings.platform.allowed_origins,
+    allow_origin_regex=settings.platform.allowed_origin_regex,
     allow_methods=["*"],
     allow_headers=["*"],
 )

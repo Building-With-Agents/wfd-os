@@ -8,29 +8,14 @@ Never sends emails or contacts prospects directly — drafts only.
 """
 from __future__ import annotations
 import os
-import sys
 import json
 import re
 from datetime import datetime, timezone
 
-import psycopg2
-import psycopg2.extras
 import google.generativeai as genai
 
+from agents.assistant._db import _conn, _execute, _query
 from agents.assistant.base import BaseAgent, Tool
-
-# Import shared db config
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../scripts"))
-try:
-    from pgconfig import PG_CONFIG
-except Exception:
-    PG_CONFIG = {
-        "host": "127.0.0.1",
-        "database": "wfd_os",
-        "user": "postgres",
-        "password": os.getenv("PG_PASSWORD", "wfdos2026"),
-        "port": 5432,
-    }
 
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 if os.getenv("GEMINI_API_KEY"):
@@ -152,37 +137,6 @@ Other tool routing:
 - "Generate a LinkedIn note for <company>" → find_company_by_name THEN generate_linkedin_note
 - "Draft an opening line for <company>" → find_company_by_name THEN generate_email_opening
 - "Who at <company> should I contact?" → find_company_by_name THEN get_prospect_details"""
-
-
-def _conn():
-    return psycopg2.connect(**PG_CONFIG)
-
-
-def _query(sql, params=None):
-    """Run a SELECT and return list of dicts."""
-    conn = _conn()
-    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    try:
-        cur.execute(sql, params or ())
-        rows = [dict(r) for r in cur.fetchall()]
-        for r in rows:
-            for k, v in r.items():
-                if isinstance(v, datetime):
-                    r[k] = v.isoformat()
-        return rows
-    finally:
-        conn.close()
-
-
-def _execute(sql, params=None):
-    conn = _conn()
-    cur = conn.cursor()
-    try:
-        cur.execute(sql, params or ())
-        conn.commit()
-        return cur.rowcount
-    finally:
-        conn.close()
 
 
 # ============================================================

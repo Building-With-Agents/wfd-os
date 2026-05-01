@@ -1252,11 +1252,11 @@ class ChatMessage(BaseModel):
 
 @app.post("/api/student/{student_id}/chat")
 def chat(student_id: str, msg: ChatMessage):
-    """Route to the Student Agent (Gemini Flash) on port 8009."""
+    """Route to the Student Agent (Gemini Flash) on the assistant service."""
     import httpx
     try:
         r = httpx.post(
-            "http://localhost:8009/api/assistant/chat",
+            f"{settings.platform.assistant_api_base_url.rstrip('/')}/api/assistant/chat",
             json={
                 "session_id": f"student-{student_id}",
                 "agent_type": "student",

@@ -37,6 +37,9 @@ import psycopg2.extras
 # Pre-#27 this file had sys.path.insert hacks; the monorepo root pyproject.toml
 # (#27) now exposes `agents.*` as a namespace package.
 from wfdos_common.config import PG_CONFIG, settings
+from wfdos_common.logging import get_logger
+
+log = get_logger(__name__)
 
 # Configure Gemini once at module level (replaced by wfdos_common.llm in #20).
 genai.configure(api_key=settings.llm.gemini_api_key)
@@ -264,7 +267,13 @@ def _save_session(
 # ---------------------------------------------------------------------------
 
 def _ensure_unique_index():
-    """Create unique index if missing (idempotent)."""
+    """Create unique index if missing (idempotent).
+
+    A failure here means agent_conversations upserts will go through
+    the slower fallback path — the agent still works, but session-id
+    collisions become possible. Log so the error is visible without
+    breaking module import.
+    """
     try:
         conn = _get_conn()
         cur = conn.cursor()
@@ -275,7 +284,10 @@ def _ensure_unique_index():
         conn.commit()
         conn.close()
     except Exception:
-        pass
+        log.warning(
+            "agents.assistant.base.ensure_unique_index_failed",
+            exc_info=True,
+        )
 
 _ensure_unique_index()
 
@@ -489,14 +501,24 @@ class BaseAgent:
             for fc in function_calls:
                 tool_name = fc.name
                 tool_args = dict(fc.args) if fc.args else {}
-                print(f"[AGENT:{self.agent_type}] Tool call: {tool_name}({tool_args})")
+                log.info(
+                    "agents.assistant.tool_call",
+                    agent_type=self.agent_type,
+                    tool_name=tool_name,
+                    tool_args=tool_args,
+                )
 
                 if tool_name in self._tool_map:
                     result_str = self._tool_map[tool_name].execute(**tool_args)
                 else:
                     result_str = json.dumps({"error": f"Unknown tool: {tool_name}"})
 
-                print(f"[AGENT:{self.agent_type}] Tool result: {result_str[:200]}...")
+                log.info(
+                    "agents.assistant.tool_result",
+                    agent_type=self.agent_type,
+                    tool_name=tool_name,
+                    result_preview=result_str[:200],
+                )
                 tool_responses.append(
                     genai.protos.Part(
                         function_response=genai.protos.FunctionResponse(

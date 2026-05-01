@@ -84,7 +84,10 @@ wfd-os wants:
 | 8008 | marketing-api |
 | 8009 | assistant-api |
 | 8010 | apollo-api |
-| 8012 | laborpulse-api |
+| 8012 | recruiting-api (job_board) |
+| 8013 | cockpit-api (finance) |
+| 8014 | grant-compliance-api |
+| 8015 | laborpulse-api |
 
 **Known conflict**: JIE's `langfuse-server` Docker container binds
 `:3000` by default. If you run JIE locally:
@@ -105,7 +108,7 @@ Quick probe:
 
 ```bash
 # What's listening where
-netstat -ano -p tcp | grep LISTENING | grep -E ":(3000|3001|5432|8000|8003|8012) "
+netstat -ano -p tcp | grep LISTENING | grep -E ":(3000|3001|5432|8000|8003|8012|8013|8014|8015) "
 ```
 
 ---
@@ -116,10 +119,11 @@ netstat -ano -p tcp | grep LISTENING | grep -E ":(3000|3001|5432|8000|8003|8012)
 # PATH fix if honcho isn't installed globally (Windows):
 export PATH="/c/Users/<you>/AppData/Local/Python/pythoncore-3.14-64/Scripts:$PATH"
 
-# The full stack — 10 FastAPI services + Next.js portal on :3000.
+# The full stack — 13 FastAPI services + Next.js portal on :3000.
 honcho start reporting-api student-api showcase-api consulting-api \
               college-api wji-api marketing-api assistant-api \
-              apollo-api laborpulse-api portal
+              apollo-api recruiting-api cockpit-api \
+              grant-compliance-api laborpulse-api portal
 ```
 
 Wait ~15–25s for Next.js to compile on first boot. Subsequent runs

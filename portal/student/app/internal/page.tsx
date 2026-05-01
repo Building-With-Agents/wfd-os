@@ -358,7 +358,6 @@ export default function InternalDashboard() {
     if (result?.scoping_triggered) {
       // Agent is now running in the background on the API server.
       // Kanban will auto-refresh every 30s and show status move to 'scoped' on success.
-      console.log(`[SCOPING] Agent fired for inquiry ${id}`)
     }
     loadData()
   }

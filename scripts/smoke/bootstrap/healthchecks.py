@@ -1,5 +1,5 @@
-"""Hit /api/health on every wfd-os service port and confirm the
-response shape. Catches a service that failed to boot.
+"""Hit the health endpoint on every wfd-os service port and confirm
+the response shape. Catches a service that failed to boot.
 
 Ports match the Procfile layout:
     8000 reporting-api
@@ -11,7 +11,15 @@ Ports match the Procfile layout:
     8008 marketing-api
     8009 assistant-api
     8010 apollo-api
-    8012 laborpulse-api
+    8012 recruiting-api (job_board)
+    8013 cockpit-api (finance)
+    8014 grant-compliance-api
+    8015 laborpulse-api
+
+Services mount their health endpoint either under /api/health (the
+older portal-API convention) or at /health (the newer single-service
+convention). Each row below carries its path so this script doesn't
+need to assume.
 """
 
 from __future__ import annotations
@@ -26,16 +34,20 @@ from _common import build_parser, fail, ok  # noqa: E402
 
 
 SERVICES = [
-    ("reporting", 8000),
-    ("student", 8001),
-    ("showcase", 8002),
-    ("consulting", 8003),
-    ("college", 8004),
-    ("wji", 8007),
-    ("marketing", 8008),
-    ("assistant", 8009),
-    ("apollo", 8010),
-    ("laborpulse", 8012),
+    # name, port, path
+    ("reporting", 8000, "/api/health"),
+    ("student", 8001, "/api/health"),
+    ("showcase", 8002, "/api/health"),
+    ("consulting", 8003, "/api/health"),
+    ("college", 8004, "/api/health"),
+    ("wji", 8007, "/api/health"),
+    ("marketing", 8008, "/api/health"),
+    ("assistant", 8009, "/api/health"),
+    ("apollo", 8010, "/api/health"),
+    ("recruiting", 8012, "/health"),
+    ("cockpit", 8013, "/health"),
+    ("grant-compliance", 8014, "/health"),
+    ("laborpulse", 8015, "/api/health"),
 ]
 
 
@@ -58,26 +70,30 @@ def main() -> None:
     passes = 0
 
     with httpx.Client(timeout=5, follow_redirects=False) as client:
-        for name, port in SERVICES:
+        for name, port, path in SERVICES:
             if only is not None and name not in only:
                 continue
-            url = f"http://{args.host}:{port}/api/health"
+            url = f"http://{args.host}:{port}{path}"
             try:
                 resp = client.get(url)
                 if resp.status_code != 200:
                     failures.append((name, port, f"status {resp.status_code}"))
-                    print(f"  {name:<12} :{port}  FAIL ({resp.status_code})")
+                    print(f"  {name:<16} :{port}  FAIL ({resp.status_code})")
                     continue
                 body = resp.json()
-                if body.get("status") != "ok":
-                    failures.append((name, port, f"status != ok: {body}"))
-                    print(f"  {name:<12} :{port}  FAIL (body)")
+                # Two health-body conventions in the stack:
+                #   {"status": "ok"}   — older portal APIs
+                #   {"ok": true, ...}  — cockpit / grant-compliance / etc.
+                healthy = body.get("status") == "ok" or body.get("ok") is True
+                if not healthy:
+                    failures.append((name, port, f"unhealthy body: {body}"))
+                    print(f"  {name:<16} :{port}  FAIL (body)")
                     continue
                 passes += 1
-                print(f"  {name:<12} :{port}  OK")
+                print(f"  {name:<16} :{port}  OK")
             except httpx.RequestError as e:
                 failures.append((name, port, type(e).__name__))
-                print(f"  {name:<12} :{port}  FAIL ({type(e).__name__})")
+                print(f"  {name:<16} :{port}  FAIL ({type(e).__name__})")
 
     if failures:
         fail(f"{len(failures)} service(s) unhealthy: {failures}")

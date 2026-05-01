@@ -1,0 +1,39 @@
+# agents/finance — CFA Finance Cockpit API.
+#
+# FastAPI service on :8013 that powers /internal/finance in the portal.
+# Reads grant budget + reconciliation fixtures via cockpit_data.py
+# (Excel today via openpyxl; QuickBooks later via the data_source
+# abstraction). Generates per-tab verdicts and per-drill discussion
+# prompts; the verdict path is LLM-gated and uses Gemini.
+#
+# Source imports (`agents.finance.*`) resolve via the monorepo root
+# install (#27). This file declares runtime deps for deployment
+# isolation; the standalone Docker image installs these instead of
+# pulling the full root [dev] aggregate.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wfdos-finance"
+version = "0.0.1"
+description = "CFA Finance Cockpit — grant runway, placements, audit + reconciliation surface for /internal/finance."
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+    "wfdos-common",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "pydantic>=2.5",
+    "python-dotenv>=1.0",
+    # openpyxl reads the K8341 fixtures + audit / reconciliation
+    # spreadsheets via cockpit_data.py / data_source.py.
+    "openpyxl>=3.1",
+    # Gemini powers verdict_generator's three-layer fallback.
+    "google-generativeai>=0.8",
+]
+
+[tool.setuptools]
+py-modules = []
+packages = []

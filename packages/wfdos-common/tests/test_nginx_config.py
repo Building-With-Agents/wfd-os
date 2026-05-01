@@ -204,9 +204,44 @@ def test_laborpulse_rate_limit_zone_defined(conf_text: str):
     )
 
 
-def test_laborpulse_upstream_on_port_8012(conf_text: str):
+def test_laborpulse_upstream_on_port_8015(conf_text: str):
+    # LaborPulse moved off :8012 when the recruiting (job_board) service
+    # claimed that port; see Procfile + next.config.mjs port reconciliation.
     assert re.search(
-        r"upstream\s+wfdos_laborpulse_api\s*\{[^}]*127\.0\.0\.1:8012",
+        r"upstream\s+wfdos_laborpulse_api\s*\{[^}]*127\.0\.0\.1:8015",
+        conf_text,
+        flags=re.DOTALL,
+    )
+
+
+def test_recruiting_upstream_on_port_8012(conf_text: str):
+    assert re.search(
+        r"upstream\s+wfdos_recruiting_api\s*\{[^}]*127\.0\.0\.1:8012",
+        conf_text,
+        flags=re.DOTALL,
+    )
+
+
+def test_cockpit_upstream_on_port_8013(conf_text: str):
+    assert re.search(
+        r"upstream\s+wfdos_cockpit_api\s*\{[^}]*127\.0\.0\.1:8013",
+        conf_text,
+        flags=re.DOTALL,
+    )
+
+
+def test_grant_compliance_upstream_on_port_8014(conf_text: str):
+    assert re.search(
+        r"upstream\s+wfdos_grant_compliance_api\s*\{[^}]*127\.0\.0\.1:8014",
+        conf_text,
+        flags=re.DOTALL,
+    )
+
+
+def test_wji_upstream_on_port_8007(conf_text: str):
+    # Procfile says wji-api uses :8007; nginx had drifted to :8006.
+    assert re.search(
+        r"upstream\s+wfdos_wji_api\s*\{[^}]*127\.0\.0\.1:8007",
         conf_text,
         flags=re.DOTALL,
     )

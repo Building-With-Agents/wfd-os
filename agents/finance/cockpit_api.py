@@ -61,6 +61,24 @@ from agents.finance.audit_dimension_display import display_name_for_role  # noqa
 from agents.finance.data_source import DataSource, default_source  # noqa: E402
 from agents.finance.discussion_prompts import generate_discussion_prompts  # noqa: E402
 from agents.finance.verdict_generator import generate_verdict  # noqa: E402
+from wfdos_common.auth import (  # noqa: E402
+    SessionMiddleware,
+    llm_gated,
+    public,
+    read_only,
+)
+from wfdos_common.config import settings  # noqa: E402
+from wfdos_common.errors import install_error_handlers  # noqa: E402
+from wfdos_common.logging import (  # noqa: E402
+    RequestContextMiddleware,
+    configure as configure_logging,
+    get_logger,
+)
+from wfdos_common.tenancy import TenantResolutionMiddleware  # noqa: E402
+
+
+configure_logging(service_name="cockpit-api")
+log = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -69,23 +87,41 @@ from agents.finance.verdict_generator import generate_verdict  # noqa: E402
 
 app = FastAPI(title="CFA Finance Cockpit API", version="0.2.0")
 
-# Every /api/finance/* request from the portal (Next.js dev server on :3000,
-# or whatever auto-port it grabbed) gets proxied here. Allow both the stable
-# localhost and the 127.0.0.1 form; wildcard * is unsafe for this kind of
+# Cockpit is internal-only — the four staff roles in CLAUDE.md ("Users:
+# Ritu, Gary, Krista, Bethany, Leslie, Jason, Jessica") all map to the
+# `staff` tier; admin is included so platform owners can read it too.
+_ALLOWED_ROLES = ("staff", "admin")
+
+# Middleware order matches the laborpulse template: request-context first
+# (so all downstream logs + envelopes pick up request_id), then tenancy
+# (populates request.state.tenant_id), then session (populates
+# request.state.user), then CORS last so the preflight response still
+# carries request-id headers.
+app.add_middleware(RequestContextMiddleware)
+app.add_middleware(
+    TenantResolutionMiddleware,
+    default_tenant_id=settings.tenancy.default_tenant_id,
+)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.auth.secret_key,
+    cookie_name=settings.auth.cookie_name,
+    max_age_seconds=settings.auth.session_ttl_seconds,
+)
+
+# Every /api/finance/* request from the portal (Next.js dev server, or
+# whatever auto-port it grabbed) gets proxied here. Origins + regex both
+# come from settings.platform — wildcard * stays unsafe for this kind of
 # finance-data surface.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        # When the dev server picks a non-3000 auto-port, the browser still
-        # reports its own origin — list a few common local variants. The
-        # regex below catches the auto-port case without opening up to *.
-    ],
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1):\d+",
+    allow_origins=settings.platform.allowed_origins,
+    allow_origin_regex=settings.platform.allowed_origin_regex,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+install_error_handlers(app)
 
 
 @app.middleware("http")
@@ -94,10 +130,12 @@ async def log_requests(request: Request, call_next):
     t0 = time.perf_counter()
     response = await call_next(request)
     dur_ms = (time.perf_counter() - t0) * 1000
-    print(
-        f"[cockpit_api] {request.method} {request.url.path} "
-        f"-> {response.status_code} | {dur_ms:.1f}ms",
-        flush=True,
+    log.info(
+        "cockpit_api.request",
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        duration_ms=round(dur_ms, 1),
     )
     return response
 
@@ -157,12 +195,14 @@ def _priority_tone(priority: str) -> str:
 # ---------------------------------------------------------------------------
 
 @app.get("/health")
+@public
 def health():
     return {"ok": True, "service": "cockpit_api", "version": app.version}
 
 
 @app.get("/cockpit/status")
-def status():
+@read_only(roles=_ALLOWED_ROLES)
+def status(request: Request):
     """Metadata the top bar + refresh-timestamp + tab-count badges read."""
     data = _data()
     summary = data["summary"]
@@ -189,7 +229,8 @@ def status():
 
 
 @app.get("/cockpit/hero")
-def hero():
+@read_only(roles=_ALLOWED_ROLES)
+def hero(request: Request):
     """Four hero cells — same data the cockpit-client renders up top."""
     data = _data()
     summary = data["summary"]
@@ -248,7 +289,8 @@ def hero():
 
 
 @app.get("/cockpit/decisions")
-def decisions():
+@read_only(roles=_ALLOWED_ROLES)
+def decisions(request: Request):
     """Decision list — 11 items today, sorted by priority then stable order."""
     data = _data()
     source = "v3 Reconciliation · Action Items (2026-03-27)"
@@ -272,7 +314,8 @@ def decisions():
 
 
 @app.get("/cockpit/activity")
-def cockpit_activity():
+@read_only(roles=_ALLOWED_ROLES)
+def cockpit_activity(request: Request):
     """Rendered Recent Compliance Activity feed.
 
     Reads from data["audit_activity_from_engine"] (populated by
@@ -296,8 +339,14 @@ def cockpit_activity():
 # ---- Tab content ----------------------------------------------------------
 
 @app.get("/cockpit/tabs/{tab_id}")
-def tab_content(tab_id: str):
-    """Per-tab slice of cockpit data. Only the fields the tab renders."""
+@llm_gated(roles=_ALLOWED_ROLES)
+def tab_content(tab_id: str, request: Request):
+    """Per-tab slice of cockpit data. Only the fields the tab renders.
+
+    The reporting/audit/compliance tabs invoke generate_verdict() which
+    issues an LLM call — that's why this endpoint is @llm_gated rather
+    than @read_only.
+    """
     data = _data()
     handler = _TAB_HANDLERS.get(tab_id)
     if handler is None:
@@ -654,7 +703,8 @@ _TAB_HANDLERS = {
 # ---- Drills --------------------------------------------------------------
 
 @app.get("/cockpit/drills/{drill_key:path}")
-def drill(drill_key: str):
+@read_only(roles=_ALLOWED_ROLES)
+def drill(drill_key: str, request: Request):
     """Polymorphic drill content. Lookup into the registry built by
     build_drills(). The :path converter lets keys like
     'category:GJC Contractors — Training Providers' route cleanly.
@@ -678,10 +728,11 @@ def drill(drill_key: str):
 # ---- Refresh -------------------------------------------------------------
 
 @app.post("/cockpit/refresh")
-def refresh():
+@read_only(roles=_ALLOWED_ROLES)
+def refresh(request: Request):
     """Force re-read from the data source. Returns the new status."""
     _SOURCE.refresh()
-    return status()
+    return status(request)
 
 
 # ---------------------------------------------------------------------------
