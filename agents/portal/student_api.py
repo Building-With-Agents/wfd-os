@@ -16,7 +16,7 @@ import json
 import os
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, Response, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2
@@ -27,9 +27,6 @@ import numpy as np
 from wfdos_common.auth import (
     SessionMiddleware,
     build_auth_router,
-    Session,
-    issue_session,
-    resolve_role,
 )
 from wfdos_common.config import settings
 from wfdos_common.errors import NotFoundError, install_error_handlers
@@ -59,69 +56,14 @@ app.add_middleware(
 install_error_handlers(app)
 
 # -----------------------------------------------------------------------------
-# Auth — Gary's Phase 4 magic-link flow + a dev-only instant sign-in shortcut.
-# Student Portal API is chosen as the host because (a) it's already running with
-# SessionMiddleware mounted and (b) the allowlist-driven role resolution lives
-# here naturally. Session cookies issued here work across every service sharing
-# settings.auth.secret_key (laborpulse, showcase, consulting_api, cockpit).
+# Auth — magic-link flow + dev-only instant sign-in shortcut. Both routes
+# are mounted by build_auth_router on every portal-facing service, so the
+# front-end's /auth/* rewrite works regardless of which backend it points
+# at. Session cookies are signed with settings.auth.secret_key and trusted
+# across all services that share it.
 # -----------------------------------------------------------------------------
 
 app.include_router(build_auth_router())
-
-
-@app.get("/auth/dev-login")
-def dev_login(email: str, response: Response):
-    """DEV ONLY: instant sign-in that skips the magic-link email step.
-
-    Gated by the `DEV_AUTH_BYPASS=1` env var — returns 404 otherwise, so
-    this endpoint is inert in any deploy where the flag isn't set. Uses
-    Gary's Session + issue_session + allowlist end-to-end; only the
-    email dispatch is skipped. The email MUST be on one of the four
-    WFDOS_AUTH_*_ALLOWLIST env vars (admin / staff / workforce_development
-    / student) — unallowlisted emails still 403 so dev-mode can't
-    promote arbitrary users.
-
-    Usage:
-        GET /auth/dev-login?email=ritu@computingforall.org
-    Returns JSON + Set-Cookie on the response. Hit it from the browser
-    once, then every other /api/... call on localhost:3000 carries the
-    session cookie automatically.
-
-    Remove or disable (DEV_AUTH_BYPASS != 1) before any prod deploy.
-    """
-    if os.environ.get("DEV_AUTH_BYPASS") != "1":
-        raise HTTPException(status_code=404, detail="Not found")
-
-    email_norm = email.strip().lower()
-    role = resolve_role(
-        email_norm,
-        admin_csv=settings.auth.admin_allowlist,
-        staff_csv=settings.auth.staff_allowlist,
-        student_csv=settings.auth.student_allowlist,
-        workforce_development_csv=settings.auth.workforce_development_allowlist,
-    )
-    if role is None:
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                f"{email_norm} is not on any WFDOS_AUTH_*_ALLOWLIST. "
-                "Add it to .env and restart the service."
-            ),
-        )
-
-    sess = Session(email=email_norm, role=role, tenant_id=None)
-    token = issue_session(sess, secret_key=settings.auth.secret_key)
-    response.set_cookie(
-        key=settings.auth.cookie_name,
-        value=token,
-        max_age=settings.auth.session_ttl_seconds,
-        httponly=True,
-        secure=False,  # dev — http://localhost
-        samesite="lax",
-        path="/",
-    )
-    log.info("auth.dev_login", email=email_norm, role=role)
-    return {"status": "ok", "email": email_norm, "role": role}
 
 
 # =============================================================================
