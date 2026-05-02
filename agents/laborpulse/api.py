@@ -43,6 +43,7 @@ from agents.laborpulse.client import query as jie_query
 from wfdos_common.auth import (
     Session,
     SessionMiddleware,
+    build_auth_router,
     llm_gated,
     require_role,
 )
@@ -91,6 +92,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 install_error_handlers(app)
+
+# Magic-link auth router (/auth/login, /auth/verify, /auth/logout, /auth/me).
+# Mounted here so local-dev scripts (scripts/dev-login.py) can mint a token
+# and point the browser at /auth/verify to get a real wfdos_session cookie
+# without manually setting test-headers in DevTools. After verify, the
+# browser redirects to the LaborPulse page directly.
+app.include_router(
+    build_auth_router(post_verify_redirect="/laborpulse"),
+)
 
 
 # ---------------------------------------------------------------------------
