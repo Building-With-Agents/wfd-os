@@ -33,7 +33,8 @@
 portal: cd portal/student && npm run dev -- --port 3000
 
 # FastAPI services (Python — via uvicorn module path)
-reporting-api: uvicorn agents.reporting.api:app --host 0.0.0.0 --port 8000
+# reporting-api moved off :8000 so local JIE Analytics API can bind :8020 (student-api already uses :8001).
+reporting-api: uvicorn agents.reporting.api:app --host 0.0.0.0 --port 8011
 student-api: uvicorn agents.portal.student_api:app --host 0.0.0.0 --port 8001
 showcase-api: uvicorn agents.portal.showcase_api:app --host 0.0.0.0 --port 8002
 consulting-api: uvicorn agents.portal.consulting_api:app --host 0.0.0.0 --port 8003

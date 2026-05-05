@@ -9,7 +9,7 @@ Endpoints:
   GET /api/gaps         - Skills gap analysis (demand vs supply)
   GET /api/jobs         - Top job titles and recent listings
 
-Run: uvicorn api:app --reload --port 8000
+Run: uvicorn api:app --reload --port 8011
 """
 from datetime import datetime, timezone
 from fastapi import FastAPI
@@ -51,7 +51,7 @@ def query_one(sql, params=None):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "service": "reporting-api", "port": 8000}
+    return {"status": "ok", "service": "reporting-api", "port": 8011}
 
 
 @app.get("/api/overview")
@@ -270,4 +270,4 @@ def job_listings_data():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8011)

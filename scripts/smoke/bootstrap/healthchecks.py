@@ -2,7 +2,7 @@
 response shape. Catches a service that failed to boot.
 
 Ports match the Procfile layout:
-    8000 reporting-api
+    8011 reporting-api
     8001 student-api
     8002 showcase-api
     8003 consulting-api
@@ -26,7 +26,7 @@ from _common import build_parser, fail, ok  # noqa: E402
 
 
 SERVICES = [
-    ("reporting", 8000),
+    ("reporting", 8011),
     ("student", 8001),
     ("showcase", 8002),
     ("consulting", 8003),

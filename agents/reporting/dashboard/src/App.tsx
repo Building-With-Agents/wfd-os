@@ -30,7 +30,7 @@ export default function App() {
         setGaps(g)
         setJobs(j)
       } catch (err: any) {
-        setError(`Failed to load data: ${err.message}. Is the API running on localhost:8000?`)
+          setError(`Failed to load data: ${err.message}. Is the API running on localhost:8011?`)
       } finally {
         setLoading(false)
       }
@@ -56,7 +56,7 @@ export default function App() {
           <h2 className="mb-2 text-lg font-semibold text-red-600">Connection Error</h2>
           <p className="text-sm text-slate-600">{error}</p>
           <p className="mt-4 text-xs text-slate-400">
-            Start the API: <code className="rounded bg-slate-100 px-2 py-1">uvicorn api:app --reload --port 8000</code>
+            Start the API: <code className="rounded bg-slate-100 px-2 py-1">uvicorn api:app --reload --port 8011</code>
           </p>
         </div>
       </div>
